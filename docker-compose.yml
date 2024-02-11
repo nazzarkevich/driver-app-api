@@ -1,0 +1,49 @@
+version: '3.8'
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    ports:
+      - 4001:3000
+    volumes:
+      - ./src:/app/src
+    env_file: .env
+    networks:
+      - driver-app-api
+    depends_on:
+      - db
+  
+  db:
+    image: postgres:16-alpine
+    restart: always
+    ports:
+      - '${POSTGRES_PORT}:${POSTGRES_PORT}'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      DATABASE_URL: ${DATABASE_URL}
+    env_file:
+      - .env
+    command: -p ${POSTGRES_PORT}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    networks:
+      - driver-app-api
+  
+  dbadmin:
+    image: dpage/pgadmin4
+    restart: always
+    ports:
+      - 5050:80
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    networks:
+      - driver-app-api
+
+networks:
+  driver-app-api:

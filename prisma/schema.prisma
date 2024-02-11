@@ -1,0 +1,206 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  Customer
+  Manager
+  InternationalDriver
+  ParcelCourier
+}
+
+enum Gender {
+  Male
+  Female
+}
+
+enum ParcelType {
+  Regular
+  Passport
+  Document
+  Money
+}
+
+enum DiscountType {
+  None
+  Percentage
+  FixedAmount
+  Referral
+  FirstTimePurchase
+}
+
+enum DeliveryStatus {
+  Initial
+  InProgress
+  Delivered
+}
+
+enum PaymentStatus {
+  NotPaid
+  PartiallyPaid
+  Paid
+}
+
+model DriverProfile {
+  id        Int       @id @default(autoincrement())
+  journeys  Journey[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User?
+}
+
+model User {
+  id                Int              @id @default(autoincrement())
+  auth0Id           String?          @unique
+  name              String
+  lastName          String
+  email             String           @unique
+  phoneNumberUa     String?
+  phoneNumberUk     String?
+  type              UserType         @default(Customer)
+  isBlocked         Boolean          @default(false)
+  gender            Gender
+  dateOfBirth       DateTime
+  isAdmin           Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  businessId        Int
+  business          Business         @relation(fields: [businessId], references: [id])
+  imageId           Int?
+  imageUrl          Image?           @relation(fields: [imageId], references: [id])
+  driverProfileId   Int?             @unique
+  driverProfile     DriverProfile?   @relation(fields: [driverProfileId], references: [id])
+  customerProfileId Int?             @unique
+  customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
+}
+
+model Business {
+  id               Int               @id @default(autoincrement())
+  name             String
+  users            User[]
+  vehicles         Vehicle[]
+  journeys         Journey[]
+  parcels          Parcel[]
+  customerProfiles CustomerProfile[]
+  notes            String?
+  activationDate   DateTime
+  isActive         Boolean           @default(false)
+  description      String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  imageId          Int?
+  imageUrl         Image?            @relation(fields: [imageId], references: [id])
+}
+
+model ConnectedParcel {
+  id          Int    @id @default(autoincrement())
+  connectedTo Int
+  parcelId    Int
+  parcel      Parcel @relation(fields: [parcelId], references: [id])
+}
+
+model Parcel {
+  id                Int               @id @default(autoincrement())
+  weight            Float
+  type              ParcelType        @default(Regular)
+  notes             String?
+  trackingNumber    String
+  parcelMoneyAmount Float?
+  isLost            Boolean           @default(false)
+  pickupDate        DateTime          @default(now())
+  deliveryDate      DateTime?
+  isArchived        Boolean           @default(false)
+  price             Float
+  discount          Float?
+  discountType      DiscountType      @default(None)
+  images            Image[]
+  hasBorderCheck    Boolean           @default(false)
+  isDamaged         Boolean           @default(false)
+  deliveryStatus    DeliveryStatus    @default(Initial)
+  paymentStatus     PaymentStatus     @default(NotPaid)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  connectedParcels  ConnectedParcel[]
+  senderId          Int
+  sender            CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
+  recepientId       Int
+  recepient         CustomerProfile   @relation("receivedParcels", fields: [recepientId], references: [id])
+  businessId        Int
+  business          Business          @relation(fields: [businessId], references: [id])
+  journeyId         Int?
+  journey           Journey?          @relation(fields: [journeyId], references: [id])
+}
+
+model Journey {
+  id            Int             @id @default(autoincrement())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  origin        String
+  destination   String
+  parcels       Parcel[]
+  notes         String?
+  departureDate DateTime
+  isCompleted   Boolean         @default(false)
+  arrivalDate   DateTime?
+  name          String
+  vehicleId     Int
+  vehicle       Vehicle         @relation(fields: [vehicleId], references: [id])
+  businessId    Int
+  business      Business        @relation(fields: [businessId], references: [id])
+  driverProfile DriverProfile[]
+}
+
+model CustomerProfile {
+  id              Int      @id @default(autoincrement())
+  businessId      Int
+  business        Business @relation(fields: [businessId], references: [id])
+  parcelsSent     Parcel[] @relation("sentParcels")
+  parcelsReceived Parcel[] @relation("receivedParcels")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User?
+}
+
+model Image {
+  id        Int        @id @default(autoincrement())
+  url       String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  vehicleId Int?
+  vehicle   Vehicle?   @relation(fields: [vehicleId], references: [id])
+  parcelId  Int?
+  Parcel    Parcel?    @relation(fields: [parcelId], references: [id])
+  Business  Business[]
+  User      User[]
+}
+
+model Country {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  isoCode   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Vehicle {
+  id          Int       @id @default(autoincrement())
+  plateNumber String
+  model       String
+  make        String
+  year        DateTime
+  isActive    Boolean   @default(true)
+  images      Image[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  journeys    Journey[]
+  businessId  Int
+  business    Business  @relation(fields: [businessId], references: [id])
+}
