@@ -62,6 +62,7 @@ model User {
   auth0Id           String?          @unique
   name              String
   lastName          String
+  password          String
   email             String           @unique
   phoneNumberUa     String?
   phoneNumberUk     String?
@@ -72,14 +73,14 @@ model User {
   isAdmin           Boolean          @default(false)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
-  businessId        Int
-  business          Business         @relation(fields: [businessId], references: [id])
   imageId           Int?
   imageUrl          Image?           @relation(fields: [imageId], references: [id])
   driverProfileId   Int?             @unique
   driverProfile     DriverProfile?   @relation(fields: [driverProfileId], references: [id])
   customerProfileId Int?             @unique
   customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
+  Business          Business?        @relation(fields: [businessId], references: [id])
+  businessId        Int?
 }
 
 model Business {
