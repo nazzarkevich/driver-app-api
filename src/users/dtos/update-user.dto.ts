@@ -35,7 +35,7 @@ export class UpdateUserDto {
 
   @IsDateString()
   @IsOptional()
-  dateOfBirth: string;
+  dateOfBirth: Date;
 
   @IsEnum(Gender)
   @IsOptional()

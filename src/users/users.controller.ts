@@ -6,7 +6,6 @@ import {
   Param,
   ParseIntPipe,
   Patch,
-  Query,
 } from '@nestjs/common';
 
 import { UsersService } from './users.service';
@@ -22,13 +21,8 @@ export class UsersController {
   }
 
   @Get()
-  findAllUsers(@Query('email') email: string) {
-    return this.usersService.find(email);
-  }
-
-  @Delete()
-  removeUser(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.remove(id);
+  getAllUsers() {
+    return this.usersService.findAll();
   }
 
   @Patch('/:id')
@@ -36,6 +30,15 @@ export class UsersController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateUserDto,
   ) {
+    // TODO: add permission
+    // 1) user can edit their details
+    // 2) Admin can edit all users details
     return this.usersService.update(id, body);
+  }
+
+  // TODO: add Admin permission
+  @Delete()
+  removeUser(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.remove(id);
   }
 }

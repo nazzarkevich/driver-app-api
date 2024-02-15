@@ -11,8 +11,11 @@ datasource db {
 }
 
 enum UserType {
+  Admin
   Customer
   Manager
+  Subscriber
+  Member
   InternationalDriver
   ParcelCourier
 }
@@ -69,7 +72,7 @@ model User {
   type              UserType         @default(Customer)
   isBlocked         Boolean          @default(false)
   gender            Gender
-  dateOfBirth       String
+  dateOfBirth       DateTime
   isAdmin           Boolean          @default(false)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -157,6 +160,7 @@ model Journey {
   businessId    Int
   business      Business        @relation(fields: [businessId], references: [id])
   driverProfile DriverProfile[]
+  isArchived    Boolean         @default(false)
 }
 
 model CustomerProfile {

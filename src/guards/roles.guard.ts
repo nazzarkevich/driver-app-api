@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import * as jwt from 'jsonwebtoken';
+
 import { PrismaService } from 'src/prisma/prisma.service';
 
 export interface JWTPayload {
@@ -11,7 +12,7 @@ export interface JWTPayload {
 }
 
 @Injectable()
-export class AuthGuard implements CanActivate {
+export class RolesGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly prismaService: PrismaService,
@@ -20,28 +21,28 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
     const token = request.headers?.authorization?.split('Bearer ')[1];
-    const isPublic = this.reflector.getAllAndOverride('isPublic', [
+    const roles = this.reflector.getAllAndOverride('roles', [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    if (isPublic) {
-      return true;
-    }
-
     try {
-      // TODO: JWT methods and interfaces can be moved to separate utils functions
       const payload = (await jwt.verify(
         token,
         process.env.JSON_TOKEN_KEY,
       )) as JWTPayload;
+
       const user = await this.prismaService.user.findUnique({
         where: {
           id: payload.id,
         },
       });
 
-      if (user) {
+      if (!user) {
+        return false;
+      }
+
+      if (roles.includes(user.type)) {
         return true;
       }
 
@@ -51,3 +52,10 @@ export class AuthGuard implements CanActivate {
     }
   }
 }
+
+/*
+    1) Determine the UserTypes that can execute the called endpoint
+    2) Grab JWT from the request header and verify it
+    3) Database request to get user by id
+    4) Determine if user has permissions
+*/

@@ -5,11 +5,14 @@ import {
   CustomerProfile,
   Business,
 } from '@prisma/client';
-import { Expose } from 'class-transformer';
+import { Exclude, Expose } from 'class-transformer';
 
 export class UserDto {
   @Expose()
   id: number;
+
+  @Exclude()
+  password: string;
 
   @Expose()
   email: string;
@@ -39,10 +42,10 @@ export class UserDto {
   gender: Gender;
 
   @Expose()
-  createdAt: string;
+  createdAt: Date;
 
   @Expose()
-  updatedAt: string;
+  updatedAt: Date;
 
   @Expose()
   imageUrl: string;
@@ -55,4 +58,8 @@ export class UserDto {
 
   @Expose()
   Business: Business;
+
+  constructor(partial: Partial<UserDto>) {
+    Object.assign(this, partial);
+  }
 }

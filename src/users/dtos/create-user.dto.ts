@@ -5,8 +5,8 @@ import {
   IsString,
   IsNotEmpty,
   IsOptional,
-  IsDateString,
   MinLength,
+  IsDate,
 } from 'class-validator';
 
 export class CreateUserDto {
@@ -38,8 +38,8 @@ export class CreateUserDto {
   @IsNotEmpty()
   phoneNumberUk?: string;
 
-  @IsDateString()
-  dateOfBirth: string;
+  @IsDate()
+  dateOfBirth: Date;
 
   @IsEnum(Gender)
   gender: Gender;

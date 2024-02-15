@@ -1,5 +1,5 @@
-import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-import { Module, ValidationPipe } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { Module } from '@nestjs/common';
 
 import { AppService } from './app.service';
 import { AuthGuard } from './guards/auth.guard';
@@ -16,12 +16,6 @@ import { UserInterceptor } from './users/interceptor/user.interceptor';
     {
       provide: APP_INTERCEPTOR,
       useClass: UserInterceptor,
-    },
-    {
-      provide: APP_PIPE,
-      useValue: new ValidationPipe({
-        whitelist: true,
-      }),
     },
     {
       provide: APP_GUARD,
