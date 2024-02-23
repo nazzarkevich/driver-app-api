@@ -12,9 +12,10 @@ import { CustomersController } from './profiles/customers/customers.controller';
 import { CustomersModule } from './profiles/customers/customers.module';
 import { CouriersModule } from './profiles/couriers/couriers.module';
 import { BusinessesModule } from './businesses/businesses.module';
+import { VehiclesModule } from './vehicles/vehicles.module';
 
 @Module({
-  imports: [PrismaModule, UsersModule, DriversModule, CustomersModule, CouriersModule, BusinessesModule],
+  imports: [PrismaModule, UsersModule, DriversModule, CustomersModule, CouriersModule, BusinessesModule, VehiclesModule],
   controllers: [AppController, CustomersController],
   providers: [
     AppService,
