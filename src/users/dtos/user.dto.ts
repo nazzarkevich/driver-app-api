@@ -1,63 +1,31 @@
-import {
-  UserType,
-  Gender,
-  DriverProfile,
-  CustomerProfile,
-  Business,
-} from '@prisma/client';
+import { UserType, Gender } from '@prisma/client';
 import { Exclude, Expose } from 'class-transformer';
 
+import { DriverProfileDto } from 'src/profiles/drivers/dtos/driver-profile.dto';
+
+@Expose()
 export class UserDto {
-  @Expose()
-  id: number;
+  @Exclude()
+  isAdmin: boolean;
 
   @Exclude()
   password: string;
 
-  @Expose()
+  id: number;
   email: string;
-
-  @Expose()
   name: string;
-
-  @Expose()
   lastName: string;
-
-  @Expose()
   phoneNumberUa: string;
-
-  @Expose()
   phoneNumberUk: string;
-
-  @Expose()
   type: UserType;
-
-  @Expose()
   isBlocked: boolean;
-
-  @Expose()
-  isAdmin: boolean;
-
-  @Expose()
   gender: Gender;
-
-  @Expose()
   createdAt: Date;
-
-  @Expose()
   updatedAt: Date;
-
-  @Expose()
-  imageUrl: string;
-
-  @Expose()
-  driverProfile: DriverProfile;
-
-  @Expose()
-  customerProfile: CustomerProfile;
-
-  @Expose()
-  Business: Business;
+  driverProfile?: DriverProfileDto;
+  customerProfileId: number;
+  businessId: number;
+  imageId: number;
 
   constructor(partial: Partial<UserDto>) {
     Object.assign(this, partial);

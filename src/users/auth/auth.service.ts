@@ -6,12 +6,18 @@ import * as jwt from 'jsonwebtoken';
 import { SignInDto } from '../dtos/auth.dto';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { DriversService } from 'src/profiles/drivers/drivers.service';
+import { CouriersService } from 'src/profiles/couriers/couriers.service';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly driversService: DriversService,
+    private readonly couriersService: CouriersService,
+  ) {}
 
-  async signUp({ email, password, name, ...rest }: CreateUserDto) {
+  async signUp({ email, password, type, name, ...rest }: CreateUserDto) {
     const userExists = await this.prismaService.user.findUnique({
       where: {
         email,
@@ -29,10 +35,19 @@ export class AuthService {
         email,
         name,
         password: hashedPassword,
-        type: UserType.Manager,
+        type,
+        businessId: 1,
         ...rest,
       },
     });
+
+    if (this.isDriver(type)) {
+      this.createDriverProfile(user.id);
+    }
+
+    if (this.isCourier(type)) {
+      this.createCourierProfile(user.id);
+    }
 
     return this.generateJWT(user.id, name);
   }
@@ -53,6 +68,26 @@ export class AuthService {
     }
 
     return this.generateJWT(user.id, user.name);
+  }
+
+  private async createDriverProfile(userId: number): Promise<void> {
+    await this.driversService.createProfile({
+      userId,
+    });
+  }
+
+  private async createCourierProfile(userId: number): Promise<void> {
+    await this.couriersService.createProfile({
+      userId,
+    });
+  }
+
+  private isDriver(type: UserType): boolean {
+    return type === UserType.InternationalDriver;
+  }
+
+  private isCourier(type: UserType): boolean {
+    return type === UserType.ParcelCourier;
   }
 
   private async generateJWT(id: number, name: string) {

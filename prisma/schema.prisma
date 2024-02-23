@@ -11,7 +11,7 @@ datasource db {
 }
 
 enum UserType {
-  Admin
+  Moderator
   Customer
   Manager
   Subscriber
@@ -57,7 +57,28 @@ model DriverProfile {
   journeys  Journey[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  user      User?
+  userId    Int       @unique
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model CourierProfile {
+  id        Int      @id @default(autoincrement())
+  parcels   Parcel[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    Int      @unique
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model CustomerProfile {
+  id              Int      @id @default(autoincrement())
+  businessId      Int
+  business        Business @relation(fields: [businessId], references: [id])
+  parcelsSent     Parcel[] @relation("sentParcels")
+  parcelsReceived Parcel[] @relation("receivedParcels")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User?
 }
 
 model User {
@@ -69,7 +90,7 @@ model User {
   email             String           @unique
   phoneNumberUa     String?
   phoneNumberUk     String?
-  type              UserType         @default(Customer)
+  type              UserType         @default(Member)
   isBlocked         Boolean          @default(false)
   gender            Gender
   dateOfBirth       DateTime
@@ -78,12 +99,12 @@ model User {
   updatedAt         DateTime         @updatedAt
   imageId           Int?
   imageUrl          Image?           @relation(fields: [imageId], references: [id])
-  driverProfileId   Int?             @unique
-  driverProfile     DriverProfile?   @relation(fields: [driverProfileId], references: [id])
+  driverProfile     DriverProfile?
+  courierProfile    CourierProfile?
   customerProfileId Int?             @unique
   customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
-  Business          Business?        @relation(fields: [businessId], references: [id])
-  businessId        Int?
+  businessId        Int
+  business          Business         @relation(fields: [businessId], references: [id])
 }
 
 model Business {
@@ -95,9 +116,9 @@ model Business {
   parcels          Parcel[]
   customerProfiles CustomerProfile[]
   notes            String?
-  activationDate   DateTime
+  activationDate   DateTime?
   isActive         Boolean           @default(false)
-  description      String
+  description      String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   imageId          Int?
@@ -141,6 +162,8 @@ model Parcel {
   business          Business          @relation(fields: [businessId], references: [id])
   journeyId         Int?
   journey           Journey?          @relation(fields: [journeyId], references: [id])
+  CourierProfile    CourierProfile?   @relation(fields: [courierProfileId], references: [id])
+  courierProfileId  Int?
 }
 
 model Journey {
@@ -161,17 +184,6 @@ model Journey {
   business      Business        @relation(fields: [businessId], references: [id])
   driverProfile DriverProfile[]
   isArchived    Boolean         @default(false)
-}
-
-model CustomerProfile {
-  id              Int      @id @default(autoincrement())
-  businessId      Int
-  business        Business @relation(fields: [businessId], references: [id])
-  parcelsSent     Parcel[] @relation("sentParcels")
-  parcelsReceived Parcel[] @relation("receivedParcels")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  user            User?
 }
 
 model Image {

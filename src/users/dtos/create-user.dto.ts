@@ -1,4 +1,5 @@
-import { Gender } from '@prisma/client';
+import { Gender, UserType } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsEmail,
@@ -11,6 +12,7 @@ import {
 
 export class CreateUserDto {
   @IsEmail()
+  @Transform((param) => param.value.toLowerCase())
   email: string;
 
   @IsString()
@@ -43,4 +45,7 @@ export class CreateUserDto {
 
   @IsEnum(Gender)
   gender: Gender;
+
+  @IsEnum(UserType)
+  type: UserType;
 }

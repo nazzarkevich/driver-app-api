@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { User } from '@prisma/client';
 
 import { UserDto } from './dtos/user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { UpdateUserDto } from './dtos/update-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -22,13 +22,13 @@ export class UsersService {
     return new UserDto(user);
   }
 
-  async findAll() {
+  async findAll(): Promise<UserDto[]> {
     const allUsers = await this.prismaService.user.findMany({});
 
     return allUsers.map((user) => new UserDto(user));
   }
 
-  async update(id: number, attrs: Partial<User>) {
+  async update(id: number, attrs: Partial<UpdateUserDto>): Promise<UserDto> {
     const user = await this.findOne(id);
 
     if (!user) {

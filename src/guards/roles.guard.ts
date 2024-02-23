@@ -1,7 +1,10 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { UserType } from '@prisma/client';
 import * as jwt from 'jsonwebtoken';
+import { Request } from 'express';
 
+import { UserDto } from 'src/users/dtos/user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 export interface JWTPayload {
@@ -20,7 +23,7 @@ export class RolesGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
-    const token = request.headers?.authorization?.split('Bearer ')[1];
+    const token = this.extractTokenFromHeader(request);
     const roles = this.reflector.getAllAndOverride('roles', [
       context.getHandler(),
       context.getClass(),
@@ -42,7 +45,7 @@ export class RolesGuard implements CanActivate {
         return false;
       }
 
-      if (roles.includes(user.type)) {
+      if (this.hasRolePermit(roles, user.type) || this.isAdminRole(user)) {
         return true;
       }
 
@@ -50,6 +53,22 @@ export class RolesGuard implements CanActivate {
     } catch (error) {
       return false;
     }
+  }
+
+  private isAdminRole = (user: UserDto): boolean => {
+    return user.type === UserType.Moderator || user.isAdmin;
+  };
+
+  private hasRolePermit = (roles: UserType[], type: UserType): boolean => {
+    const hasRoles = roles.length > 0;
+
+    return hasRoles && roles.includes(type);
+  };
+
+  private extractTokenFromHeader(request: Request): string | undefined {
+    const [type, token] = request.headers?.authorization?.split(' ') ?? [];
+
+    return type === 'Bearer' ? token : undefined;
   }
 }
 

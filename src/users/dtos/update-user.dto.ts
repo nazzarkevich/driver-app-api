@@ -1,12 +1,5 @@
-import { Gender, UserType } from '@prisma/client';
-import {
-  IsEnum,
-  IsEmail,
-  IsString,
-  IsOptional,
-  IsDateString,
-  IsBoolean,
-} from 'class-validator';
+import { Gender } from '@prisma/client';
+import { IsEnum, IsEmail, IsString, IsOptional, IsDate } from 'class-validator';
 
 export class UpdateUserDto {
   @IsEmail()
@@ -33,7 +26,7 @@ export class UpdateUserDto {
   @IsOptional()
   phoneNumberUk?: string;
 
-  @IsDateString()
+  @IsDate()
   @IsOptional()
   dateOfBirth: Date;
 
@@ -41,11 +34,11 @@ export class UpdateUserDto {
   @IsOptional()
   gender: Gender;
 
-  @IsEnum(UserType)
-  @IsOptional()
-  type: UserType;
+  // @IsEnum(UserType)
+  // @IsOptional()
+  // type: UserType;
 
-  @IsBoolean()
-  @IsOptional()
-  isBlocked: boolean;
+  // @IsBoolean()
+  // @IsOptional()
+  // isBlocked: boolean;
 }

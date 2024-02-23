@@ -5,9 +5,11 @@ import { AuthService } from './auth/auth.service';
 import { UsersController } from './users.controller';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { AuthController } from './auth/auth.controller';
+import { DriversModule } from 'src/profiles/drivers/drivers.module';
+import { CouriersModule } from 'src/profiles/couriers/couriers.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, DriversModule, CouriersModule],
   controllers: [UsersController, AuthController],
   providers: [UsersService, AuthService],
 })

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 
 import {
   CurrentUser,
@@ -7,9 +7,13 @@ import {
 import { AuthService } from './auth.service';
 import { SignInDto } from '../dtos/auth.dto';
 import { UsersService } from '../users.service';
-import { AuthGuard } from 'src/guards/auth.guard';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { Public } from 'src/decorators/public.decorator';
+
+/* 
+  TODO: 
+  1) Add Auth0
+*/
 
 @Controller('auth')
 export class AuthController {
@@ -31,16 +35,7 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(AuthGuard)
   me(@CurrentUser() user: UserRequestType) {
     return this.usersService.findOne(user.id);
   }
-
-  // @Roles(UserType.REALTOR)
-  // @Patch to change user roles
 }
-
-/* 
-  1) Add Auth0
-  2) 
-*/
