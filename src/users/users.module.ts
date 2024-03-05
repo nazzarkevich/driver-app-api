@@ -10,6 +10,7 @@ import { CouriersModule } from 'src/profiles/couriers/couriers.module';
 
 @Module({
   imports: [PrismaModule, DriversModule, CouriersModule],
+  exports: [UsersService],
   controllers: [UsersController, AuthController],
   providers: [UsersService, AuthService],
 })

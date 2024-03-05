@@ -71,4 +71,8 @@ export class BusinessesService {
       },
     });
   }
+
+  async getCurrentBusiness(businessId: number): Promise<BusinessDto> {
+    return this.findOne(businessId);
+  }
 }

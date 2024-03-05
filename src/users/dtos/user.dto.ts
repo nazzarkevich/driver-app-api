@@ -13,10 +13,9 @@ export class UserDto {
 
   id: number;
   email: string;
-  name: string;
+  firstName: string;
   lastName: string;
-  phoneNumberUa: string;
-  phoneNumberUk: string;
+  phoneNumber: string;
   type: UserType;
   isBlocked: boolean;
   gender: Gender;

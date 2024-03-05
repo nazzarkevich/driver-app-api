@@ -51,7 +51,7 @@ export class UsersController {
     return this.usersService.update(id, body);
   }
 
-  @Delete()
+  @Delete('/:id')
   @UseGuards(AdminGuard)
   removeUser(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.remove(id);

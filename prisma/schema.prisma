@@ -72,28 +72,46 @@ model CourierProfile {
 
 model CustomerProfile {
   id              Int      @id @default(autoincrement())
+  firstName       String
+  lastName        String
   businessId      Int
   business        Business @relation(fields: [businessId], references: [id])
   parcelsSent     Parcel[] @relation("sentParcels")
   parcelsReceived Parcel[] @relation("receivedParcels")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  gender          Gender
+  phoneNumberUa   String?
+  phoneNumberUk   String?
+  note            String?
+  address         Address?
   user            User?
+}
+
+model Address {
+  id        Int             @id @default(autoincrement())
+  apartment String?
+  street    String
+  city      String
+  state     String?
+  country   String
+  postcode  String?
+  profile   CustomerProfile @relation(fields: [profileId], references: [id])
+  profileId Int             @unique
 }
 
 model User {
   id                Int              @id @default(autoincrement())
   auth0Id           String?          @unique
-  name              String
-  lastName          String
   password          String
+  firstName         String
+  lastName          String
+  phoneNumber       String
   email             String           @unique
-  phoneNumberUa     String?
-  phoneNumberUk     String?
   type              UserType         @default(Member)
   isBlocked         Boolean          @default(false)
-  gender            Gender
   dateOfBirth       DateTime
+  gender            Gender
   isAdmin           Boolean          @default(false)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -156,8 +174,8 @@ model Parcel {
   connectedParcels  ConnectedParcel[]
   senderId          Int
   sender            CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
-  recepientId       Int
-  recepient         CustomerProfile   @relation("receivedParcels", fields: [recepientId], references: [id])
+  recipientId       Int
+  recipient         CustomerProfile   @relation("receivedParcels", fields: [recipientId], references: [id])
   businessId        Int
   business          Business          @relation(fields: [businessId], references: [id])
   journeyId         Int?

@@ -17,7 +17,7 @@ export class AuthService {
     private readonly couriersService: CouriersService,
   ) {}
 
-  async signUp({ email, password, type, name, ...rest }: CreateUserDto) {
+  async signUp({ email, password, type, firstName, ...rest }: CreateUserDto) {
     const userExists = await this.prismaService.user.findUnique({
       where: {
         email,
@@ -32,11 +32,13 @@ export class AuthService {
 
     const user = await this.prismaService.user.create({
       data: {
+        business: {
+          connect: { id: 1 },
+        },
         email,
-        name,
+        firstName,
         password: hashedPassword,
         type,
-        businessId: 1,
         ...rest,
       },
     });
@@ -49,7 +51,7 @@ export class AuthService {
       this.createCourierProfile(user.id);
     }
 
-    return this.generateJWT(user.id, name);
+    return this.generateJWT(user.id, firstName);
   }
 
   async signIn({ email, password }: SignInDto) {
@@ -67,7 +69,7 @@ export class AuthService {
       throw new HttpException('The email or password are incorrect', 400);
     }
 
-    return this.generateJWT(user.id, user.name);
+    return this.generateJWT(user.id, user.firstName);
   }
 
   private async createDriverProfile(userId: number): Promise<void> {
