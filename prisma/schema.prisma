@@ -180,7 +180,7 @@ model Parcel {
   business          Business          @relation(fields: [businessId], references: [id])
   journeyId         Int?
   journey           Journey?          @relation(fields: [journeyId], references: [id])
-  CourierProfile    CourierProfile?   @relation(fields: [courierProfileId], references: [id])
+  courierProfile    CourierProfile?   @relation(fields: [courierProfileId], references: [id])
   courierProfileId  Int?
 }
 
@@ -212,9 +212,9 @@ model Image {
   vehicleId Int?
   vehicle   Vehicle?   @relation(fields: [vehicleId], references: [id])
   parcelId  Int?
-  Parcel    Parcel?    @relation(fields: [parcelId], references: [id])
-  Business  Business[]
-  User      User[]
+  parcel    Parcel?    @relation(fields: [parcelId], references: [id])
+  business  Business[]
+  user      User[]
 }
 
 model Country {

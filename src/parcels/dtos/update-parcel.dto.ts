@@ -1,18 +1,19 @@
 import { DiscountType, ParcelType, PaymentStatus } from '@prisma/client';
 import {
+  IsEnum,
   IsString,
   IsOptional,
   IsNumber,
-  IsEnum,
   IsDate,
-  IsNotEmpty,
 } from 'class-validator';
 
-export class CreateParcelDto {
+export class UpdateParcelDto {
   @IsNumber()
+  @IsOptional()
   weight: number;
 
   @IsNumber()
+  @IsOptional()
   price: number;
 
   @IsNumber()
@@ -28,22 +29,23 @@ export class CreateParcelDto {
   discountType: DiscountType;
 
   @IsEnum(ParcelType)
+  @IsOptional()
   type: ParcelType;
 
   @IsEnum(PaymentStatus)
-  @IsNotEmpty()
+  @IsOptional()
   paymentStatus: PaymentStatus;
 
   @IsDate()
-  @IsNotEmpty()
+  @IsOptional()
   pickupDate: Date;
 
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   senderId: number;
 
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   recipientId: number;
 
   @IsNumber()
