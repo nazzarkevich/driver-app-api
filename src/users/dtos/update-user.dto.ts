@@ -12,7 +12,7 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
-  name: string;
+  firstName: string;
 
   @IsString()
   @IsOptional()
@@ -20,11 +20,7 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
-  phoneNumberUa?: string;
-
-  @IsString()
-  @IsOptional()
-  phoneNumberUk?: string;
+  phoneNumber?: string;
 
   @IsDate()
   @IsOptional()
