@@ -1,8 +1,6 @@
 import { UserType, Gender } from '@prisma/client';
 import { Exclude, Expose } from 'class-transformer';
 
-import { DriverProfileDto } from 'src/profiles/drivers/dtos/driver-profile.dto';
-
 @Expose()
 export class UserDto {
   @Exclude()
@@ -21,7 +19,8 @@ export class UserDto {
   gender: Gender;
   createdAt: Date;
   updatedAt: Date;
-  driverProfile?: DriverProfileDto;
+  driverProfileId?: number;
+  courierProfileId?: number;
   customerProfileId: number;
   businessId: number;
   imageId: number;

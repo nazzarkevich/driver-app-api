@@ -19,7 +19,6 @@ export class DriversController {
 
   @Post()
   async createDriverProfile(@Body() body: CreateDriverProfileDto) {
-    console.log('body: ', body);
     return this.driversService.createProfile(body);
   }
 

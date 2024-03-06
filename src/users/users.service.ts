@@ -23,7 +23,12 @@ export class UsersService {
   }
 
   async findAll(): Promise<UserDto[]> {
-    const allUsers = await this.prismaService.user.findMany({});
+    const allUsers = await this.prismaService.user.findMany({
+      include: {
+        courierProfile: true,
+        driverProfile: true,
+      },
+    });
 
     return allUsers.map((user) => new UserDto(user));
   }
