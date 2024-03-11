@@ -25,8 +25,18 @@ This project provides an API for managing logistics operations, including users,
 
 ## Installation
 
+- Packages
 ```bash
 $ yarn install
+```
+
+- PostgreSQL should be installed
+  
+- Prisma (.env file should be added to the project)
+```bash
+$ npx prisma generate
+$ npx prisma migrate dev
+$ npx prisma db push
 ```
 
 ## Running the app
