@@ -13,6 +13,9 @@ import { CouriersModule } from './profiles/couriers/couriers.module';
 import { BusinessesModule } from './businesses/businesses.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
 import { ParcelsModule } from './parcels/parcels.module';
+import { JourneysModule } from './journeys/journeys.module';
+
+// TODO: Question: how to add action logs to the system?
 
 @Module({
   imports: [
@@ -24,6 +27,7 @@ import { ParcelsModule } from './parcels/parcels.module';
     BusinessesModule,
     VehiclesModule,
     ParcelsModule,
+    JourneysModule,
   ],
   controllers: [AppController],
   providers: [

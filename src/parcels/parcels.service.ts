@@ -41,6 +41,27 @@ export class ParcelsService {
     return parcels.map((parcel) => new ParcelDto(parcel));
   }
 
+  async findParcelsByIds(parcelsIds: number[]): Promise<ParcelDto[]> {
+    if (parcelsIds?.length === 0) {
+      return [];
+    }
+
+    // TODO: Question: Where is the best place to error handle this?
+    try {
+      const parcels = await this.prismaService.parcel.findMany({
+        where: {
+          id: {
+            in: parcelsIds,
+          },
+        },
+      });
+
+      return parcels.map((parcel) => new ParcelDto(parcel));
+    } catch (error) {
+      throw new NotFoundException(error);
+    }
+  }
+
   async findParcel(id: number) {
     const parcel = await this.prismaService.parcel.findUnique({
       where: {

@@ -1,7 +1,7 @@
 import { Gender } from '@prisma/client';
 import { IsEnum, IsString, IsOptional } from 'class-validator';
 
-// TODO: investigate how to update nested table
+// TODO: Question: how to update nested table
 export class UpdateCustomerProfileDto {
   //   @IsOptional()
   //   address?: Address;

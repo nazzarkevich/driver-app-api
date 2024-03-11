@@ -185,36 +185,35 @@ model Parcel {
 }
 
 model Journey {
-  id            Int             @id @default(autoincrement())
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  origin        String
-  destination   String
-  parcels       Parcel[]
-  notes         String?
-  departureDate DateTime
-  isCompleted   Boolean         @default(false)
-  arrivalDate   DateTime?
-  name          String
-  vehicleId     Int
-  vehicle       Vehicle         @relation(fields: [vehicleId], references: [id])
-  businessId    Int
-  business      Business        @relation(fields: [businessId], references: [id])
-  driverProfile DriverProfile[]
-  isArchived    Boolean         @default(false)
+  id             Int             @id @default(autoincrement())
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  startLocation  String
+  endLocation    String
+  parcels        Parcel[]
+  notes          String?
+  departureDate  DateTime
+  isCompleted    Boolean         @default(false)
+  arrivalDate    DateTime?
+  vehicleId      Int
+  vehicle        Vehicle         @relation(fields: [vehicleId], references: [id])
+  businessId     Int
+  business       Business        @relation(fields: [businessId], references: [id])
+  driverProfiles DriverProfile[]
+  isArchived     Boolean         @default(false)
 }
 
 model Image {
-  id        Int        @id @default(autoincrement())
-  url       String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  vehicleId Int?
-  vehicle   Vehicle?   @relation(fields: [vehicleId], references: [id])
-  parcelId  Int?
-  parcel    Parcel?    @relation(fields: [parcelId], references: [id])
-  business  Business[]
-  user      User[]
+  id          Int        @id @default(autoincrement())
+  url         String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  vehicleId   Int?
+  vehicle     Vehicle?   @relation(fields: [vehicleId], references: [id])
+  parcelId    Int?
+  parcel      Parcel?    @relation(fields: [parcelId], references: [id])
+  businessess Business[]
+  users       User[]
 }
 
 model Country {

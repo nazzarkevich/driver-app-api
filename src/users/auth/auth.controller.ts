@@ -36,6 +36,7 @@ export class AuthController {
 
   @Get('me')
   me(@CurrentUser() user: UserRequestType) {
+    // TODO: Question: what data should be returned for /me endpoint?
     return this.usersService.findOne(user.id);
   }
 }

@@ -15,6 +15,8 @@ import { BusinessesService } from './businesses.service';
 import { CreateBusinessDto } from './dtos/create-business.dto';
 import { UpdateBusinessDto } from './dtos/update-business.dto';
 
+// TODO: Question: how we can know current business?
+
 @Controller('businesses')
 export class BusinessesController {
   constructor(private readonly businessesService: BusinessesService) {}
@@ -49,6 +51,7 @@ export class BusinessesController {
   @Delete()
   @UseGuards(AdminGuard)
   removeBusiness(@Param('id', ParseIntPipe) id: number) {
+    // TODO: Question: do we need to remove items or archive?
     return this.businessesService.remove(id);
   }
 }

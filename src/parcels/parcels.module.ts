@@ -8,6 +8,7 @@ import { BusinessesModule } from 'src/businesses/businesses.module';
 
 @Module({
   imports: [PrismaModule, BusinessesModule, UsersModule],
+  exports: [ParcelsService],
   providers: [ParcelsService],
   controllers: [ParcelsController],
 })

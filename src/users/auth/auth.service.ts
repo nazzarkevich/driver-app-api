@@ -93,6 +93,7 @@ export class AuthService {
   }
 
   private async generateJWT(id: number, name: string) {
+    // TODO: Question: what data should be included in the token?
     return jwt.sign(
       {
         id: id,

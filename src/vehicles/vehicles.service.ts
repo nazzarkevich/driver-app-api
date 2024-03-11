@@ -8,7 +8,12 @@ import { VehicleDto } from './dtos/vehicle.dto';
 export class VehiclesService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async create({ make, model, plateNumber, year }: CreateVehicleDto) {
+  async create({
+    make,
+    model,
+    plateNumber,
+    year,
+  }: CreateVehicleDto): Promise<void> {
     await this.prismaService.vehicle.create({
       data: {
         make,
@@ -26,7 +31,7 @@ export class VehiclesService {
     return allVehicles.map((vehicle) => new VehicleDto(vehicle));
   }
 
-  async findOne(id: number) {
+  async findOne(id: number): Promise<VehicleDto> {
     const vehicle = await this.prismaService.vehicle.findUnique({
       where: {
         id,
@@ -34,7 +39,7 @@ export class VehiclesService {
     });
 
     if (!vehicle) {
-      throw new NotFoundException();
+      throw new NotFoundException('Vehicle profile not found');
     }
 
     return new VehicleDto(vehicle);

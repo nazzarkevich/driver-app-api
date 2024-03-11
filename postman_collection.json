@@ -1,0 +1,1130 @@
+{
+	"info": {
+		"_postman_id": "e97cd624-bfbb-4592-b924-a1e51676fef9",
+		"name": "Driver App API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "3823583"
+	},
+	"item": [
+		{
+			"name": "USER",
+			"item": [
+				{
+					"name": "NewUser",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\": \"jayjay1@mail.me\",\r\n    \"name\": \"Jay\",\r\n    \"lastName\": \"JJJ\",\r\n    \"password\": \"Demo1234!!\",\r\n    \"type\": \"ParcelCourier\",\r\n    \"dateOfBirth\": \"2000-04-03\",\r\n    \"gender\": \"Male\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/auth/signup",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"signup"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "NewDriver",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\": \"naz@mail.me\",\r\n    \"name\": \"Naze\",\r\n    \"lastName\": \"T\",\r\n    \"password\": \"Demo1234!!\",\r\n    \"type\": \"InternationalDriver\",\r\n    \"dateOfBirth\": \"2000-04-03\",\r\n    \"gender\": \"Male\"\r\n\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/auth/signup",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"signup"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "NewCourier",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\": \"naz@mail.me\",\r\n    \"name\": \"Naze\",\r\n    \"lastName\": \"T\",\r\n    \"password\": \"Demo1234!!\",\r\n    \"type\": \"ParcelCourier\",\r\n    \"dateOfBirth\": \"2000-04-03\",\r\n    \"gender\": \"Male\"\r\n\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/auth/signup",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"signup"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "SignIn",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\": \"naz@mail.me\",\r\n    \"password\": \"Demo1234!!\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/auth/login",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "me",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NSwibmFtZSI6IkxlZSIsImlhdCI6MTcwODM3NzAzMSwiZXhwIjoxNzA4NDYzNDMxfQ.Mw-H8lr43NAYTcLHcazUwu9gWot7QQ8NDZ8RLuqf1Sc",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/me",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "UpdateUser",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTAsIm5hbWUiOiJKb28iLCJpYXQiOjE3MDgzNzkwOTIsImV4cCI6MTcwODQ2NTQ5Mn0.ItAT2g_QL0M2NAPVbw93_B5JRXFL7fWB8EUgPP0ix6g",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/users/5",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"users",
+								"5"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Users",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NSwibmFtZSI6IkxlZSIsImlhdCI6MTcwODM3NzAzMSwiZXhwIjoxNzA4NDYzNDMxfQ.Mw-H8lr43NAYTcLHcazUwu9gWot7QQ8NDZ8RLuqf1Sc",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/users",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "UserById",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/users",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/users/5",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"users",
+								"5"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "BUSINESS",
+			"item": [
+				{
+					"name": "NewBusiness",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NywibmFtZSI6IkpheSIsImlhdCI6MTcwODcyMjQ3MCwiZXhwIjoxNzA4ODA4ODcwfQ.4n1NZy1w8sTOf3zR8jkKDmMEfFUdul8n7xa9B14Hc4Y",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"NovaUkraine\",\r\n    \"description\": \"European parcel service\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/businesses",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"businesses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Businesses",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwibmFtZSI6IkxlZSIsImlhdCI6MTcwODk4NjY2MywiZXhwIjoxNzA5MDczMDYzfQ.84S4HecBen_SMZUW2eBChCfMSDbTr8rbTNeNDD-1Jis",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/businesses",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"businesses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "BusinessById",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwibmFtZSI6IkxlZSIsImlhdCI6MTcwODk4NjY2MywiZXhwIjoxNzA5MDczMDYzfQ.84S4HecBen_SMZUW2eBChCfMSDbTr8rbTNeNDD-1Jis",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/businesses/1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"businesses",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "UpdateBusiness",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwibmFtZSI6IkxlZSIsImlhdCI6MTcwODk4NjY2MywiZXhwIjoxNzA5MDczMDYzfQ.84S4HecBen_SMZUW2eBChCfMSDbTr8rbTNeNDD-1Jis",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"NovaUkraine\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/businesses/1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"businesses",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "VEHICLES",
+			"item": [
+				{
+					"name": "NewVehicle",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NywibmFtZSI6IkpheSIsImlhdCI6MTcwODcyMjQ3MCwiZXhwIjoxNzA4ODA4ODcwfQ.4n1NZy1w8sTOf3zR8jkKDmMEfFUdul8n7xa9B14Hc4Y",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"plateNumber\": \"BO3377BO\",\r\n    \"make\": \"Mercedes\",\r\n    \"model\": \"Sprinter\",\r\n    \"year\": \"2018\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/vehicles",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"vehicles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Vehicles",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwibmFtZSI6IkxlZSIsImlhdCI6MTcwODk4NjY2MywiZXhwIjoxNzA5MDczMDYzfQ.84S4HecBen_SMZUW2eBChCfMSDbTr8rbTNeNDD-1Jis",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/vehicles",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"vehicles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "VehicleById",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwibmFtZSI6IkxlZSIsImlhdCI6MTcwODk4NjY2MywiZXhwIjoxNzA5MDczMDYzfQ.84S4HecBen_SMZUW2eBChCfMSDbTr8rbTNeNDD-1Jis",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/vehicles/1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"vehicles",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "DRIVERS",
+			"item": [
+				{
+					"name": "NewDriverProfile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwibmFtZSI6IkxlZSIsImlhdCI6MTcwODk4NjY2MywiZXhwIjoxNzA5MDczMDYzfQ.84S4HecBen_SMZUW2eBChCfMSDbTr8rbTNeNDD-1Jis",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"userId\":  7\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/drivers",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"drivers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "DriversProfiles",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwibmFtZSI6IkxlZSIsImlhdCI6MTcwODk4NjY2MywiZXhwIjoxNzA5MDczMDYzfQ.84S4HecBen_SMZUW2eBChCfMSDbTr8rbTNeNDD-1Jis",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/drivers",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"drivers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "DriverProfileById",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwibmFtZSI6IkxlZSIsImlhdCI6MTcwODk4NjY2MywiZXhwIjoxNzA5MDczMDYzfQ.84S4HecBen_SMZUW2eBChCfMSDbTr8rbTNeNDD-1Jis",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/drivers/1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"drivers",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "PARCEL",
+			"item": [
+				{
+					"name": "CreateParcel",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTY3NDY0MCwiZXhwIjoxNzA5NzYxMDQwfQ.81D2T7D5F-6atCdRS7MhZGWjLdNkap8spOwQmopD6AM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n        \"weight\": 55,\r\n        \"type\": \"Regular\",\r\n        \"notes\": \"special client\",\r\n        \"pickupDate\": \"2024-03-10\",\r\n        \"price\": 220,\r\n        \"paymentStatus\": \"PartiallyPaid\",\r\n        \"createdAt\": \"2024-03-05T22:52:28.797Z\",\r\n        \"updatedAt\": \"2024-03-05T22:52:28.797Z\",\r\n        \"senderId\": 1,\r\n        \"recipientId\": 3,\r\n        \"businessId\": 1\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/parcels",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"parcels"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Parcels",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTY3NDY0MCwiZXhwIjoxNzA5NzYxMDQwfQ.81D2T7D5F-6atCdRS7MhZGWjLdNkap8spOwQmopD6AM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/parcels",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"parcels"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Parcel",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTY3NDY0MCwiZXhwIjoxNzA5NzYxMDQwfQ.81D2T7D5F-6atCdRS7MhZGWjLdNkap8spOwQmopD6AM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/parcels/2",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"parcels",
+								"2"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Parcel",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTY3NDY0MCwiZXhwIjoxNzA5NzYxMDQwfQ.81D2T7D5F-6atCdRS7MhZGWjLdNkap8spOwQmopD6AM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"weight\": 155,\r\n    \"notes\": \"special client from Frankivsk\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/parcels/1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"parcels",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "CUSTOMER-PROFILES",
+			"item": [
+				{
+					"name": "CreateCustomerProfile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OCwibmFtZSI6IkpheSIsImlhdCI6MTcwOTUwNzcwMSwiZXhwIjoxNzA5NTk0MTAxfQ.WdqND5b7D0yskIOPO-4-hdO5SWgeev94jELzDCm2qYc",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"firstName\": \"Andy\",\r\n    \"lastName\": \"Groo\",\r\n    \"gender\": \"Male\",\r\n    \"phoneNumberUa\": \"098888293664\",\r\n    \"note\": \"A long term customer\"\r\n\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/customers",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"customers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "CustomersProfiles",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTY3NDY0MCwiZXhwIjoxNzA5NzYxMDQwfQ.81D2T7D5F-6atCdRS7MhZGWjLdNkap8spOwQmopD6AM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/customers",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"customers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Edit CustomerProfile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTY3NDY0MCwiZXhwIjoxNzA5NzYxMDQwfQ.81D2T7D5F-6atCdRS7MhZGWjLdNkap8spOwQmopD6AM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"firstName\": \"Jeff\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/customers/1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"customers",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "COURIER-PROFILES",
+			"item": [
+				{
+					"name": "CreateCourierProfile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OCwibmFtZSI6IkpheSIsImlhdCI6MTcwOTUwNzcwMSwiZXhwIjoxNzA5NTk0MTAxfQ.WdqND5b7D0yskIOPO-4-hdO5SWgeev94jELzDCm2qYc",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"firstName\": \"Andy\",\r\n    \"lastName\": \"Groo\",\r\n    \"gender\": \"Male\",\r\n    \"phoneNumberUa\": \"098888293664\",\r\n    \"note\": \"A long term customer\"\r\n\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/couriers",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"couriers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "CourierProfiles",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTY3NDY0MCwiZXhwIjoxNzA5NzYxMDQwfQ.81D2T7D5F-6atCdRS7MhZGWjLdNkap8spOwQmopD6AM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/couriers",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"couriers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update CourierProfile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTY3NDY0MCwiZXhwIjoxNzA5NzYxMDQwfQ.81D2T7D5F-6atCdRS7MhZGWjLdNkap8spOwQmopD6AM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"firstName\": \"Jeff\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/customers/1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"customers",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "JOURNEYS",
+			"item": [
+				{
+					"name": "Journey",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTkzNTY1OCwiZXhwIjoxNzEwMDIyMDU4fQ.VGpb020uASNR1dJKSWR1OSPpCIzbcUvuwGBdHGnQItw",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"startLocation\": \"Ukraine\",\r\n    \"endLocation\": \"United Kingdom\",\r\n    \"driverId\": 8,\r\n    \"vehicleId\": 1,\r\n    \"name\": \"Easter journey\",\r\n    \"departureDate\": \"2024-03-10\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/journeys",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"journeys"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Journeys",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTkzNTY1OCwiZXhwIjoxNzEwMDIyMDU4fQ.VGpb020uASNR1dJKSWR1OSPpCIzbcUvuwGBdHGnQItw",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/journeys",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"journeys"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Journey",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTkzNTY1OCwiZXhwIjoxNzEwMDIyMDU4fQ.VGpb020uASNR1dJKSWR1OSPpCIzbcUvuwGBdHGnQItw",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/journeys",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"journeys"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "ParcelsByJourneyId",
+					"request": {
+						"method": "GET",
+						"header": []
+					},
+					"response": []
+				},
+				{
+					"name": "Update Journey",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwibmFtZSI6Ik5heiIsImlhdCI6MTcwOTY3NDY0MCwiZXhwIjoxNzA5NzYxMDQwfQ.81D2T7D5F-6atCdRS7MhZGWjLdNkap8spOwQmopD6AM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"firstName\": \"Jeff\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/customers/1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"customers",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

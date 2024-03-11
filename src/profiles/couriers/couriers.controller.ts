@@ -15,9 +15,11 @@ import { CreateCourierProfileDto } from './dtos/create-courier-profile.dto';
 
 /*
   - Extend courier service and controller ✅
-  - Create Journey module/service/controller
+  - Create Journey module/service/controller ✅
+
   - Create Country module/service/controller
   - Create Address module/service/controller
+  - Create CourierJourney module/service/controller
   - Investigate if we need controller for ConnectedParcel
   - Investigate Audit table to store all the actions
   - Roles and Permissions
@@ -32,7 +34,9 @@ import { CreateCourierProfileDto } from './dtos/create-courier-profile.dto';
   - QRCode service
 */
 
-// TODO: how to add parcels to courier
+// TODO: Question: how to create Audit table to store all the actions
+
+// TODO: create a new table with courier journeys which includes parcels
 
 @Controller('couriers')
 export class CouriersController {

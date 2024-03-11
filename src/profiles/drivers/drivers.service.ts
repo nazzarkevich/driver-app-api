@@ -54,10 +54,26 @@ export class DriversService {
     });
 
     if (!profile) {
-      throw new NotFoundException();
+      throw new NotFoundException('Driver profile not found');
     }
 
     return new DriverProfileDto(profile);
+  }
+
+  async findManyByIds(driverProfileIds: number[]): Promise<DriverProfileDto[]> {
+    if (driverProfileIds?.length === 0) {
+      return [];
+    }
+
+    const driverProfiles = await this.prismaService.driverProfile.findMany({
+      where: {
+        id: {
+          in: driverProfileIds,
+        },
+      },
+    });
+
+    return driverProfiles.map((profile) => new DriverProfileDto(profile));
   }
 
   async remove(id: number): Promise<void> {
