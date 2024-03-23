@@ -1,9 +1,13 @@
-import { ConflictException, HttpException, Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { UserType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 
-import { SignInDto } from '../dtos/auth.dto';
+import { SignInDto } from '../dtos/sign-in.dto';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DriversService } from 'src/profiles/drivers/drivers.service';
@@ -58,7 +62,7 @@ export class AuthService {
     const user = await this.prismaService.user.findUnique({ where: { email } });
 
     if (!user) {
-      throw new HttpException('The email or password are incorrect', 400);
+      throw new BadRequestException('The email or password are incorrect');
     }
 
     const hashedPassword = user.password;
@@ -66,7 +70,7 @@ export class AuthService {
     const isValidPassword = await bcrypt.compare(password, hashedPassword);
 
     if (!isValidPassword) {
-      throw new HttpException('The email or password are incorrect', 400);
+      throw new BadRequestException('The email or password are incorrect');
     }
 
     return this.generateJWT(user.id, user.firstName);

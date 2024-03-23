@@ -1,15 +1,21 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import {
   CurrentUser,
   UserRequestType,
 } from '../decorators/current-user.decorator';
 import { AuthService } from './auth.service';
-import { SignInDto } from '../dtos/auth.dto';
+import { SignInDto } from '../dtos/sign-in.dto';
 import { UsersService } from '../users.service';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { Public } from 'src/decorators/public.decorator';
+import { UserDto } from '../dtos/user.dto';
 
 /* 
   TODO: 
@@ -24,12 +30,23 @@ export class AuthController {
     private readonly usersService: UsersService,
   ) {}
 
+  @ApiCreatedResponse({
+    description: 'Create a user',
+    type: UserDto,
+  })
+  @ApiConflictResponse({
+    description: "Can't create user with sane email address",
+  })
   @Public()
   @Post('/signup')
   async createUser(@Body() body: CreateUserDto) {
     return this.authService.signUp(body);
   }
 
+  @ApiCreatedResponse({
+    description: 'Successfully login',
+  })
+  @ApiBadRequestResponse({ description: "User doesn't exist" })
   @Public()
   @Post('/login')
   async login(@Body() body: SignInDto) {
