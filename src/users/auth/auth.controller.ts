@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 import {
   CurrentUser,
@@ -15,6 +16,7 @@ import { Public } from 'src/decorators/public.decorator';
   1) Add Auth0
 */
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(

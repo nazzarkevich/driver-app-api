@@ -9,12 +9,14 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 import { AdminGuard } from 'src/guards/admin.guard';
 import { CustomersService } from './customers.service';
 import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
 
+@ApiTags('Customer')
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}

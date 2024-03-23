@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UserType } from '@prisma/client';
+import { ApiTags } from '@nestjs/swagger';
 
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -17,6 +18,7 @@ import { AdminGuard } from 'src/guards/admin.guard';
 
 // TODO: Investigate @nestjs/swagger -> pagination
 
+@ApiTags('User')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}

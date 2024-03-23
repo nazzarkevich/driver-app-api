@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Gender, UserType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
@@ -11,6 +12,7 @@ import {
 
 export class CreateUserDto {
   @IsEmail()
+  @ApiProperty({ example: 'John', description: 'first name of the user' })
   @Transform((param) => param.value.toLowerCase())
   email: string;
 

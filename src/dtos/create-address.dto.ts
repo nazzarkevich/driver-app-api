@@ -6,12 +6,12 @@ export class CreateAddressDto {
   @IsNotEmpty()
   apartment?: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'Street should be a string' })
+  @IsNotEmpty({ message: "Street can't be empty" })
   street: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'City should be a string' })
+  @IsNotEmpty({ message: "City can't be empty" })
   city: string;
 
   @IsOptional()
@@ -19,8 +19,8 @@ export class CreateAddressDto {
   @IsNotEmpty()
   state?: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'Country should be a string' })
+  @IsNotEmpty({ message: "Country can't be empty" })
   country: string;
 
   @IsOptional()

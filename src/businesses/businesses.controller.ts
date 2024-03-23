@@ -9,6 +9,7 @@ import {
   Controller,
   ParseIntPipe,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 import { AdminGuard } from 'src/guards/admin.guard';
 import { BusinessesService } from './businesses.service';
@@ -17,6 +18,7 @@ import { UpdateBusinessDto } from './dtos/update-business.dto';
 
 // TODO: Question: how we can know current business?
 
+@ApiTags('Business')
 @Controller('businesses')
 export class BusinessesController {
   constructor(private readonly businessesService: BusinessesService) {}

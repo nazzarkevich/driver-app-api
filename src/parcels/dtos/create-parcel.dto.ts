@@ -8,6 +8,8 @@ import {
   IsNotEmpty,
 } from 'class-validator';
 
+// TODO: extend parcel details with UA and UK addresses
+// TODO: split tables for UA and UK addresses
 export class CreateParcelDto {
   @IsNumber()
   weight: number;

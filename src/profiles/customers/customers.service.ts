@@ -15,9 +15,10 @@ export class CustomersService {
 
   async createProfile({ address, ...profile }: CreateCustomerProfileDto) {
     // TODO: add dynamic business ID
+    // TODO: Question: add transaction for creating profile + address?
     const business = await this.businessesService.findOne(1);
 
-    await this.prismaService.customerProfile.create({
+    const newCustomerProfile = await this.prismaService.customerProfile.create({
       data: {
         ...profile,
         business: {
@@ -25,9 +26,15 @@ export class CustomersService {
             id: business.id,
           },
         },
-        address: {
-          create: {
-            ...address,
+      },
+    });
+
+    await this.prismaService.address.create({
+      data: {
+        ...address,
+        profile: {
+          connect: {
+            id: newCustomerProfile.id,
           },
         },
       },

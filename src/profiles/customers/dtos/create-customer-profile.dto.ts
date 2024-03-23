@@ -1,5 +1,11 @@
 import { Gender } from '@prisma/client';
-import { IsOptional, IsString, IsNotEmpty, IsEnum } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  ValidateNested,
+} from 'class-validator';
 
 import { CreateAddressDto } from 'src/dtos/create-address.dto';
 
@@ -33,5 +39,6 @@ export class CreateCustomerProfileDto {
   note: string;
 
   @IsNotEmpty()
+  @ValidateNested({ each: true })
   address: CreateAddressDto;
 }

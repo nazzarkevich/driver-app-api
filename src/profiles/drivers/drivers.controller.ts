@@ -8,11 +8,13 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 import { DriversService } from './drivers.service';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { CreateDriverProfileDto } from './dtos/create-driver-profile.dto';
 
+@ApiTags('Driver')
 @Controller('drivers')
 export class DriversController {
   constructor(private readonly driversService: DriversService) {}

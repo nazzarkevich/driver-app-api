@@ -9,6 +9,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 import {
   CurrentUser,
@@ -19,6 +20,7 @@ import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
 import { AdminGuard } from 'src/guards/admin.guard';
 
+@ApiTags('Parcel')
 @Controller('parcels')
 export class ParcelsController {
   constructor(private readonly parcelsService: ParcelsService) {}

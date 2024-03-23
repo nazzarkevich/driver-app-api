@@ -8,11 +8,13 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 import { JourneysService } from './journeys.service';
 import { CreateJourneyDto } from './dtos/create-journey.dto';
 import { UpdateJourneyDto } from './dtos/update-journey.dto';
 
+@ApiTags('Journey')
 @Controller('journeys')
 export class JourneysController {
   constructor(private readonly journeysService: JourneysService) {}
