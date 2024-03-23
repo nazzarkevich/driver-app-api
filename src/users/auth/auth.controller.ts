@@ -35,7 +35,7 @@ export class AuthController {
     type: UserDto,
   })
   @ApiConflictResponse({
-    description: "Can't create user with sane email address",
+    description: "Can't create a user with the same email address",
   })
   @Public()
   @Post('/signup')
