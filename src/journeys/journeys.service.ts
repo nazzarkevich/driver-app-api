@@ -66,6 +66,7 @@ export class JourneysService {
   }
 
   async findAll(): Promise<JourneyDto[]> {
+    // TODO: return only journey details in the list
     return await this.prismaService.journey.findMany({
       include: {
         driverProfiles: true,

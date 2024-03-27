@@ -21,19 +21,30 @@ import { CreateCourierProfileDto } from './dtos/create-courier-profile.dto';
   - Create Address module/service/controller
   
   - Create CourierJourney module/service/controller
+  - Add UA and UK address tables
+  - Extend Parcel schema with addresses UA and UK
+  - Add default sorting for lists (https://www.prisma.io/docs/orm/prisma-client/queries/filtering-and-sorting)
   - Investigate if we need controller for ConnectedParcel
   - Investigate Audit table to store all the actions
   - Roles and Permissions
   - Add error explanation to the DTO files
+  - Add seed script for Prisma
 
   Other:
   - Swagger
-  - Pagination
+  - Pagination (https://nodeteam.medium.com/nest-js-prisma-pagination-b776592f1867)
   
   - Auth0 (reset pass logic)
   - Email service
-  - SMS service -> Viber/Whatsapp
+  - SMS service (https://nodeteam.medium.com/nest-js-providers-twilio-e277ed924465)
+  - Viber/Whatsapp
   - QRCode service
+
+  Docs:
+    Repository pattern:
+     - https://github.com/prisma/prisma/issues/5273
+     - https://github.com/johannesschobel/nest-prisma-crud
+
 */
 
 // TODO: Question: how to create Audit table to store all the actions

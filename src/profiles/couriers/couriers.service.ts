@@ -60,8 +60,26 @@ export class CouriersService {
     return new CourierProfileDto(profile);
   }
 
+  async findManyByIds(
+    couriersProfileIds: number[],
+  ): Promise<CourierProfileDto[]> {
+    if (couriersProfileIds?.length === 0) {
+      return [];
+    }
+
+    const couriersProfiles = await this.prismaService.courierProfile.findMany({
+      where: {
+        id: {
+          in: couriersProfileIds,
+        },
+      },
+    });
+
+    return couriersProfiles.map((profile) => new CourierProfileDto(profile));
+  }
+
   async removeCourierProfile(id: number): Promise<void> {
-    await this.prismaService.driverProfile.delete({
+    await this.prismaService.courierProfile.delete({
       where: {
         id,
       },

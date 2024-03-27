@@ -4,8 +4,8 @@ import { ParcelDto } from './dtos/parcel.dto';
 import { UsersService } from 'src/users/users.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateParcelDto } from './dtos/create-parcel.dto';
-import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
+import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 
 @Injectable()
 export class ParcelsService {
@@ -13,6 +13,12 @@ export class ParcelsService {
     private readonly prismaService: PrismaService,
     private readonly usersService: UsersService,
   ) {}
+
+  /* 
+    TODO: Question:
+      multiple createParcel requests will create duplicate parcels each with uniq tracking number
+      Not sure what to do with it.
+  */
 
   async createParcel(
     user: UserRequestType,

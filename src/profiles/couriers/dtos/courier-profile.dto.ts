@@ -1,6 +1,7 @@
 import { Parcel } from '@prisma/client';
 
 export class CourierProfileDto {
+  id: number;
   userId: number;
   parcels: Parcel[];
   createdAt: Date;

@@ -16,6 +16,8 @@ import { ParcelsModule } from './parcels/parcels.module';
 import { JourneysModule } from './journeys/journeys.module';
 import { CountriesModule } from './countries/countries.module';
 import { AddressesModule } from './addresses/addresses.module';
+import { CourierJourneysService } from './courier-journeys/courier-journeys.service';
+import { CourierJourneysModule } from './courier-journeys/courier-journeys.module';
 
 // TODO: Question: how to add action logs to the system?
 
@@ -32,6 +34,7 @@ import { AddressesModule } from './addresses/addresses.module';
     JourneysModule,
     CountriesModule,
     AddressesModule,
+    CourierJourneysModule,
   ],
   controllers: [AppController],
   providers: [
@@ -44,6 +47,7 @@ import { AddressesModule } from './addresses/addresses.module';
       provide: APP_GUARD,
       useClass: AuthGuard,
     },
+    CourierJourneysService,
   ],
 })
 export class AppModule {}

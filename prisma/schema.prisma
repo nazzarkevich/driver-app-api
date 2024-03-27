@@ -62,12 +62,31 @@ model DriverProfile {
 }
 
 model CourierProfile {
-  id        Int      @id @default(autoincrement())
-  parcels   Parcel[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    Int      @unique
-  user      User     @relation(fields: [userId], references: [id])
+  id               Int             @id @default(autoincrement())
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  userId           Int             @unique
+  user             User            @relation(fields: [userId], references: [id])
+  courierJourneyId Int?
+  courierJourney   CourierJourney? @relation(fields: [courierJourneyId], references: [id])
+}
+
+model CourierJourney {
+  id              Int              @id @default(autoincrement())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  parcels         Parcel[]
+  courierProfiles CourierProfile[]
+  isArchived      Boolean          @default(false)
+  destination     String
+  notes           String?
+  departureDate   DateTime
+  isCompleted     Boolean          @default(false)
+  isDeleted       Boolean          @default(false)
+  businessId      Int
+  business        Business         @relation(fields: [businessId], references: [id])
+  vehicleId       Int
+  vehicle         Vehicle          @relation(fields: [vehicleId], references: [id])
 }
 
 model CustomerProfile {
@@ -123,6 +142,7 @@ model User {
   customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
   businessId        Int
   business          Business         @relation(fields: [businessId], references: [id])
+  isDeleted         Boolean          @default(false)
 }
 
 model Business {
@@ -141,6 +161,7 @@ model Business {
   updatedAt        DateTime          @updatedAt
   imageId          Int?
   imageUrl         Image?            @relation(fields: [imageId], references: [id])
+  courierJourney   CourierJourney[]
 }
 
 model ConnectedParcel {
@@ -180,8 +201,9 @@ model Parcel {
   business          Business          @relation(fields: [businessId], references: [id])
   journeyId         Int?
   journey           Journey?          @relation(fields: [journeyId], references: [id])
-  courierProfile    CourierProfile?   @relation(fields: [courierProfileId], references: [id])
-  courierProfileId  Int?
+  courierJourneyId  Int?
+  courierJourney    CourierJourney?   @relation(fields: [courierJourneyId], references: [id])
+  isDeleted         Boolean           @default(false)
 }
 
 model Journey {
@@ -201,6 +223,7 @@ model Journey {
   business       Business        @relation(fields: [businessId], references: [id])
   driverProfiles DriverProfile[]
   isArchived     Boolean         @default(false)
+  isDeleted      Boolean         @default(false)
 }
 
 model Image {
@@ -225,16 +248,18 @@ model Country {
 }
 
 model Vehicle {
-  id          Int       @id @default(autoincrement())
-  plateNumber String
-  model       String
-  make        String
-  year        DateTime
-  isActive    Boolean   @default(true)
-  images      Image[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  journeys    Journey[]
-  businessId  Int
-  business    Business  @relation(fields: [businessId], references: [id])
+  id             Int              @id @default(autoincrement())
+  plateNumber    String
+  model          String
+  make           String
+  year           DateTime
+  isActive       Boolean          @default(true)
+  images         Image[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  journeys       Journey[]
+  courierJourney CourierJourney[]
+  businessId     Int
+  business       Business         @relation(fields: [businessId], references: [id])
+  isDeleted      Boolean          @default(false)
 }
