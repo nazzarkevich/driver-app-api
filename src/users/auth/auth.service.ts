@@ -21,7 +21,15 @@ export class AuthService {
     private readonly couriersService: CouriersService,
   ) {}
 
-  async signUp({ email, password, type, firstName, ...rest }: CreateUserDto) {
+  async signUp({
+    email,
+    password,
+    type,
+    firstName,
+    phoneNumber,
+    countryCode,
+    ...rest
+  }: CreateUserDto) {
     const userExists = await this.prismaService.user.findUnique({
       where: {
         email,
@@ -38,6 +46,12 @@ export class AuthService {
       data: {
         business: {
           connect: { id: 1 },
+        },
+        phoneNumber: {
+          create: {
+            countryCode,
+            number: phoneNumber,
+          },
         },
         email,
         firstName,

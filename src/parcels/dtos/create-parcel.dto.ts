@@ -18,6 +18,9 @@ export class CreateParcelDto {
   price: number;
 
   @IsNumber()
+  cost: number;
+
+  @IsNumber()
   @IsOptional()
   parcelMoneyAmount: number;
 
@@ -30,7 +33,7 @@ export class CreateParcelDto {
   discountType: DiscountType;
 
   @IsEnum(ParcelType)
-  type: ParcelType;
+  cargoType: ParcelType;
 
   @IsEnum(PaymentStatus)
   @IsNotEmpty()
@@ -49,10 +52,22 @@ export class CreateParcelDto {
   recipientId: number;
 
   @IsNumber()
+  @IsNotEmpty()
+  phoneNumber: number;
+
+  @IsNumber()
   @IsOptional()
   journeyId: number;
 
   @IsString()
   @IsOptional()
   notes: string;
+
+  @IsNumber()
+  @IsNotEmpty()
+  originAddressId: number;
+
+  @IsNumber()
+  @IsNotEmpty()
+  destinationAddressId: number;
 }

@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Gender } from '@prisma/client';
 import { IsEnum, IsEmail, IsString, IsOptional, IsDate } from 'class-validator';
 
+// TODO: Question: how to update phone number?
 export class UpdateUserDto {
   @ApiProperty({
     example: 'john@gmail.com',
@@ -35,13 +36,13 @@ export class UpdateUserDto {
   @IsOptional()
   lastName: string;
 
-  @ApiProperty({
-    example: '07950 999 888',
-    description: 'Users phone number',
-  })
-  @IsString()
-  @IsOptional()
-  phoneNumber?: string;
+  // @ApiProperty({
+  //   example: '07950 999 888',
+  //   description: 'Users phone number',
+  // })
+  // @IsString()
+  // @IsOptional()
+  // phoneNumber?: string;
 
   @ApiProperty({
     example: '1995-05-08',

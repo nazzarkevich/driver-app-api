@@ -1,4 +1,4 @@
-import { Gender } from '@prisma/client';
+import { Gender, Phone } from '@prisma/client';
 import {
   IsOptional,
   IsString,
@@ -26,12 +26,12 @@ export class CreateCustomerProfileDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
-  phoneNumberUa: string;
+  phoneNumber: Phone;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
-  phoneNumberUk: string;
+  countryCode: string;
 
   @IsOptional()
   @IsString()

@@ -5,7 +5,27 @@ export class AddAddressDto {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
-  apartment?: string;
+  flat?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  building?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  block?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  region?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  note?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -28,7 +48,7 @@ export class AddAddressDto {
 
   @IsString()
   @IsNotEmpty()
-  country: string;
+  countryIsoCode: string;
 
   @IsNumber()
   @IsNotEmpty()

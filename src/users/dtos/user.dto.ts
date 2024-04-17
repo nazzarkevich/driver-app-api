@@ -34,11 +34,11 @@ export class UserDto {
   })
   lastName: string;
 
-  @ApiProperty({
-    example: '07950 999 888',
-    description: 'Users phone number',
-  })
-  phoneNumber: string;
+  // @ApiProperty({
+  //   example: '07950 999 888',
+  //   description: 'Users phone number',
+  // })
+  // phoneNumber: string;
 
   @ApiProperty({
     example: 'Manager',

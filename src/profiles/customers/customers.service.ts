@@ -13,7 +13,11 @@ export class CustomersService {
     private readonly businessesService: BusinessesService,
   ) {}
 
-  async createProfile({ address, ...profile }: CreateCustomerProfileDto) {
+  async createProfile({
+    address,
+    phoneNumber,
+    ...profile
+  }: CreateCustomerProfileDto) {
     // TODO: Question: add transaction for creating profile + address?
     // TODO: Question: do we need yto break down into two steps?
     const businessId = 1; // TODO: add dynamic business ID
@@ -27,9 +31,19 @@ export class CustomersService {
             id: business.id,
           },
         },
-        address: {
+        phoneNumber: {
+          create: {
+            ...phoneNumber,
+          },
+        },
+        primaryAddress: {
           create: {
             ...address,
+            country: {
+              connect: {
+                isoCode: address.countryIsoCode,
+              },
+            },
           },
         },
       },
@@ -40,7 +54,7 @@ export class CustomersService {
     const allCustomersProfiles =
       await this.prismaService.customerProfile.findMany({
         include: {
-          address: true,
+          primaryAddress: true,
         },
       });
 

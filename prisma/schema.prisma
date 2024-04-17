@@ -57,6 +57,7 @@ model DriverProfile {
   journeys  Journey[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  isDeleted Boolean   @default(false)
   userId    Int       @unique
   user      User      @relation(fields: [userId], references: [id])
 }
@@ -65,6 +66,7 @@ model CourierProfile {
   id               Int             @id @default(autoincrement())
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+  isDeleted        Boolean         @default(false)
   userId           Int             @unique
   user             User            @relation(fields: [userId], references: [id])
   courierJourneyId Int?
@@ -90,33 +92,59 @@ model CourierJourney {
 }
 
 model CustomerProfile {
-  id              Int      @id @default(autoincrement())
-  firstName       String
-  lastName        String
-  businessId      Int
-  business        Business @relation(fields: [businessId], references: [id])
-  parcelsSent     Parcel[] @relation("sentParcels")
-  parcelsReceived Parcel[] @relation("receivedParcels")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  gender          Gender
-  phoneNumberUa   String?
-  phoneNumberUk   String?
-  note            String?
-  address         Address?
-  user            User?
+  id                Int              @id @default(autoincrement())
+  firstName         String
+  lastName          String
+  businessId        Int
+  business          Business         @relation(fields: [businessId], references: [id])
+  parcelsSent       Parcel[]         @relation("sentParcels")
+  parcelsReceived   Parcel[]         @relation("receivedParcels")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  gender            Gender
+  phoneId           Int              @unique
+  phoneNumber       Phone            @relation(fields: [phoneId], references: [id])
+  note              String?
+  user              User?
+  primaryAddress    Address?
+  novaPostAddressId Int?
+  novaPostAddress   NovaPostAddress? @relation(fields: [novaPostAddressId], references: [id])
+  isDeleted         Boolean          @default(false)
 }
 
 model Address {
-  id        Int             @id @default(autoincrement())
-  apartment String?
-  street    String
-  city      String
-  state     String?
-  country   String
-  postcode  String?
-  profile   CustomerProfile @relation(fields: [profileId], references: [id])
-  profileId Int             @unique
+  id                 Int             @id @default(autoincrement())
+  street             String
+  city               String
+  flat               String?
+  building           String?
+  block              String?
+  note               String?
+  region             String?
+  postcode           String?
+  originParcels      Parcel[]        @relation("originParcels")
+  destinationParcels Parcel[]        @relation("destinationParcels")
+  countryId          Int
+  country            Country         @relation(fields: [countryId], references: [id])
+  profileId          Int             @unique
+  profile            CustomerProfile @relation(fields: [profileId], references: [id])
+}
+
+model Phone {
+  id              Int              @id @default(autoincrement())
+  number          String
+  countryCode     String
+  users           User[]
+  parcelId        Int?
+  customerProfile CustomerProfile?
+}
+
+model NovaPostAddress {
+  id               Int               @id @default(autoincrement())
+  city             String
+  departmentNumber String
+  parcel           Parcel[]
+  customerProfile  CustomerProfile[]
 }
 
 model User {
@@ -125,7 +153,6 @@ model User {
   password          String
   firstName         String
   lastName          String
-  phoneNumber       String
   email             String           @unique
   type              UserType         @default(Member)
   isBlocked         Boolean          @default(false)
@@ -134,6 +161,7 @@ model User {
   isAdmin           Boolean          @default(false)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+  isDeleted         Boolean          @default(false)
   imageId           Int?
   imageUrl          Image?           @relation(fields: [imageId], references: [id])
   driverProfile     DriverProfile?
@@ -142,7 +170,8 @@ model User {
   customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
   businessId        Int
   business          Business         @relation(fields: [businessId], references: [id])
-  isDeleted         Boolean          @default(false)
+  phoneId           Int
+  phoneNumber       Phone            @relation(fields: [phoneId], references: [id])
 }
 
 model Business {
@@ -162,6 +191,7 @@ model Business {
   imageId          Int?
   imageUrl         Image?            @relation(fields: [imageId], references: [id])
   courierJourney   CourierJourney[]
+  isDeleted        Boolean           @default(false)
 }
 
 model ConnectedParcel {
@@ -172,38 +202,48 @@ model ConnectedParcel {
 }
 
 model Parcel {
-  id                Int               @id @default(autoincrement())
-  weight            Float
-  type              ParcelType        @default(Regular)
-  notes             String?
-  trackingNumber    String
-  parcelMoneyAmount Float?
-  isLost            Boolean           @default(false)
-  pickupDate        DateTime          @default(now())
-  deliveryDate      DateTime?
-  isArchived        Boolean           @default(false)
-  price             Float
-  discount          Float?
-  discountType      DiscountType      @default(None)
-  images            Image[]
-  hasBorderCheck    Boolean           @default(false)
-  isDamaged         Boolean           @default(false)
-  deliveryStatus    DeliveryStatus    @default(Initial)
-  paymentStatus     PaymentStatus     @default(NotPaid)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  connectedParcels  ConnectedParcel[]
-  senderId          Int
-  sender            CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
-  recipientId       Int
-  recipient         CustomerProfile   @relation("receivedParcels", fields: [recipientId], references: [id])
-  businessId        Int
-  business          Business          @relation(fields: [businessId], references: [id])
-  journeyId         Int?
-  journey           Journey?          @relation(fields: [journeyId], references: [id])
-  courierJourneyId  Int?
-  courierJourney    CourierJourney?   @relation(fields: [courierJourneyId], references: [id])
-  isDeleted         Boolean           @default(false)
+  id                     Int               @id @default(autoincrement())
+  weight                 Float
+  cargoType              ParcelType        @default(Regular)
+  notes                  String?
+  trackingNumber         String
+  novaPostTrackingNumber String?
+  parcelMoneyAmount      Float?
+  isLost                 Boolean           @default(false)
+  pickupDate             DateTime          @default(now())
+  deliveryDate           DateTime?
+  isArchived             Boolean           @default(false)
+  price                  Float
+  cost                   Float
+  discount               Float?
+  senderPhoneNumber      String?
+  recipientPhoneNumber   String?
+  discountType           DiscountType      @default(None)
+  images                 Image[]
+  hasBorderCheck         Boolean           @default(false)
+  isDamaged              Boolean           @default(false)
+  deliveryStatus         DeliveryStatus    @default(Initial)
+  paymentStatus          PaymentStatus     @default(NotPaid)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  connectedParcels       ConnectedParcel[]
+  isDeleted              Boolean           @default(false)
+  senderId               Int
+  sender                 CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
+  recipientId            Int
+  recipient              CustomerProfile   @relation("receivedParcels", fields: [recipientId], references: [id])
+  businessId             Int
+  business               Business          @relation(fields: [businessId], references: [id])
+  journeyId              Int?
+  journey                Journey?          @relation(fields: [journeyId], references: [id])
+  courierJourneyId       Int?
+  courierJourney         CourierJourney?   @relation(fields: [courierJourneyId], references: [id])
+  originAddressId        Int
+  originAddress          Address           @relation("originParcels", fields: [originAddressId], references: [id])
+  destinationAddressId   Int
+  destinationAddress     Address           @relation("destinationParcels", fields: [destinationAddressId], references: [id])
+  novaPostAddressId      Int?
+  novaPostAddress        NovaPostAddress?  @relation(fields: [novaPostAddressId], references: [id])
 }
 
 model Journey {
@@ -240,11 +280,12 @@ model Image {
 }
 
 model Country {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  isoCode   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  isoCode   String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  address   Address[]
 }
 
 model Vehicle {

@@ -1,19 +1,18 @@
-import { Gender, Parcel, Address, User } from '@prisma/client';
+import { Gender, Parcel, Address, User, Phone } from '@prisma/client';
 import { Expose } from 'class-transformer';
 
 @Expose()
 export class CustomerProfileDto {
   id: number;
+  firstName: string;
+  lastName: string;
   businessId: number;
   parcelsSent: Parcel[];
   parcelsReceived: Parcel[];
-  phoneNumberUa?: string;
-  phoneNumberUk?: string;
+  phoneNumber: Phone;
   note?: string;
   address?: Address;
   user?: User;
-  firstName: string;
-  lastName: string;
   gender: Gender;
   createdAt: Date;
   updatedAt: Date;

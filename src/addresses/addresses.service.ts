@@ -8,13 +8,26 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class AddressesService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async addAddress({ profileId, ...address }: AddAddressDto): Promise<void> {
+  async addAddress({
+    profileId,
+    countryIsoCode,
+    ...address
+  }: AddAddressDto): Promise<void> {
+    const country = await this.prismaService.country.findUnique({
+      where: { isoCode: countryIsoCode },
+    });
+
     await this.prismaService.address.create({
       data: {
         ...address,
         profile: {
           connect: {
             id: profileId,
+          },
+        },
+        country: {
+          connect: {
+            id: country.id,
           },
         },
       },

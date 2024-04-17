@@ -48,6 +48,14 @@ export class CreateUserDto {
   lastName: string;
 
   @ApiProperty({
+    example: '+44',
+    description: 'Phone number country code',
+  })
+  @IsString()
+  @IsNotEmpty()
+  countryCode: string;
+
+  @ApiProperty({
     example: '07950 999 888',
     description: 'Users phone number',
   })

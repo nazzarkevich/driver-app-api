@@ -18,11 +18,12 @@ import { CreateCourierProfileDto } from './dtos/create-courier-profile.dto';
   - Extend courier service and controller ✅
   - Create Journey module/service/controller ✅
   - Create Country module/service/controller ✅
-  - Create Address module/service/controller
-  
-  - Create CourierJourney module/service/controller
-  - Add UA and UK address tables
-  - Extend Parcel schema with addresses UA and UK
+  - Create CourierJourney module/service/controller ✅
+  - Add UA and UK address tables ✅
+  - Extend Parcel schema with addresses UA and UK ✅
+  - Create Address module/service/controller 
+
+
   - Add default sorting for lists (https://www.prisma.io/docs/orm/prisma-client/queries/filtering-and-sorting)
   - Investigate if we need controller for ConnectedParcel
   - Investigate Audit table to store all the actions
