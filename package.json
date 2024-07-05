@@ -36,6 +36,7 @@
     "cross-env": "^7.0.3",
     "jsonwebtoken": "^9.0.2",
     "prisma": "^5.8.1",
+    "prisma-extension-pagination": "^0.7.4",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1"
   },

@@ -10,7 +10,10 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
+import { JourneyDto } from './dtos/journey.dto';
+import { Pagination } from 'src/dtos/pagination.dto';
 import { JourneysService } from './journeys.service';
+import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
 import { CreateJourneyDto } from './dtos/create-journey.dto';
 import { UpdateJourneyDto } from './dtos/update-journey.dto';
 
@@ -20,29 +23,28 @@ export class JourneysController {
   constructor(private readonly journeysService: JourneysService) {}
 
   @Post()
-  async createJourney(@Body() body: CreateJourneyDto) {
+  async createJourney(@Body() body: CreateJourneyDto): Promise<void> {
     return this.journeysService.createJourney(body);
   }
 
   @Get('/:id')
-  async getJourney(@Param('id', ParseIntPipe) id: number) {
+  async getJourney(@Param('id', ParseIntPipe) id: number): Promise<JourneyDto> {
     return this.journeysService.findOne(id);
   }
 
   @Get()
-  async findAllJourneys(@Query('isCompleted') isCompleted?: boolean) {
-    if (isCompleted) {
-      return this.journeysService.findCompletedJourneys();
-    }
-
-    return this.journeysService.findAll();
+  async findAllJourneys(
+    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('isCompleted') isCompleted?: boolean,
+  ): Promise<Pagination<JourneyDto>> {
+    return this.journeysService.findAll(page, isCompleted);
   }
 
   @Put('/:id')
   updateJourney(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateJourneyDto,
-  ) {
+  ): Promise<JourneyDto> {
     // TODO: Add permission
     // 1) user can edit their details
     // 2) Admin can edit all users details
@@ -52,9 +54,9 @@ export class JourneysController {
 
   @Get('/:journeyId/parcels')
   async findJourneyParcels(
+    @Query('page', ParseIntPipe) page: number = 1,
     @Param('journeyId', ParseIntPipe) journeyId: number,
-  ) {
-    // TODO: Question: how to handle pagination
-    return this.journeysService.findParcelsByJourneyId(journeyId);
+  ): Promise<Pagination<ParcelDto>> {
+    return this.journeysService.findParcelsByJourneyId(page, journeyId);
   }
 }

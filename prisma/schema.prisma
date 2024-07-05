@@ -140,11 +140,16 @@ model Phone {
 }
 
 model NovaPostAddress {
-  id               Int               @id @default(autoincrement())
-  city             String
-  departmentNumber String
-  parcel           Parcel[]
-  customerProfile  CustomerProfile[]
+  id                 Int               @id @default(autoincrement())
+  city               String
+  street             String
+  Warehouses         String
+  MainDescription    String
+  Area               String
+  Region             String
+  SettlementTypeCode String
+  parcel             Parcel[]
+  customerProfile    CustomerProfile[]
 }
 
 model User {

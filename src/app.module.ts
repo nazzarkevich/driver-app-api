@@ -19,6 +19,42 @@ import { AddressesModule } from './addresses/addresses.module';
 import { CourierJourneysService } from './courier-journeys/courier-journeys.service';
 import { CourierJourneysModule } from './courier-journeys/courier-journeys.module';
 
+/*
+  - Extend courier service and controller ✅
+  - Create Journey module/service/controller ✅
+  - Create Country module/service/controller ✅
+  - Create CourierJourney module/service/controller ✅
+  - Add UA and UK address tables ✅
+  - Extend Parcel schema with addresses UA and UK ✅
+  - Create Address module/service/controller ✅
+  - Add seed script for Prisma ✅
+
+  - Add default sorting for lists (https://www.prisma.io/docs/orm/prisma-client/queries/filtering-and-sorting)
+  - Investigate if we need controller for ConnectedParcel
+  - Investigate Audit table to store all the actions
+  - Roles and Permissions
+  - Add error explanation to the DTO files
+
+  Other:
+  - Swagger ✅
+  - Pagination (https://nodeteam.medium.com/nest-js-prisma-pagination-b776592f1867)
+  
+  - Auth0 (reset pass logic)
+  - Email service
+  - SMS service (https://nodeteam.medium.com/nest-js-providers-twilio-e277ed924465)
+  - Viber/Whatsapp
+  - QRCode service
+
+  Customer app:
+  - Registration with UK number and sms
+
+  Docs:
+    Repository pattern:
+     - https://github.com/prisma/prisma/issues/5273
+     - https://github.com/johannesschobel/nest-prisma-crud
+
+*/
+
 // TODO: Question: how to add action logs to the system?
 
 @Module({

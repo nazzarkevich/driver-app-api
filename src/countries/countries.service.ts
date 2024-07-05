@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AddCountryDto } from './dtos/add-country.dto';
 import { CountryDto } from './dtos/country.dto';
+import { Pagination } from 'src/dtos/pagination.dto';
+import prismaWithPagination from 'src/prisma/prisma-client';
 
 // TODO: Question: how to initially store countries? seed?
 
@@ -19,9 +21,17 @@ export class CountriesService {
     });
   }
 
-  async findAll() {
-    const countries = await this.prismaService.country.findMany({});
+  async findAll(page: number): Promise<Pagination<CountryDto>> {
+    const [countriesWithPagination, metadata] =
+      await prismaWithPagination.country.paginate().withPages({ page });
 
-    return countries.map((country) => new CountryDto(country));
+    const countries = countriesWithPagination.map(
+      (country) => new CountryDto(country),
+    );
+
+    return {
+      items: countries,
+      ...metadata,
+    };
   }
 }

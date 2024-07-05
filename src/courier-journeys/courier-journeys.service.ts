@@ -1,13 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
+import { Pagination } from 'src/dtos/pagination.dto';
+import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import prismaWithPagination from 'src/prisma/prisma-client';
 import { ParcelsService } from 'src/parcels/parcels.service';
+import { CourierJourneyDto } from './dtos/courier-journey.dto';
 import { VehiclesService } from 'src/vehicles/vehicles.service';
 import { CouriersService } from 'src/profiles/couriers/couriers.service';
-import { CreateCourierJourneyDto } from './dtos/create-courier-journey.dto';
-import { CourierJourneyDto } from './dtos/courier-journey.dto';
 import { UpdateCourierJourneyDto } from './dtos/update-courier-journey.dto';
-import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
+import { CreateCourierJourneyDto } from './dtos/create-courier-journey.dto';
 
 @Injectable()
 export class CourierJourneysService {
@@ -51,43 +53,63 @@ export class CourierJourneysService {
     });
   }
 
-  async findAll(): Promise<CourierJourneyDto[]> {
-    return await this.prismaService.courierJourney.findMany({
-      include: {
-        courierProfiles: true,
-        parcels: true,
-        vehicle: true,
-      },
-    });
+  async findAll(
+    page: number,
+    isCompleted: boolean,
+  ): Promise<Pagination<CourierJourneyDto>> {
+    const [courierJourneysWithPagination, metadata] =
+      await prismaWithPagination.courierJourney
+        .paginate({
+          where: {
+            isCompleted,
+          },
+          include: {
+            courierProfiles: true,
+            parcels: true,
+            vehicle: true,
+          },
+        })
+        .withPages({ page });
+
+    const courierJourneys = courierJourneysWithPagination.map(
+      (courierJourney) => new CourierJourneyDto(courierJourney),
+    );
+
+    return {
+      items: courierJourneys,
+      ...metadata,
+    };
   }
 
   async findParcelsByCourierJourneyId(
+    page: number,
     courierJourneyId: number,
-  ): Promise<ParcelDto[]> {
+  ): Promise<Pagination<ParcelDto>> {
     try {
-      const journeyParcels = await this.prismaService.parcel.findMany({
-        where: {
-          courierJourneyId,
-        },
-      });
+      const [parcelsWithPagination, metadata] =
+        await prismaWithPagination.parcel
+          .paginate({
+            where: {
+              courierJourneyId,
+            },
+            include: {
+              sender: true,
+              recipient: true,
+            },
+          })
+          .withPages({ page });
 
-      return journeyParcels.map((parcel) => new ParcelDto(parcel));
+      const parcels = parcelsWithPagination.map(
+        (parcel) => new ParcelDto(parcel),
+      );
+
+      return {
+        items: parcels,
+        ...metadata,
+      };
     } catch (error) {
       throw new NotFoundException(error);
     }
-  }
-
-  async findCompletedCourierJourneys(): Promise<CourierJourneyDto[]> {
-    return await this.prismaService.courierJourney.findMany({
-      where: {
-        isCompleted: true,
-      },
-      include: {
-        courierProfiles: true,
-        parcels: true,
-        vehicle: true,
-      },
-    });
   }
 
   async findOne(id: number): Promise<CourierJourneyDto> {

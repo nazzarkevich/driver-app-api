@@ -1,10 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { ParcelDto } from './dtos/parcel.dto';
+import { Pagination } from 'src/dtos/pagination.dto';
 import { UsersService } from 'src/users/users.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
+import prismaWithPagination from 'src/prisma/prisma-client';
 import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 
 @Injectable()
@@ -36,15 +38,24 @@ export class ParcelsService {
     });
   }
 
-  async findParcels(): Promise<ParcelDto[]> {
-    const parcels = await this.prismaService.parcel.findMany({
-      include: {
-        sender: true,
-        recipient: true,
-      },
-    });
+  async findParcels(page: number): Promise<Pagination<ParcelDto>> {
+    const [parcelsWithPagination, metadata] = await prismaWithPagination.parcel
+      .paginate({
+        include: {
+          sender: true,
+          recipient: true,
+        },
+      })
+      .withPages({ page });
 
-    return parcels.map((parcel) => new ParcelDto(parcel));
+    const parcels = parcelsWithPagination.map(
+      (parcel) => new ParcelDto(parcel),
+    );
+
+    return {
+      items: parcels,
+      ...metadata,
+    };
   }
 
   async findParcelsByIds(parcelsIds: number[]): Promise<ParcelDto[]> {
@@ -68,7 +79,7 @@ export class ParcelsService {
     }
   }
 
-  async findParcel(id: number) {
+  async findParcel(id: number): Promise<ParcelDto> {
     const parcel = await this.prismaService.parcel.findUnique({
       where: {
         id,
@@ -104,7 +115,7 @@ export class ParcelsService {
     return new ParcelDto(updatedParcel);
   }
 
-  async removeParcel(id: number) {
+  async removeParcel(id: number): Promise<void> {
     await this.prismaService.parcel.delete({
       where: {
         id,

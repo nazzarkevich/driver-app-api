@@ -8,6 +8,8 @@ import { UpdateJourneyDto } from './dtos/update-journey.dto';
 import { ParcelsService } from 'src/parcels/parcels.service';
 import { VehiclesService } from 'src/vehicles/vehicles.service';
 import { DriversService } from 'src/profiles/drivers/drivers.service';
+import { Pagination } from 'src/dtos/pagination.dto';
+import prismaWithPagination from 'src/prisma/prisma-client';
 
 @Injectable()
 export class JourneysService {
@@ -51,42 +53,60 @@ export class JourneysService {
     });
   }
 
-  async findParcelsByJourneyId(journeyId: number): Promise<ParcelDto[]> {
+  async findParcelsByJourneyId(
+    page: number,
+    journeyId: number,
+  ): Promise<Pagination<ParcelDto>> {
     try {
-      const journeyParcels = await this.prismaService.parcel.findMany({
-        where: {
-          journeyId,
-        },
-      });
+      const [journeyParcelsWithPagination, metadata] =
+        await prismaWithPagination.parcel
+          .paginate({
+            where: {
+              journeyId,
+            },
+          })
+          .withPages({ page });
 
-      return journeyParcels.map((parcel) => new ParcelDto(parcel));
+      const journeyParcels = journeyParcelsWithPagination.map(
+        (parcel) => new ParcelDto(parcel),
+      );
+
+      return {
+        items: journeyParcels,
+        ...metadata,
+      };
     } catch (error) {
       throw new NotFoundException(error);
     }
   }
 
-  async findAll(): Promise<JourneyDto[]> {
+  async findAll(
+    page: number,
+    isCompleted: boolean,
+  ): Promise<Pagination<JourneyDto>> {
     // TODO: return only journey details in the list
-    return await this.prismaService.journey.findMany({
-      include: {
-        driverProfiles: true,
-        parcels: true,
-        vehicle: true,
-      },
-    });
-  }
+    const [journeysWithPagination, metadata] =
+      await prismaWithPagination.journey
+        .paginate({
+          where: {
+            isCompleted,
+          },
+          include: {
+            driverProfiles: true,
+            parcels: true,
+            vehicle: true,
+          },
+        })
+        .withPages({ page });
 
-  async findCompletedJourneys(): Promise<JourneyDto[]> {
-    return await this.prismaService.journey.findMany({
-      where: {
-        isCompleted: true,
-      },
-      include: {
-        driverProfiles: true,
-        parcels: true,
-        vehicle: true,
-      },
-    });
+    const journeys = journeysWithPagination.map(
+      (parcel) => new JourneyDto(parcel),
+    );
+
+    return {
+      items: journeys,
+      ...metadata,
+    };
   }
 
   async findOne(id: number): Promise<JourneyDto> {

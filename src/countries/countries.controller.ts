@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  ParseIntPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { CountriesService } from './countries.service';
@@ -15,7 +22,7 @@ export class CountriesController {
   }
 
   @Get()
-  async getAllCountries() {
-    return this.countriesService.findAll();
+  async getAllCountries(@Query('page', ParseIntPipe) page: number) {
+    return this.countriesService.findAll(page);
   }
 }

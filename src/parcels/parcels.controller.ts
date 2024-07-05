@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -16,9 +17,9 @@ import {
   UserRequestType,
 } from 'src/users/decorators/current-user.decorator';
 import { ParcelsService } from './parcels.service';
+import { AdminGuard } from 'src/guards/admin.guard';
 import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
-import { AdminGuard } from 'src/guards/admin.guard';
 
 @ApiTags('Parcel')
 @Controller('parcels')
@@ -34,9 +35,9 @@ export class ParcelsController {
   }
 
   @Get()
-  async findParcels() {
+  async findParcels(@Query('page', ParseIntPipe) page: number) {
     try {
-      const parcels = await this.parcelsService.findParcels();
+      const parcels = await this.parcelsService.findParcels(page);
 
       return parcels;
     } catch (error) {
