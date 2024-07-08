@@ -7,12 +7,14 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCourierProfileDto } from './dtos/create-courier-profile.dto';
 import { CourierProfileDto } from './dtos/courier-profile.dto';
+import { Pagination } from 'src/dtos/pagination.dto';
+import prismaWithPagination from 'src/prisma/prisma-client';
 
 @Injectable()
 export class CouriersService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async createProfile({ userId }: CreateCourierProfileDto) {
+  async createProfile({ userId }: CreateCourierProfileDto): Promise<void> {
     const user = await this.prismaService.user.findUnique({
       where: {
         id: userId,
@@ -40,10 +42,20 @@ export class CouriersService {
     });
   }
 
-  async findAllCouriersProfiles(): Promise<CourierProfileDto[]> {
-    const allProfiles = await this.prismaService.courierProfile.findMany({});
+  async findAllCouriersProfiles(
+    page: number,
+  ): Promise<Pagination<CourierProfileDto>> {
+    const [courierProfilesWithPagination, metadata] =
+      await prismaWithPagination.courierProfile.paginate().withPages({ page });
 
-    return allProfiles.map((profile) => new CourierProfileDto(profile));
+    const courierProfiles = courierProfilesWithPagination.map(
+      (profile) => new CourierProfileDto(profile),
+    );
+
+    return {
+      items: courierProfiles,
+      ...metadata,
+    };
   }
 
   async findCourierProfile(id: number): Promise<CourierProfileDto> {

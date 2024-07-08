@@ -5,6 +5,8 @@ import { CustomerProfileDto } from './dtos/customer-profile.dto';
 import { BusinessesService } from 'src/businesses/businesses.service';
 import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
+import { Pagination } from 'src/dtos/pagination.dto';
+import prismaWithPagination from 'src/prisma/prisma-client';
 
 @Injectable()
 export class CustomersService {
@@ -17,7 +19,7 @@ export class CustomersService {
     address,
     phoneNumber,
     ...profile
-  }: CreateCustomerProfileDto) {
+  }: CreateCustomerProfileDto): Promise<void> {
     // TODO: Question: add transaction for creating profile + address?
     // TODO: Question: do we need yto break down into two steps?
     const businessId = 1; // TODO: add dynamic business ID
@@ -50,20 +52,27 @@ export class CustomersService {
     });
   }
 
-  async findAll(): Promise<CustomerProfileDto[]> {
-    const allCustomersProfiles =
-      await this.prismaService.customerProfile.findMany({
-        include: {
-          primaryAddress: true,
-        },
-      });
+  async findAll(page: number): Promise<Pagination<CustomerProfileDto>> {
+    const [customerProfilesWithPagination, metadata] =
+      await prismaWithPagination.customerProfile
+        .paginate({
+          include: {
+            primaryAddress: true,
+          },
+        })
+        .withPages({ page });
 
-    return allCustomersProfiles.map(
+    const customerProfiles = customerProfilesWithPagination.map(
       (profile) => new CustomerProfileDto(profile),
     );
+
+    return {
+      items: customerProfiles,
+      ...metadata,
+    };
   }
 
-  async findProfile(id: number) {
+  async findProfile(id: number): Promise<CustomerProfileDto> {
     const profile = await this.prismaService.customerProfile.findUnique({
       where: {
         id,
@@ -99,7 +108,7 @@ export class CustomersService {
     return new CustomerProfileDto(updatedProfile);
   }
 
-  async removeProfile(id: number) {
+  async removeProfile(id: number): Promise<void> {
     await this.prismaService.customerProfile.delete({
       where: {
         id,

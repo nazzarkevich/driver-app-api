@@ -6,12 +6,15 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { AdminGuard } from 'src/guards/admin.guard';
 import { CouriersService } from './couriers.service';
+import { Pagination } from 'src/dtos/pagination.dto';
+import { CourierProfileDto } from './dtos/courier-profile.dto';
 import { CreateCourierProfileDto } from './dtos/create-courier-profile.dto';
 
 // TODO: Question: how to create Audit table to store all the actions
@@ -24,23 +27,29 @@ export class CouriersController {
   constructor(private readonly couriersService: CouriersService) {}
 
   @Post()
-  async createCourierProfile(@Body() body: CreateCourierProfileDto) {
+  async createCourierProfile(
+    @Body() body: CreateCourierProfileDto,
+  ): Promise<void> {
     return this.couriersService.createProfile(body);
   }
 
   @Get()
-  async getAllCouriersProfiles() {
-    return this.couriersService.findAllCouriersProfiles();
+  async getAllCouriersProfiles(
+    @Query('page', ParseIntPipe) page: number,
+  ): Promise<Pagination<CourierProfileDto>> {
+    return this.couriersService.findAllCouriersProfiles(page);
   }
 
   @Get('/:id')
-  async getCourierProfile(@Param('id', ParseIntPipe) id: number) {
+  async getCourierProfile(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<CourierProfileDto> {
     return this.couriersService.findCourierProfile(id);
   }
 
   @Delete()
   @UseGuards(AdminGuard)
-  removeCourierProfile(@Param('id', ParseIntPipe) id: number): any {
+  removeCourierProfile(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.couriersService.removeCourierProfile(id);
   }
 }

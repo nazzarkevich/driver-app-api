@@ -4,7 +4,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 
+import { Pagination } from 'src/dtos/pagination.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import prismaWithPagination from 'src/prisma/prisma-client';
 import { DriverProfileDto } from './dtos/driver-profile.dto';
 import { CreateDriverProfileDto } from './dtos/create-driver-profile.dto';
 
@@ -40,10 +42,18 @@ export class DriversService {
     });
   }
 
-  async findAll(): Promise<DriverProfileDto[]> {
-    const allProfiles = await this.prismaService.driverProfile.findMany({});
+  async findAll(page: number): Promise<Pagination<DriverProfileDto>> {
+    const [driversProfilesWithPagination, metadata] =
+      await prismaWithPagination.driverProfile.paginate().withPages({ page });
 
-    return allProfiles.map((profile) => new DriverProfileDto(profile));
+    const driversProfiles = driversProfilesWithPagination.map(
+      (profile) => new DriverProfileDto(profile),
+    );
+
+    return {
+      items: driversProfiles,
+      ...metadata,
+    };
   }
 
   async findOne(id: number): Promise<DriverProfileDto> {

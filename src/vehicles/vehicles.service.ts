@@ -3,6 +3,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateVehicleDto } from './dtos/create-vehicle.dto';
 import { VehicleDto } from './dtos/vehicle.dto';
+import { Pagination } from 'src/dtos/pagination.dto';
+import prismaWithPagination from 'src/prisma/prisma-client';
 
 @Injectable()
 export class VehiclesService {
@@ -25,10 +27,19 @@ export class VehiclesService {
     });
   }
 
-  async findAll(): Promise<VehicleDto[]> {
-    const allVehicles = await this.prismaService.vehicle.findMany({});
+  async findAll(page: number): Promise<Pagination<VehicleDto>> {
+    const [parcelsWithPagination, metadata] = await prismaWithPagination.vehicle
+      .paginate()
+      .withPages({ page });
 
-    return allVehicles.map((vehicle) => new VehicleDto(vehicle));
+    const vehicles = parcelsWithPagination.map(
+      (vehicle) => new VehicleDto(vehicle),
+    );
+
+    return {
+      items: vehicles,
+      ...metadata,
+    };
   }
 
   async findOne(id: number): Promise<VehicleDto> {
