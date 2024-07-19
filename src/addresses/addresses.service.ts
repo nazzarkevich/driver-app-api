@@ -35,12 +35,12 @@ export class AddressesService {
   }
 
   async findAddressesByProfileId(profileId: number): Promise<AddressDto[]> {
-    const address = await this.prismaService.address.findMany({
+    const addresses = await this.prismaService.address.findMany({
       where: {
         profileId,
       },
     });
 
-    return address.map((address) => new AddressDto(address));
+    return addresses.map((address) => new AddressDto(address));
   }
 }

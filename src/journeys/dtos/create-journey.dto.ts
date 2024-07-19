@@ -18,17 +18,13 @@ export class CreateJourneyDto {
   @IsOptional()
   parcels: number[];
 
-  @IsNumber()
   @IsNotEmpty()
-  driverIds: number[];
+  @IsNumber({}, { each: true })
+  driverProfiles: number[];
 
   @IsNumber()
   @IsNotEmpty()
   vehicleId: number;
-
-  @IsString()
-  @IsNotEmpty()
-  name: string;
 
   @IsString()
   @IsOptional()

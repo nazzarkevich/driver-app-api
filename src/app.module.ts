@@ -1,5 +1,5 @@
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 
 import { AppService } from './app.service';
 import { AuthGuard } from './guards/auth.guard';
@@ -28,8 +28,8 @@ import { CourierJourneysModule } from './courier-journeys/courier-journeys.modul
   - Extend Parcel schema with addresses UA and UK ✅
   - Create Address module/service/controller ✅
   - Add seed script for Prisma ✅
-
-  - Add default sorting for lists (https://www.prisma.io/docs/orm/prisma-client/queries/filtering-and-sorting)
+  - Script that creates first super user with default password
+  
   - Investigate if we need controller for ConnectedParcel
   - Investigate Audit table to store all the actions
   - Roles and Permissions
@@ -37,8 +37,9 @@ import { CourierJourneysModule } from './courier-journeys/courier-journeys.modul
 
   Other:
   - Swagger ✅
-  - Pagination (https://nodeteam.medium.com/nest-js-prisma-pagination-b776592f1867)
-  
+  - Pagination (https://nodeteam.medium.com/nest-js-prisma-pagination-b776592f1867) ✅
+  - Add default sorting for lists (https://www.prisma.io/docs/orm/prisma-client/queries/filtering-and-sorting)
+
   - Auth0 (reset pass logic)
   - Email service
   - SMS service (https://nodeteam.medium.com/nest-js-providers-twilio-e277ed924465)
@@ -84,6 +85,7 @@ import { CourierJourneysModule } from './courier-journeys/courier-journeys.modul
       useClass: AuthGuard,
     },
     CourierJourneysService,
+    Logger,
   ],
 })
 export class AppModule {}

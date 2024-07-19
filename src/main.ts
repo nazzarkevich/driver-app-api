@@ -8,15 +8,18 @@ import {
   ClassSerializerInterceptor,
   HttpException,
   HttpStatus,
+  Logger,
   ValidationError,
   ValidationPipe,
 } from '@nestjs/common';
 
 import { AppModule } from './app.module';
 import { getAllConstraints, getCustomValidationError } from '../utils';
+import { HttpExceptionFilter } from './exception-filters/http-exception.fiter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const loggerInstance = app.get(Logger);
 
   const config = new DocumentBuilder()
     .setTitle('Driver API')
@@ -46,6 +49,8 @@ async function bootstrap() {
   );
 
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+
+  app.useGlobalFilters(new HttpExceptionFilter(loggerInstance));
 
   await app.listen(3000);
 }

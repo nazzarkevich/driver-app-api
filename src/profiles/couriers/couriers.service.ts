@@ -46,7 +46,13 @@ export class CouriersService {
     page: number,
   ): Promise<Pagination<CourierProfileDto>> {
     const [courierProfilesWithPagination, metadata] =
-      await prismaWithPagination.courierProfile.paginate().withPages({ page });
+      await prismaWithPagination.courierProfile
+        .paginate({
+          orderBy: {
+            createdAt: 'desc',
+          },
+        })
+        .withPages({ page });
 
     const courierProfiles = courierProfilesWithPagination.map(
       (profile) => new CourierProfileDto(profile),

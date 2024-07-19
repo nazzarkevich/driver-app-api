@@ -60,6 +60,9 @@ export class CourierJourneysService {
     const [courierJourneysWithPagination, metadata] =
       await prismaWithPagination.courierJourney
         .paginate({
+          orderBy: {
+            createdAt: 'desc',
+          },
           where: {
             isCompleted,
           },

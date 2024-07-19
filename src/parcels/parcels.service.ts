@@ -41,6 +41,9 @@ export class ParcelsService {
   async findParcels(page: number): Promise<Pagination<ParcelDto>> {
     const [parcelsWithPagination, metadata] = await prismaWithPagination.parcel
       .paginate({
+        orderBy: {
+          createdAt: 'desc',
+        },
         include: {
           sender: true,
           recipient: true,

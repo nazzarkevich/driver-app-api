@@ -56,6 +56,9 @@ export class CustomersService {
     const [customerProfilesWithPagination, metadata] =
       await prismaWithPagination.customerProfile
         .paginate({
+          orderBy: {
+            createdAt: 'desc',
+          },
           include: {
             primaryAddress: true,
           },

@@ -22,13 +22,14 @@ export class JourneysService {
 
   async createJourney({
     vehicleId,
-    driverIds,
+    driverProfiles,
     parcels,
     ...rest
   }: CreateJourneyDto): Promise<void> {
     const foundParcels = await this.parcelsService.findParcelsByIds(parcels);
     const vehicle = await this.vehiclesService.findOne(vehicleId);
-    const foundDrivers = await this.driversService.findManyByIds(driverIds);
+    const foundDrivers =
+      await this.driversService.findManyByIds(driverProfiles);
 
     await this.prismaService.journey.create({
       data: {
@@ -88,6 +89,9 @@ export class JourneysService {
     const [journeysWithPagination, metadata] =
       await prismaWithPagination.journey
         .paginate({
+          orderBy: {
+            createdAt: 'desc',
+          },
           where: {
             isCompleted,
           },
