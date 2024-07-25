@@ -11,7 +11,7 @@ COPY prisma ./prisma/
 
 FROM base AS dev
 
-RUN yarn install --fozen-lockfile
+RUN yarn install --frozen-lockfile
 
 COPY . .
 
@@ -23,7 +23,7 @@ FROM base AS prod
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
 
-RUN yarn install --fozen-lockfile --production
+RUN yarn install --frozen-lockfile --production
 
 COPY . .
 
@@ -31,6 +31,6 @@ RUN yarn add global @nestjs/cli
 
 RUN yarn build
 
-EXPOSE 8080
+EXPOSE 3000
 
 CMD ["yarn", "start:prod"]
