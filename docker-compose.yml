@@ -4,9 +4,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: dev
+      target: prod
     ports:
-      - 4001:3000
+      - 3000:3000
     volumes:
       - ./src:/driver-app-api/src
     env_file: .env
@@ -14,6 +14,7 @@ services:
       - driver-app-api
     depends_on:
       - db
+    entrypoint: ["/bin/sh", "-c", "npx prisma migrate deploy && yarn start:prod"]
   
   db:
     image: postgres:16-alpine

@@ -1,5 +1,5 @@
 # Use an official Node.js runtime as a base image
-FROM node:20.11-alpine as base
+FROM node:20.11-alpine AS base
 
 # Set the working directory in the container
 WORKDIR /driver-app-api
@@ -27,7 +27,11 @@ RUN yarn install --frozen-lockfile --production
 
 COPY . .
 
-RUN yarn add global @nestjs/cli
+RUN yarn global add @nestjs/cli
+
+RUN yarn add prisma
+
+RUN yarn npx prisma generate
 
 RUN yarn build
 
