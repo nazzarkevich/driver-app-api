@@ -27,9 +27,7 @@ RUN yarn install --frozen-lockfile --production
 
 COPY . .
 
-RUN yarn global add @nestjs/cli
-
-RUN yarn add prisma
+RUN yarn global add @nestjs/cli prisma ts-node
 
 RUN yarn npx prisma generate
 
