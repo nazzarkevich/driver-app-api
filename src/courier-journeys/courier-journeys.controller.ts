@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
   ParseIntPipe,
@@ -38,7 +39,7 @@ export class CourierJourneysController {
 
   @Get()
   async findAllJourneys(
-    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('isCompleted') isCompleted?: boolean,
   ): Promise<Pagination<CourierJourneyDto>> {
     return this.courierJourneysService.findAll(page, isCompleted);
@@ -58,7 +59,7 @@ export class CourierJourneysController {
 
   @Get('/:courierJourneyId/parcels')
   async findJourneyParcels(
-    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Param('courierJourneyId', ParseIntPipe) courierJourneyId: number,
   ): Promise<Pagination<ParcelDto>> {
     return this.courierJourneysService.findParcelsByCourierJourneyId(

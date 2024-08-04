@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
@@ -33,28 +34,20 @@ export class CustomersController {
 
   @Get()
   async findProfiles(
-    @Query('page', ParseIntPipe) page: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   ): Promise<Pagination<CustomerProfileDto>> {
-    try {
-      const profiles = await this.customersService.findAll(page);
+    const profiles = await this.customersService.findAll(page);
 
-      return profiles;
-    } catch (error) {
-      throw new Error(error);
-    }
+    return profiles;
   }
 
   @Get('/:id')
   async findProfile(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<CustomerProfileDto> {
-    try {
-      const profiles = await this.customersService.findProfile(id);
+    const profiles = await this.customersService.findProfile(id);
 
-      return profiles;
-    } catch (error) {
-      throw new Error(error);
-    }
+    return profiles;
   }
 
   @Put('/:id')

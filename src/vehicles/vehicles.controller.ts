@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
   ParseIntPipe,
@@ -26,7 +27,7 @@ export class VehiclesController {
 
   @Get()
   async getAllVehicles(
-    @Query('page', ParseIntPipe) page: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   ): Promise<Pagination<VehicleDto>> {
     return this.vehiclesService.findAll(page);
   }

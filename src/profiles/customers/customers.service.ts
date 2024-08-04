@@ -83,7 +83,7 @@ export class CustomersService {
     });
 
     if (!profile) {
-      throw new NotFoundException();
+      throw new NotFoundException('Customer profile not found');
     }
 
     return new CustomerProfileDto(profile);

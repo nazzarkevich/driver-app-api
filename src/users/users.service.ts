@@ -24,7 +24,7 @@ export class UsersService {
     return new UserDto(user);
   }
 
-  async findAll(page: number): Promise<Pagination<UserDto>> {
+  async findAll({ page }: { page: number }): Promise<Pagination<UserDto>> {
     const [usersWithPagination, metadata] = await prismaWithPagination.user
       .paginate({
         include: {

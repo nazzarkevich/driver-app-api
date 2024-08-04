@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
@@ -35,25 +36,19 @@ export class ParcelsController {
   }
 
   @Get()
-  async findParcels(@Query('page', ParseIntPipe) page: number) {
-    try {
-      const parcels = await this.parcelsService.findParcels(page);
+  async findParcels(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+  ) {
+    const parcels = await this.parcelsService.findParcels(page);
 
-      return parcels;
-    } catch (error) {
-      throw new Error(error);
-    }
+    return parcels;
   }
 
   @Get('/:id')
   async findParcel(@Param('id', ParseIntPipe) id: number) {
-    try {
-      const parcel = await this.parcelsService.findParcel(id);
+    const parcel = await this.parcelsService.findParcel(id);
 
-      return parcel;
-    } catch (error) {
-      throw new Error(error);
-    }
+    return parcel;
   }
 
   @Put('/:id')

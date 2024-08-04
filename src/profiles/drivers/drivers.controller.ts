@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
@@ -31,7 +32,7 @@ export class DriversController {
 
   @Get()
   async getAllDriversProfiles(
-    @Query('page', ParseIntPipe) page: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   ): Promise<Pagination<DriverProfileDto>> {
     return this.driversService.findAll(page);
   }

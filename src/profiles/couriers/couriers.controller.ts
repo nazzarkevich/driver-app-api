@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
@@ -35,7 +36,7 @@ export class CouriersController {
 
   @Get()
   async getAllCouriersProfiles(
-    @Query('page', ParseIntPipe) page: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   ): Promise<Pagination<CourierProfileDto>> {
     return this.couriersService.findAllCouriersProfiles(page);
   }

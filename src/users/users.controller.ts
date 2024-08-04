@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
@@ -27,15 +28,11 @@ export class UsersController {
   @Get()
   @Roles(UserType.Manager, UserType.InternationalDriver, UserType.ParcelCourier)
   async getAllUsers(
-    @Query('page', ParseIntPipe) page: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   ): Promise<Pagination<UserDto>> {
-    try {
-      const users = await this.usersService.findAll(page);
+    const users = await this.usersService.findAll({ page });
 
-      return users;
-    } catch (error) {
-      throw new Error(error);
-    }
+    return users;
   }
 
   @Get('/:id')

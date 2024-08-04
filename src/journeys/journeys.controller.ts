@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
   ParseIntPipe,
@@ -34,7 +35,7 @@ export class JourneysController {
 
   @Get()
   async findAllJourneys(
-    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('isCompleted') isCompleted?: boolean,
   ): Promise<Pagination<JourneyDto>> {
     return this.journeysService.findAll(page, isCompleted);
@@ -54,7 +55,7 @@ export class JourneysController {
 
   @Get('/:journeyId/parcels')
   async findJourneyParcels(
-    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Param('journeyId', ParseIntPipe) journeyId: number,
   ): Promise<Pagination<ParcelDto>> {
     return this.journeysService.findParcelsByJourneyId(page, journeyId);
