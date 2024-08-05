@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   api:
     build:
@@ -14,7 +13,7 @@ services:
       - driver-app-api
     depends_on:
       - db
-    entrypoint: ["/bin/sh", "-c", "npx prisma migrate deploy && npx prisma db seed && yarn start:prod"]
+    entrypoint: ["/bin/sh", "-c", "npx prisma generate && npx prisma migrate deploy && yarn seed:dev && yarn start:prod"]
   
   db:
     image: postgres:16-alpine
