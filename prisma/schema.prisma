@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,6 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Keep all your existing enums
 enum UserType {
   Moderator
   Customer
@@ -52,6 +50,44 @@ enum PaymentStatus {
   Paid
 }
 
+// MODIFIED: User model to integrate with Supabase auth
+model User {
+  id                Int              @id @default(autoincrement())
+  // NEW: Link to Supabase auth.users table
+  supabaseId        String?          @unique // UUID from auth.users
+  firstName         String
+  lastName          String
+  email             String           @unique
+  type              UserType         @default(Member)
+  isBlocked         Boolean          @default(false)
+  dateOfBirth       DateTime? // Made optional for Google OAuth users
+  gender            Gender? // Made optional for Google OAuth users
+  isAdmin           Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  isDeleted         Boolean          @default(false)
+  imageId           Int?
+  imageUrl          Image?           @relation(fields: [imageId], references: [id])
+  driverProfile     DriverProfile?
+  courierProfile    CourierProfile?
+  customerProfileId Int?             @unique
+  customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
+  businessId        Int
+  business          Business         @relation(fields: [businessId], references: [id])
+  phoneId           Int? // Made optional since Google OAuth may not provide phone
+  phoneNumber       Phone?           @relation(fields: [phoneId], references: [id])
+}
+
+// NEW: Store Supabase auth metadata if needed
+model AuthProfile {
+  id         Int       @id @default(autoincrement())
+  supabaseId String    @unique
+  provider   String // 'email' or 'google'
+  lastSignIn DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
 model DriverProfile {
   id        Int       @id @default(autoincrement())
   journeys  Journey[]
@@ -71,112 +107,6 @@ model CourierProfile {
   user             User            @relation(fields: [userId], references: [id])
   courierJourneyId Int?
   courierJourney   CourierJourney? @relation(fields: [courierJourneyId], references: [id])
-}
-
-model CourierJourney {
-  id              Int              @id @default(autoincrement())
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  parcels         Parcel[]
-  courierProfiles CourierProfile[]
-  isArchived      Boolean          @default(false)
-  destination     String
-  notes           String?
-  departureDate   DateTime
-  isCompleted     Boolean          @default(false)
-  isDeleted       Boolean          @default(false)
-  businessId      Int
-  business        Business         @relation(fields: [businessId], references: [id])
-  vehicleId       Int
-  vehicle         Vehicle          @relation(fields: [vehicleId], references: [id])
-}
-
-model CustomerProfile {
-  id                Int              @id @default(autoincrement())
-  firstName         String
-  lastName          String
-  businessId        Int
-  business          Business         @relation(fields: [businessId], references: [id])
-  parcelsSent       Parcel[]         @relation("sentParcels")
-  parcelsReceived   Parcel[]         @relation("receivedParcels")
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  gender            Gender
-  phoneId           Int              @unique
-  phoneNumber       Phone            @relation(fields: [phoneId], references: [id])
-  note              String?
-  user              User?
-  primaryAddress    Address?
-  novaPostAddressId Int?
-  novaPostAddress   NovaPostAddress? @relation(fields: [novaPostAddressId], references: [id])
-  isDeleted         Boolean          @default(false)
-}
-
-model Address {
-  id                 Int             @id @default(autoincrement())
-  street             String
-  city               String
-  flat               String?
-  building           String?
-  block              String?
-  note               String?
-  region             String?
-  postcode           String?
-  originParcels      Parcel[]        @relation("originParcels")
-  destinationParcels Parcel[]        @relation("destinationParcels")
-  countryId          Int
-  country            Country         @relation(fields: [countryId], references: [id])
-  profileId          Int             @unique
-  profile            CustomerProfile @relation(fields: [profileId], references: [id])
-}
-
-model Phone {
-  id              Int              @id @default(autoincrement())
-  number          String
-  countryCode     String
-  users           User[]
-  parcelId        Int?
-  customerProfile CustomerProfile?
-}
-
-model NovaPostAddress {
-  id                 Int               @id @default(autoincrement())
-  city               String
-  street             String
-  Warehouses         String
-  MainDescription    String
-  Area               String
-  Region             String
-  SettlementTypeCode String
-  parcel             Parcel[]
-  customerProfile    CustomerProfile[]
-}
-
-model User {
-  id                Int              @id @default(autoincrement())
-  auth0Id           String?          @unique
-  password          String
-  firstName         String
-  lastName          String
-  email             String           @unique
-  type              UserType         @default(Member)
-  isBlocked         Boolean          @default(false)
-  dateOfBirth       DateTime
-  gender            Gender
-  isAdmin           Boolean          @default(false)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  isDeleted         Boolean          @default(false)
-  imageId           Int?
-  imageUrl          Image?           @relation(fields: [imageId], references: [id])
-  driverProfile     DriverProfile?
-  courierProfile    CourierProfile?
-  customerProfileId Int?             @unique
-  customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
-  businessId        Int
-  business          Business         @relation(fields: [businessId], references: [id])
-  phoneId           Int
-  phoneNumber       Phone            @relation(fields: [phoneId], references: [id])
 }
 
 model Business {
@@ -199,11 +129,25 @@ model Business {
   isDeleted        Boolean           @default(false)
 }
 
-model ConnectedParcel {
-  id          Int    @id @default(autoincrement())
-  connectedTo Int
-  parcelId    Int
-  parcel      Parcel @relation(fields: [parcelId], references: [id])
+model CustomerProfile {
+  id                Int              @id @default(autoincrement())
+  firstName         String
+  lastName          String
+  businessId        Int
+  business          Business         @relation(fields: [businessId], references: [id])
+  parcelsSent       Parcel[]         @relation("sentParcels")
+  parcelsReceived   Parcel[]         @relation("receivedParcels")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  gender            Gender
+  phoneId           Int              @unique
+  phoneNumber       Phone            @relation(fields: [phoneId], references: [id])
+  note              String?
+  user              User?
+  primaryAddress    Address?
+  novaPostAddressId Int?
+  novaPostAddress   NovaPostAddress? @relation(fields: [novaPostAddressId], references: [id])
+  isDeleted         Boolean          @default(false)
 }
 
 model Parcel {
@@ -249,6 +193,71 @@ model Parcel {
   destinationAddress     Address           @relation("destinationParcels", fields: [destinationAddressId], references: [id])
   novaPostAddressId      Int?
   novaPostAddress        NovaPostAddress?  @relation(fields: [novaPostAddressId], references: [id])
+}
+
+model Address {
+  id                 Int             @id @default(autoincrement())
+  street             String
+  city               String
+  flat               String?
+  building           String?
+  block              String?
+  note               String?
+  region             String?
+  postcode           String?
+  originParcels      Parcel[]        @relation("originParcels")
+  destinationParcels Parcel[]        @relation("destinationParcels")
+  countryId          Int
+  country            Country         @relation(fields: [countryId], references: [id])
+  profileId          Int             @unique
+  profile            CustomerProfile @relation(fields: [profileId], references: [id])
+}
+
+model Phone {
+  id              Int              @id @default(autoincrement())
+  number          String
+  countryCode     String
+  users           User[]
+  parcelId        Int?
+  customerProfile CustomerProfile?
+}
+
+model NovaPostAddress {
+  id                 Int               @id @default(autoincrement())
+  city               String
+  street             String
+  Warehouses         String
+  MainDescription    String
+  Area               String
+  Region             String
+  SettlementTypeCode String
+  parcel             Parcel[]
+  customerProfile    CustomerProfile[]
+}
+
+model ConnectedParcel {
+  id          Int    @id @default(autoincrement())
+  connectedTo Int
+  parcelId    Int
+  parcel      Parcel @relation(fields: [parcelId], references: [id])
+}
+
+model CourierJourney {
+  id              Int              @id @default(autoincrement())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  parcels         Parcel[]
+  courierProfiles CourierProfile[]
+  isArchived      Boolean          @default(false)
+  destination     String
+  notes           String?
+  departureDate   DateTime
+  isCompleted     Boolean          @default(false)
+  isDeleted       Boolean          @default(false)
+  businessId      Int
+  business        Business         @relation(fields: [businessId], references: [id])
+  vehicleId       Int
+  vehicle         Vehicle          @relation(fields: [vehicleId], references: [id])
 }
 
 model Journey {

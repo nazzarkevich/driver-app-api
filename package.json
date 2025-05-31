@@ -18,7 +18,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-        "seed:dev": "NODE_ENV=development npx prisma db seed",
+    "seed:dev": "NODE_ENV=development npx prisma db seed",
     "seed:prod": "NODE_ENV=production npx prisma db seed"
   },
   "dependencies": {
@@ -28,6 +28,7 @@
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/swagger": "^7.3.0",
     "@prisma/client": "^5.8.1",
+    "@supabase/supabase-js": "^2.49.8",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-session": "^2.0.48",
     "@types/jsonwebtoken": "^9.0.5",
