@@ -1,36 +1,29 @@
-# Use an official Node.js runtime as a base image
-FROM node:20.11-alpine AS base
+FROM node:20.11-alpine
 
-# Set the working directory in the container
+# Install OpenSSL
+RUN apk add --no-cache openssl
+
 WORKDIR /driver-app-api
 
-# Copy package.json and package-lock.json to the working directory
-COPY ["package.json", "yarn.lock*", "./"]
-
+# Copy package files
+COPY package.json yarn.lock ./
 COPY prisma ./prisma/
 
-FROM base AS dev
-
+# Install dependencies
 RUN yarn install --frozen-lockfile
 
+# Copy source code
 COPY . .
 
-CMD ["yarn", "start:dev"]
+# Generate Prisma client
+RUN yarn prisma generate
 
-# Install application dependencies
-FROM base AS prod
-
-ARG NODE_ENV=production
-ENV NODE_ENV=${NODE_ENV}
-
-RUN yarn install --frozen-lockfile --production
-
-COPY . .
-
-RUN yarn global add @nestjs/cli prisma ts-node
-
+# Build application
 RUN yarn build
+
+# Set production environment
+ENV NODE_ENV=production
 
 EXPOSE 3000
 
-CMD ["yarn", "start:prod"]
+CMD ["node", "dist/main"]
