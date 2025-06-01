@@ -1,5 +1,6 @@
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { Logger, Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 
 import { AppService } from './app.service';
 import { AuthGuard } from './guards/auth.guard';
@@ -61,6 +62,9 @@ import { SupabaseModule } from './supabase/supabase.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Makes ConfigService available everywhere
+    }),
     PrismaModule,
     UsersModule,
     DriversModule,
