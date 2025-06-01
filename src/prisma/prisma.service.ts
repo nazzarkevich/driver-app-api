@@ -4,6 +4,7 @@ import {
   OnModuleDestroy,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
@@ -13,19 +14,26 @@ export class PrismaService
 {
   private readonly logger = new Logger(PrismaService.name);
 
+  constructor(private readonly configService: ConfigService) {
+    super();
+  }
+
   async onModuleInit() {
-    // Debug: Check DATABASE_URL
-    const databaseUrl = process.env.DATABASE_URL;
+    // Use ConfigService to get DATABASE_URL
+    const databaseUrl = this.configService.get<string>('DATABASE_URL');
+
     this.logger.log(`DATABASE_URL is ${databaseUrl ? 'SET' : 'NOT SET'}`);
 
-    if (databaseUrl) {
-      // Mask password for safe logging
-      const maskedUrl = databaseUrl.replace(/:([^:@]+)@/, ':****@');
-      this.logger.log(`DATABASE_URL format: ${maskedUrl}`);
-    } else {
-      this.logger.error('DATABASE_URL is missing!');
-      throw new Error('DATABASE_URL environment variable is required');
+    if (!databaseUrl) {
+      this.logger.error(
+        'DATABASE_URL is not defined in environment variables.',
+      );
+      throw new Error('DATABASE_URL is not defined.');
     }
+
+    // Mask password for safe logging
+    const maskedUrl = databaseUrl.replace(/:([^:@]+)@/, ':****@');
+    this.logger.log(`DATABASE_URL format: ${maskedUrl}`);
 
     try {
       this.logger.log('Attempting to connect to database...');
