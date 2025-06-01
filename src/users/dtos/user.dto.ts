@@ -7,9 +7,6 @@ export class UserDto {
   @Exclude()
   isAdmin: boolean;
 
-  @Exclude()
-  password: string;
-
   @ApiProperty({
     example: '3',
     description: 'Users id',

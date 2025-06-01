@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -19,7 +18,7 @@ export const seedUsers = async (businessId: number) => {
       firstName: 'Admin',
       lastName: '',
       email: 'admin@admin.com',
-      password: await bcrypt.hash('password', 10),
+      // password: await bcrypt.hash('password', 10),
       type: 'Moderator',
       dateOfBirth: new Date('1995-05-08'),
       gender: 'Male',

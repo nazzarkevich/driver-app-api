@@ -18,6 +18,7 @@ import { CountriesModule } from './countries/countries.module';
 import { AddressesModule } from './addresses/addresses.module';
 import { CourierJourneysService } from './courier-journeys/courier-journeys.service';
 import { CourierJourneysModule } from './courier-journeys/courier-journeys.module';
+import { SupabaseModule } from './supabase/supabase.module';
 
 /*
   - Extend courier service and controller ✅
@@ -72,6 +73,7 @@ import { CourierJourneysModule } from './courier-journeys/courier-journeys.modul
     CountriesModule,
     AddressesModule,
     CourierJourneysModule,
+    SupabaseModule,
   ],
   controllers: [AppController],
   providers: [

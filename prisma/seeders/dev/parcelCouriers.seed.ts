@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+// import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -21,7 +21,7 @@ export const seedParcelCouriers = async (businessId: number) => {
         firstName: `Parcel Courier ${i}`,
         lastName: 'User',
         email: `courier${i}@example.com`,
-        password: await bcrypt.hash('password', 10),
+        // password: await bcrypt.hash('password', 10),
         type: 'ParcelCourier',
         dateOfBirth: new Date(`1988-${i}-08`),
         gender: 'Male',
