@@ -31,6 +31,9 @@ RUN yarn global add @nestjs/cli prisma ts-node
 
 RUN yarn build
 
+COPY ./start-railway.sh /driver-app-api/start-railway.sh
+RUN chmod +x /driver-app-api/start-railway.sh
+
 EXPOSE 3000
 
-CMD ["yarn", "start:prod"]
+CMD ["/driver-app-api/start-railway.sh"]
