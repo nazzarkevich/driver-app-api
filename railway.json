@@ -1,8 +1,8 @@
 {
     "build": {
-      "buildCommand": "npm install && npx prisma generate && npm run build"
+      "buildCommand": "yarn install --frozen-lockfile && npx prisma generate && yarn build"
     },
     "deploy": {
-      "startCommand": "npm run start:prod"
+      "startCommand": "yarn start:prod"
     }
   }
