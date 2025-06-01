@@ -1,8 +1,5 @@
 {
     "build": {
-      "buildCommand": "yarn install --frozen-lockfile && npx prisma generate && yarn build"
-    },
-    "deploy": {
-      "startCommand": "node dist/main.js"
+      "builder": "dockerfile"
     }
   }
