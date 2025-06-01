@@ -1,8 +1,8 @@
 {
     "build": {
-      "buildCommand": "yarn install --frozen-lockfile && npx prisma generate && yarn build"
+      "buildCommand": "echo 'Starting build...' && yarn install && echo 'Dependencies installed' && yarn prisma generate && echo 'Prisma generated' && yarn build && echo 'Build completed' && ls -la node_modules/.prisma/ && ls -la dist/"
     },
     "deploy": {
-      "startCommand": "yarn start:prod"
+      "startCommand": "node dist/main"
     }
   }
