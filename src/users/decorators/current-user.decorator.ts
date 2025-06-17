@@ -1,10 +1,13 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { UserType } from '@prisma/client';
 
 export interface UserRequestType {
   name: string;
   id: number;
   iat: number;
   exp: number;
+  type: UserType;
+  isAdmin: boolean;
 }
 
 export const CurrentUser = createParamDecorator(

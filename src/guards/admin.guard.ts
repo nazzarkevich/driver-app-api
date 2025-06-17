@@ -1,16 +1,16 @@
-import { CanActivate, ExecutionContext } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 
-// TODO: Question: how to add current user before the guard
-// TODO: refactor guard to have a current user
-
+@Injectable()
 export class AdminGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
+    const user = request.currentUser as UserRequestType;
 
-    if (!request.currentUser) {
+    if (!user) {
       return false;
     }
 
-    return request.currentUser.isAdmin;
+    return user.isAdmin;
   }
 }

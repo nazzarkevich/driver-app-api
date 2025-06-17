@@ -3,6 +3,7 @@ import {
   Controller,
   DefaultValuePipe,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -19,6 +20,11 @@ import { AdminGuard } from 'src/guards/admin.guard';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { UpdateUserDto } from './dtos/update-user.dto';
 import { Roles } from 'src/decorators/roles.decorator';
+import {
+  CurrentUser,
+  UserRequestType,
+} from './decorators/current-user.decorator';
+import { AuthGuard } from 'src/guards/auth.guard';
 
 @ApiTags('User')
 @Controller('users')
@@ -42,13 +48,16 @@ export class UsersController {
   }
 
   @Put('/:id')
-  updateOwnUser(
+  @UseGuards(AuthGuard)
+  async updateOwnUser(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateUserDto,
+    @CurrentUser() currentUser: UserRequestType,
   ): Promise<UserDto> {
-    // TODO: Add permission
-    // 1) user can edit their details
-    // 2) Admin can edit all users details
+    // Check if user is updating their own profile or is an admin
+    if (currentUser.id !== id && !currentUser.isAdmin) {
+      throw new ForbiddenException('You can only update your own profile');
+    }
 
     return this.usersService.update(id, body);
   }

@@ -1,18 +1,25 @@
 import { Module } from '@nestjs/common';
-
 import { UsersService } from './users.service';
-import { AuthService } from './auth/auth.service';
 import { UsersController } from './users.controller';
-import { PrismaModule } from 'src/prisma/prisma.module';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { AuthController } from './auth/auth.controller';
-import { DriversModule } from 'src/profiles/drivers/drivers.module';
-import { CouriersModule } from 'src/profiles/couriers/couriers.module';
-import { SupabaseModule } from 'src/supabase/supabase.module';
+import { AuthService } from './auth/auth.service';
+import { DriversService } from 'src/profiles/drivers/drivers.service';
+import { CouriersService } from 'src/profiles/couriers/couriers.service';
+import { SupabaseService } from 'src/supabase/supabase.service';
+import { AuthProfilesModule } from './auth-profiles/auth-profiles.module';
 
 @Module({
-  imports: [PrismaModule, DriversModule, CouriersModule, SupabaseModule],
+  imports: [AuthProfilesModule],
   controllers: [UsersController, AuthController],
-  providers: [UsersService, AuthService],
-  exports: [UsersService],
+  providers: [
+    UsersService,
+    PrismaService,
+    AuthService,
+    DriversService,
+    CouriersService,
+    SupabaseService,
+  ],
+  exports: [UsersService, AuthService],
 })
 export class UsersModule {}

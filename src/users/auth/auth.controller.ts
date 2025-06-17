@@ -16,11 +16,9 @@ import { UsersService } from '../users.service';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { Public } from 'src/decorators/public.decorator';
 import { UserDto } from '../dtos/user.dto';
-
-/* 
-  TODO: 
-  1) Add Auth0
-*/
+import { OAuthSignInDto } from '../dtos/oauth-sign-in.dto';
+import { UserType } from '@prisma/client';
+import { RefreshTokenDto } from '../dtos/refresh-token.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -53,9 +51,40 @@ export class AuthController {
     return this.authService.signIn(body);
   }
 
+  @ApiCreatedResponse({
+    description: 'Successfully authenticated with OAuth provider',
+  })
+  @ApiBadRequestResponse({ description: 'OAuth authentication failed' })
+  @Public()
+  @Post('/oauth')
+  async oauthSignIn(@Body() body: OAuthSignInDto) {
+    return this.authService.handleOAuthSignIn(body.provider, body.token);
+  }
+
+  @ApiCreatedResponse({
+    description: 'Successfully refreshed token',
+  })
+  @ApiBadRequestResponse({ description: 'Invalid refresh token' })
+  @Public()
+  @Post('/refresh')
+  async refreshToken(@Body() body: RefreshTokenDto) {
+    return this.authService.refreshToken(body.refreshToken);
+  }
+
   @Get('me')
-  me(@CurrentUser() user: UserRequestType) {
-    // TODO: Question: what data should be returned for /me endpoint?
-    return this.usersService.findOne(user.id);
+  async me(@CurrentUser() user: UserRequestType) {
+    const include: any = {
+      phoneNumber: true,
+      business: true,
+    };
+
+    // Add profile based on user type
+    if (user.type === UserType.InternationalDriver) {
+      include.driverProfile = true;
+    } else if (user.type === UserType.ParcelCourier) {
+      include.courierProfile = true;
+    }
+
+    return this.usersService.findOne(user.id, include);
   }
 }

@@ -12,6 +12,7 @@ import { DriversService } from 'src/profiles/drivers/drivers.service';
 import { CouriersService } from 'src/profiles/couriers/couriers.service';
 import { SupabaseService } from 'src/supabase/supabase.service';
 import { UserDto } from '../dtos/user.dto';
+import { AuthProfilesService } from '../auth-profiles/auth-profiles.service';
 
 @Injectable()
 export class AuthService {
@@ -20,6 +21,7 @@ export class AuthService {
     private readonly driversService: DriversService,
     private readonly couriersService: CouriersService,
     private readonly supabaseService: SupabaseService,
+    private readonly authProfilesService: AuthProfilesService,
   ) {}
 
   private isDriver(type: UserType): boolean {
@@ -42,6 +44,42 @@ export class AuthService {
     });
   }
 
+  async refreshToken(
+    refreshToken: string,
+  ): Promise<{ token: string; user: UserDto }> {
+    const { data, error } =
+      await this.supabaseService.client.auth.refreshSession({
+        refresh_token: refreshToken,
+      });
+
+    if (error || !data.session) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // Update the auth profile's last sign-in time
+    await this.authProfilesService.updateLastSignIn(data.session.user.id);
+
+    const user = await this.prismaService.user.findUnique({
+      where: { supabaseId: data.session.user.id },
+      include: {
+        phoneNumber: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found in application database');
+    }
+
+    if (user.isBlocked) {
+      throw new UnauthorizedException('User is blocked');
+    }
+
+    return {
+      token: data.session.access_token,
+      user: new UserDto(user),
+    };
+  }
+
   async signUp({
     email,
     password,
@@ -50,7 +88,11 @@ export class AuthService {
     lastName,
     phoneNumber,
     countryCode,
-  }: CreateUserDto): Promise<{ token: string; user: UserDto }> {
+  }: CreateUserDto): Promise<{
+    token: string;
+    refreshToken: string;
+    user: UserDto;
+  }> {
     // First create the user in Supabase
     const { data: authData, error: authError } =
       await this.supabaseService.client.auth.signUp({
@@ -69,6 +111,13 @@ export class AuthService {
         authError?.message || 'Failed to create user',
       );
     }
+
+    // Create or update the auth profile
+    await this.authProfilesService.createOrUpdate(
+      authData.user.id,
+      'email', // Default provider is email
+      new Date(),
+    );
 
     // Then create the user in our database
     const user = await this.prismaService.user.create({
@@ -103,17 +152,16 @@ export class AuthService {
 
     return {
       token: authData.session?.access_token,
+      refreshToken: authData.session?.refresh_token,
       user: new UserDto(user),
     };
   }
 
-  async signIn({
-    email,
-    password,
-  }: SignInDto): Promise<{ token: string; user: UserDto }> {
-    console.log('email: ', email);
-    console.log('password: ', password);
-
+  async signIn({ email, password }: SignInDto): Promise<{
+    token: string;
+    refreshToken: string;
+    user: UserDto;
+  }> {
     const {
       data: { session },
       error,
@@ -122,12 +170,12 @@ export class AuthService {
       password,
     });
 
-    console.log('session: ', session);
-    console.log('error: ', error);
-
     if (error || !session) {
       throw new UnauthorizedException(error, 'Invalid credentials');
     }
+
+    // Update the auth profile's last sign-in time
+    await this.authProfilesService.updateLastSignIn(session.user.id);
 
     const user = await this.prismaService.user.findUnique({
       where: { supabaseId: session.user.id },
@@ -146,8 +194,82 @@ export class AuthService {
 
     return {
       token: session.access_token,
+      refreshToken: session.refresh_token,
       user: new UserDto(user),
     };
   }
-  ß;
+
+  async handleOAuthSignIn(
+    provider: string,
+    token: string,
+  ): Promise<{ token: string; refreshToken: string; user: UserDto }> {
+    // Exchange the provider token for a Supabase session
+    const { data, error } =
+      await this.supabaseService.client.auth.signInWithIdToken({
+        provider: provider as any, // 'google', 'facebook', etc.
+        token,
+      });
+
+    if (error || !data.session) {
+      throw new UnauthorizedException(
+        error?.message || `Failed to authenticate with ${provider}`,
+      );
+    }
+
+    const supabaseUser = data.session.user;
+
+    // Check if the user already exists in our database
+    let user = await this.prismaService.user.findUnique({
+      where: { supabaseId: supabaseUser.id },
+      include: { phoneNumber: true },
+    });
+
+    // Create or update the auth profile
+    await this.authProfilesService.createOrUpdate(
+      supabaseUser.id,
+      provider,
+      new Date(),
+    );
+
+    // If the user doesn't exist in our database yet, create them
+    if (!user) {
+      const userData = supabaseUser.user_metadata || {};
+
+      user = await this.prismaService.user.create({
+        data: {
+          email: supabaseUser.email,
+          firstName:
+            userData.full_name?.split(' ')[0] || userData.name || 'User',
+          lastName: userData.full_name?.split(' ').slice(1).join(' ') || '',
+          type: UserType.Member, // Default type for OAuth users
+          supabaseId: supabaseUser.id,
+          business: {
+            connect: { id: 1 }, // Default business connection
+          },
+          // Create phone if provided by OAuth provider
+          ...(userData.phone && {
+            phoneNumber: {
+              create: {
+                countryCode: '+1', // Default country code
+                number: userData.phone,
+              },
+            },
+          }),
+        },
+        include: {
+          phoneNumber: true,
+        },
+      });
+    }
+
+    if (user.isBlocked) {
+      throw new UnauthorizedException('User is blocked');
+    }
+
+    return {
+      token: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      user: new UserDto(user),
+    };
+  }
 }

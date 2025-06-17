@@ -1,24 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-
-import { UserDto } from './dtos/user.dto';
-import { Pagination } from 'src/dtos/pagination.dto';
-import { UpdateUserDto } from './dtos/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { UserDto } from './dtos/user.dto';
+import { UpdateUserDto } from './dtos/update-user.dto';
+import { Pagination } from 'src/dtos/pagination.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async findOne(id: number): Promise<UserDto> {
+  async findOne(id: number, include?: Prisma.UserInclude): Promise<UserDto> {
     const user = await this.prismaService.user.findUnique({
-      where: {
-        id,
-      },
+      where: { id },
+      include,
     });
 
     if (!user) {
-      throw new NotFoundException();
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
 
     return new UserDto(user);
