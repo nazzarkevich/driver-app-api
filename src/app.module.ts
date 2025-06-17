@@ -20,6 +20,8 @@ import { AddressesModule } from './addresses/addresses.module';
 import { CourierJourneysService } from './courier-journeys/courier-journeys.service';
 import { CourierJourneysModule } from './courier-journeys/courier-journeys.module';
 import { SupabaseModule } from './supabase/supabase.module';
+import { AuditModule } from './audit/audit.module';
+import { AuditInterceptor } from './audit/audit.interceptor';
 
 /*
   - Extend courier service and controller ✅
@@ -58,7 +60,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 
 */
 
-// TODO: Question: how to add action logs to the system?
+// ✅ Action logs implemented with AuditModule, AuditService, and AuditInterceptor
 
 @Module({
   imports: [
@@ -78,6 +80,7 @@ import { SupabaseModule } from './supabase/supabase.module';
     AddressesModule,
     CourierJourneysModule,
     SupabaseModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [
@@ -85,6 +88,10 @@ import { SupabaseModule } from './supabase/supabase.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: UserInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
     },
     {
       provide: APP_GUARD,

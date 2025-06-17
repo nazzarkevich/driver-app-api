@@ -76,6 +76,7 @@ model User {
   business          Business         @relation(fields: [businessId], references: [id])
   phoneId           Int? // Made optional since Google OAuth may not provide phone
   phoneNumber       Phone?           @relation(fields: [phoneId], references: [id])
+  AuditLog          AuditLog[]
 }
 
 // NEW: Store Supabase auth metadata if needed
@@ -127,6 +128,7 @@ model Business {
   imageUrl         Image?            @relation(fields: [imageId], references: [id])
   courierJourney   CourierJourney[]
   isDeleted        Boolean           @default(false)
+  AuditLog         AuditLog[]
 }
 
 model CustomerProfile {
@@ -317,4 +319,56 @@ model Vehicle {
   businessId     Int
   business       Business         @relation(fields: [businessId], references: [id])
   isDeleted      Boolean          @default(false)
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  SIGNUP
+  PASSWORD_CHANGE
+  ROLE_CHANGE
+  PROFILE_UPDATE
+  UPLOAD_FILE
+  DOWNLOAD_FILE
+  EXPORT_DATA
+  IMPORT_DATA
+  ARCHIVE
+  RESTORE
+  APPROVE
+  REJECT
+  ASSIGN
+  UNASSIGN
+  CUSTOM
+}
+
+model AuditLog {
+  id          Int         @id @default(autoincrement())
+  userId      Int? // Nullable for system actions or anonymous users
+  user        User?       @relation(fields: [userId], references: [id])
+  action      AuditAction
+  entityType  String // e.g., "User", "Parcel", "Journey"
+  entityId    String? // ID of the affected entity (as string for flexibility)
+  description String // Human-readable description of the action
+  metadata    Json? // Additional data (request body, changed fields, etc.)
+  ipAddress   String?
+  userAgent   String?
+  sessionId   String?
+  method      String? // HTTP method (GET, POST, PUT, DELETE)
+  endpoint    String? // API endpoint
+  requestId   String? // Unique request identifier
+  duration    Int? // Request duration in ms
+  statusCode  Int? // HTTP status code
+  businessId  Int? // For multi-tenant logging
+  business    Business?   @relation(fields: [businessId], references: [id])
+  createdAt   DateTime    @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+  @@index([businessId])
 }

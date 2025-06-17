@@ -59,7 +59,7 @@ export class UsersController {
       throw new ForbiddenException('You can only update your own profile');
     }
 
-    return this.usersService.update(id, body);
+    return this.usersService.update(id, body, currentUser);
   }
 
   @Delete('/:id')

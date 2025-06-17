@@ -4,11 +4,16 @@ import { UserDto } from './dtos/user.dto';
 import { UpdateUserDto } from './dtos/update-user.dto';
 import { Pagination } from 'src/dtos/pagination.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
-import { Prisma } from '@prisma/client';
+import { Prisma, AuditAction } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
+import { UserRequestType } from './decorators/current-user.decorator';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async findOne(id: number, include?: Prisma.UserInclude): Promise<UserDto> {
     const user = await this.prismaService.user.findUnique({
@@ -41,7 +46,11 @@ export class UsersService {
     };
   }
 
-  async update(id: number, attrs: Partial<UpdateUserDto>): Promise<UserDto> {
+  async update(
+    id: number,
+    attrs: Partial<UpdateUserDto>,
+    currentUser?: UserRequestType,
+  ): Promise<UserDto> {
     const user = await this.findOne(id);
 
     if (!user) {
@@ -56,6 +65,24 @@ export class UsersService {
       },
       data: attrs,
     });
+
+    // Log the user update action
+    await this.auditService.logUserAction(
+      currentUser || null,
+      AuditAction.UPDATE,
+      'User',
+      id.toString(),
+      `Updated user profile for ${user.firstName} ${user.lastName}`,
+      {
+        updatedFields: Object.keys(attrs),
+        previousValues: {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+        },
+        newValues: attrs,
+      },
+    );
 
     return new UserDto(updatedUser);
   }
