@@ -21,11 +21,18 @@ import { ParcelsService } from './parcels.service';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
+import {
+  ConnectedParcelsService,
+  ConnectionType,
+} from './connected-parcels.service';
 
 @ApiTags('Parcel')
 @Controller('parcels')
 export class ParcelsController {
-  constructor(private readonly parcelsService: ParcelsService) {}
+  constructor(
+    private readonly parcelsService: ParcelsService,
+    private readonly connectedParcelsService: ConnectedParcelsService,
+  ) {}
 
   @Post()
   async createParcel(
@@ -68,5 +75,41 @@ export class ParcelsController {
   removeParcel(@Param('id', ParseIntPipe) id: number) {
     // TODO: remove address first
     return this.parcelsService.removeParcel(id);
+  }
+
+  // ========== PARCEL CONNECTIONS ENDPOINTS ==========
+
+  @Get('/:id/connections')
+  async getParcelConnections(@Param('id', ParseIntPipe) id: number) {
+    return this.connectedParcelsService.getConnectedParcels(id);
+  }
+
+  @Post('/:id/connect/:targetId')
+  async connectParcels(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('targetId', ParseIntPipe) targetId: number,
+    @Body() body: { connectionType: ConnectionType },
+  ) {
+    return this.connectedParcelsService.connectParcels(
+      id,
+      targetId,
+      body.connectionType,
+    );
+  }
+
+  @Delete('/:id/disconnect/:targetId')
+  async disconnectParcels(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('targetId', ParseIntPipe) targetId: number,
+  ) {
+    return this.connectedParcelsService.disconnectParcels(id, targetId);
+  }
+
+  @Get('/groups/list')
+  async getParcelGroups(@CurrentUser() currentUser: UserRequestType) {
+    const user = await this.parcelsService['usersService'].findOne(
+      currentUser.id,
+    );
+    return this.connectedParcelsService.getParcelGroups(user.businessId);
   }
 }

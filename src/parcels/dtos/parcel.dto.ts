@@ -3,9 +3,25 @@ import {
   DiscountType,
   DeliveryStatus,
   PaymentStatus,
-  ConnectedParcel,
 } from '@prisma/client';
 import { Expose } from 'class-transformer';
+
+export interface ConnectedParcelInfo {
+  id: number;
+  trackingNumber: string;
+  connectionType: string;
+  connectedAt: Date;
+  sender?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+  };
+  recipient?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+  };
+}
 
 @Expose()
 export class ParcelDto {
@@ -13,11 +29,13 @@ export class ParcelDto {
   businessId: number;
   weight: number;
   price: number;
+  cost: number;
   discount: number;
-  type: ParcelType;
+  cargoType: ParcelType; // Fixed: was 'type', should match schema
   discountType: DiscountType;
   notes: string;
   trackingNumber: string;
+  novaPostTrackingNumber: string;
   parcelMoneyAmount: number; // TODO: should be visible only to admins
   isLost: boolean;
   isArchived: boolean;
@@ -29,13 +47,25 @@ export class ParcelDto {
   updatedAt: Date;
   deliveryStatus: DeliveryStatus;
   paymentStatus: PaymentStatus;
-  connectedParcels: ConnectedParcel[];
+
+  // Connection information
+  connectedParcels: ConnectedParcelInfo[];
+  connectionCount: number;
+  hasConnections: boolean;
+
+  // Relationships
   senderId: number;
   recipientId: number;
   journeyId: number;
-  courierProfileId: number;
+  courierJourneyId: number;
+  originAddressId: number;
+  destinationAddressId: number;
 
   constructor(partial: Partial<ParcelDto>) {
     Object.assign(this, partial);
+
+    // Calculate connection stats
+    this.connectionCount = this.connectedParcels?.length || 0;
+    this.hasConnections = this.connectionCount > 0;
   }
 }

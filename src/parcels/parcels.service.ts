@@ -8,12 +8,17 @@ import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
 import { UserRequestType } from 'src/users/decorators/current-user.decorator';
+import {
+  ConnectedParcelsService,
+  ConnectionCriteria,
+} from './connected-parcels.service';
 
 @Injectable()
 export class ParcelsService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly usersService: UsersService,
+    private readonly connectedParcelsService: ConnectedParcelsService,
   ) {}
 
   /* 
@@ -25,10 +30,10 @@ export class ParcelsService {
   async createParcel(
     user: UserRequestType,
     body: CreateParcelDto,
-  ): Promise<void> {
+  ): Promise<{ id: number; trackingNumber: string }> {
     const currentUser = await this.usersService.findOne(user.id);
 
-    await this.prismaService.parcel.create({
+    const newParcel = await this.prismaService.parcel.create({
       data: {
         ...body,
         businessId: currentUser.businessId,
@@ -36,6 +41,29 @@ export class ParcelsService {
         pickupDate: new Date(),
       },
     });
+
+    // Auto-connect with similar parcels
+    const connectionCriteria: ConnectionCriteria = {
+      senderId: body.senderId,
+      destinationAddressId: body.destinationAddressId,
+      timeWindow: 24, // Connect parcels created within 24 hours
+      businessId: currentUser.businessId,
+    };
+
+    try {
+      await this.connectedParcelsService.autoConnectParcels(
+        newParcel.id,
+        connectionCriteria,
+      );
+    } catch (error) {
+      // Log error but don't fail parcel creation
+      console.warn('Failed to auto-connect parcel:', error);
+    }
+
+    return {
+      id: newParcel.id,
+      trackingNumber: newParcel.trackingNumber,
+    };
   }
 
   async findParcels(page: number): Promise<Pagination<ParcelDto>> {
@@ -47,6 +75,13 @@ export class ParcelsService {
         include: {
           sender: true,
           recipient: true,
+          connections: {
+            include: {
+              connectedTo: {
+                select: { id: true, trackingNumber: true },
+              },
+            },
+          },
         },
       })
       .withPages({ page });
@@ -86,6 +121,18 @@ export class ParcelsService {
     const parcel = await this.prismaService.parcel.findUnique({
       where: {
         id,
+      },
+      include: {
+        connections: {
+          include: {
+            connectedTo: {
+              include: {
+                sender: true,
+                recipient: true,
+              },
+            },
+          },
+        },
       },
     });
 

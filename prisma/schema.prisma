@@ -177,7 +177,8 @@ model Parcel {
   paymentStatus          PaymentStatus     @default(NotPaid)
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
-  connectedParcels       ConnectedParcel[]
+  connections            ConnectedParcel[] @relation("ParcelConnections")
+  connectedFrom          ConnectedParcel[] @relation("ConnectedToParcels")
   isDeleted              Boolean           @default(false)
   senderId               Int
   sender                 CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
@@ -195,6 +196,7 @@ model Parcel {
   destinationAddress     Address           @relation("destinationParcels", fields: [destinationAddressId], references: [id])
   novaPostAddressId      Int?
   novaPostAddress        NovaPostAddress?  @relation(fields: [novaPostAddressId], references: [id])
+  ConnectedParcel        ConnectedParcel[]
 }
 
 model Address {
@@ -238,10 +240,22 @@ model NovaPostAddress {
 }
 
 model ConnectedParcel {
-  id          Int    @id @default(autoincrement())
-  connectedTo Int
-  parcelId    Int
-  parcel      Parcel @relation(fields: [parcelId], references: [id])
+  id             Int      @id @default(autoincrement())
+  parcelId       Int
+  connectedToId  Int
+  connectionType String // "SAME_DESTINATION", "SAME_SENDER", "BULK_SHIPMENT", "MANUAL"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Bidirectional relationships with unique constraint names
+  parcel      Parcel @relation("ParcelConnections", fields: [parcelId], references: [id], onDelete: Cascade, map: "ConnectedParcel_parcel_fkey")
+  connectedTo Parcel @relation("ConnectedToParcels", fields: [connectedToId], references: [id], onDelete: Cascade, map: "ConnectedParcel_connectedTo_fkey")
+  Parcel      Parcel @relation(fields: [parcelId], references: [id])
+
+  @@unique([parcelId, connectedToId])
+  @@index([parcelId])
+  @@index([connectedToId])
+  @@index([connectionType])
 }
 
 model CourierJourney {
