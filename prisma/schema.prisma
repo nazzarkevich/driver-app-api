@@ -63,6 +63,7 @@ model User {
   dateOfBirth       DateTime? // Made optional for Google OAuth users
   gender            Gender? // Made optional for Google OAuth users
   isAdmin           Boolean          @default(false)
+  isSuperAdmin      Boolean          @default(false)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   isDeleted         Boolean          @default(false)

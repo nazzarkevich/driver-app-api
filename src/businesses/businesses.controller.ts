@@ -11,7 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
-import { AdminGuard } from 'src/guards/admin.guard';
+import { SuperAdminGuard } from 'src/guards/super-admin.guard';
+import { BusinessAdminGuard } from 'src/guards/business-admin.guard';
 import { BusinessesService } from './businesses.service';
 import { CreateBusinessDto } from './dtos/create-business.dto';
 import { UpdateBusinessDto } from './dtos/update-business.dto';
@@ -29,22 +30,25 @@ export class BusinessesController {
   constructor(private readonly businessesService: BusinessesService) {}
 
   @Post()
-  @UseGuards(AdminGuard)
+  @UseGuards(SuperAdminGuard)
   createBusiness(@Body() body: CreateBusinessDto) {
     return this.businessesService.createBusiness(body);
   }
 
   @Post('with-admin')
+  @UseGuards(SuperAdminGuard)
   createBusinessWithAdmin(@Body() body: CreateBusinessWithAdminDto) {
     return this.businessesService.createBusinessWithAdmin(body);
   }
 
   @Get()
+  @UseGuards(SuperAdminGuard)
   async findAllBusinesses() {
     return this.businessesService.findAll();
   }
 
   @Get('active')
+  @UseGuards(SuperAdminGuard)
   async findActiveBusinesses() {
     return this.businessesService.findActiveBusinesses();
   }
@@ -55,39 +59,45 @@ export class BusinessesController {
   }
 
   @Get('/:id')
-  async findBusiness(@Param('id', ParseIntPipe) id: number) {
+  @UseGuards(BusinessAdminGuard)
+  async findBusiness(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    if (!currentUser.isSuperAdmin && currentUser.businessId !== id) {
+      throw new Error('Access denied to this business');
+    }
     return this.businessesService.findOne(id);
   }
 
   @Put('/:id')
-  @UseGuards(AdminGuard)
+  @UseGuards(BusinessAdminGuard)
   updateBusiness(
+    @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateBusinessDto,
   ) {
-    // TODO: Add permission
-    // 1) user can edit their details
-    // 2) Admin can edit all users details
-
+    if (!currentUser.isSuperAdmin && currentUser.businessId !== id) {
+      throw new Error('Access denied to this business');
+    }
     return this.businessesService.update(id, body);
   }
 
   @Put('/:id/activate')
-  @UseGuards(AdminGuard)
+  @UseGuards(SuperAdminGuard)
   activateBusiness(@Param('id', ParseIntPipe) id: number) {
     return this.businessesService.activateBusiness(id);
   }
 
   @Put('/:id/deactivate')
-  @UseGuards(AdminGuard)
+  @UseGuards(SuperAdminGuard)
   deactivateBusiness(@Param('id', ParseIntPipe) id: number) {
     return this.businessesService.deactivateBusiness(id);
   }
 
   @Delete('/:id')
-  @UseGuards(AdminGuard)
+  @UseGuards(SuperAdminGuard)
   removeBusiness(@Param('id', ParseIntPipe) id: number) {
-    // TODO: Question: do we need to remove items or archive?
     return this.businessesService.remove(id);
   }
 }

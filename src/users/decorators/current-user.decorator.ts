@@ -9,12 +9,12 @@ export interface UserRequestType {
   exp: number;
   type: UserType;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
 }
 
 export const CurrentUser = createParamDecorator(
-  (data: any, context: ExecutionContext) => {
+  (data: any, context: ExecutionContext): UserRequestType => {
     const request = context.switchToHttp().getRequest();
-
     return request.currentUser;
   },
 );

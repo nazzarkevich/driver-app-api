@@ -56,6 +56,7 @@ export class AuthGuard implements CanActivate {
           businessId: user.businessId,
           type: user.type,
           isAdmin: user.isAdmin,
+          isSuperAdmin: user.isSuperAdmin,
         };
         return true;
       }

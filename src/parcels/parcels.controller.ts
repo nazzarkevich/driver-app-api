@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Delete,
   Get,
   Param,
@@ -11,20 +10,24 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiQuery } from '@nestjs/swagger';
 
 import {
   CurrentUser,
   UserRequestType,
 } from 'src/users/decorators/current-user.decorator';
 import { ParcelsService } from './parcels.service';
-import { AdminGuard } from 'src/guards/admin.guard';
+
 import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
 import {
   ConnectedParcelsService,
   ConnectionType,
 } from './connected-parcels.service';
+import { ParcelDto } from './dtos/parcel.dto';
+import { Pagination } from 'src/dtos/pagination.dto';
+import { SuperAdminGuard } from 'src/guards/super-admin.guard';
+import { SuperAdminQueryDto } from 'src/dtos/super-admin-query.dto';
 
 @ApiTags('Parcel')
 @Controller('parcels')
@@ -43,52 +46,108 @@ export class ParcelsController {
   }
 
   @Get()
-  async findParcels(
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({
+    name: 'businessId',
+    required: false,
+    type: Number,
+    description: 'SuperAdmin only: specify business to query',
+  })
+  async findAllParcels(
     @CurrentUser() currentUser: UserRequestType,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-  ) {
-    const parcels = await this.parcelsService.findParcels(
-      page,
-      currentUser.businessId,
-    );
+    @Query('page') page?: string,
+    @Query() query?: SuperAdminQueryDto,
+  ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
+    const pageNumber = page ? parseInt(page, 10) : undefined;
 
-    return parcels;
+    // SuperAdmin can specify different businessId, regular users use their own
+    const targetBusinessId =
+      currentUser.isSuperAdmin && query?.businessId
+        ? query.businessId
+        : currentUser.businessId;
+
+    return this.parcelsService.findAll(
+      targetBusinessId,
+      currentUser,
+      pageNumber,
+    );
+  }
+
+  @Get('/cross-business')
+  @UseGuards(SuperAdminGuard)
+  @ApiQuery({
+    name: 'businessIds',
+    required: true,
+    type: String,
+    description: 'Comma-separated business IDs (e.g., "1,2,3")',
+  })
+  async findParcelsAcrossBusinesses(
+    @CurrentUser() currentUser: UserRequestType,
+    @Query('businessIds') businessIds: string,
+  ): Promise<ParcelDto[]> {
+    const ids = businessIds.split(',').map((id) => parseInt(id.trim(), 10));
+    return this.parcelsService.findAcrossBusinesses(ids, currentUser);
   }
 
   @Get('/:id')
+  @ApiQuery({
+    name: 'businessId',
+    required: false,
+    type: Number,
+    description: 'SuperAdmin only: specify business context',
+  })
   async findParcel(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
-  ) {
-    const parcel = await this.parcelsService.findParcel(
-      id,
-      currentUser.businessId,
-    );
+    @Query() query?: SuperAdminQueryDto,
+  ): Promise<ParcelDto> {
+    const targetBusinessId =
+      currentUser.isSuperAdmin && query?.businessId
+        ? query.businessId
+        : currentUser.businessId;
 
-    return parcel;
+    return this.parcelsService.findOne(id, targetBusinessId, currentUser);
   }
 
   @Put('/:id')
+  @ApiQuery({
+    name: 'businessId',
+    required: false,
+    type: Number,
+    description: 'SuperAdmin only: specify business context',
+  })
   updateParcel(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateParcelDto,
-  ) {
-    // TODO: Add permission
-    // 1) user can edit their details
-    // 2) Admin can edit all users details
+    @Query() query?: SuperAdminQueryDto,
+  ): Promise<ParcelDto> {
+    const targetBusinessId =
+      currentUser.isSuperAdmin && query?.businessId
+        ? query.businessId
+        : currentUser.businessId;
 
-    return this.parcelsService.updateParcel(id, body, currentUser.businessId);
+    return this.parcelsService.update(id, body, targetBusinessId, currentUser);
   }
 
   @Delete('/:id')
-  @UseGuards(AdminGuard)
+  @ApiQuery({
+    name: 'businessId',
+    required: false,
+    type: Number,
+    description: 'SuperAdmin only: specify business context',
+  })
   removeParcel(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
-  ) {
-    // TODO: remove address first
-    return this.parcelsService.removeParcel(id, currentUser.businessId);
+    @Query() query?: SuperAdminQueryDto,
+  ): Promise<void> {
+    const targetBusinessId =
+      currentUser.isSuperAdmin && query?.businessId
+        ? query.businessId
+        : currentUser.businessId;
+
+    return this.parcelsService.remove(id, targetBusinessId, currentUser);
   }
 
   // ========== PARCEL CONNECTIONS ENDPOINTS ==========

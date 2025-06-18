@@ -69,101 +69,96 @@ export class ParcelsService extends BaseTenantService {
     };
   }
 
-  async findParcels(
-    page: number,
+  async findAll(
     businessId: number,
-  ): Promise<Pagination<ParcelDto>> {
-    await this.validateBusinessAccess(businessId);
+    currentUser?: UserRequestType,
+    page?: number,
+  ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
+    await this.validateBusinessAccess(businessId, currentUser);
 
-    const [parcelsWithPagination, metadata] = await prismaWithPagination.parcel
-      .paginate({
-        where: this.getBusinessFilter(businessId),
+    const whereClause = this.getBusinessWhere(businessId, {}, currentUser);
+
+    if (page) {
+      // Return paginated results
+      const [parcelsWithPagination, metadata] =
+        await prismaWithPagination.parcel
+          .paginate({
+            orderBy: {
+              createdAt: 'desc',
+            },
+            where: whereClause,
+            include: {
+              sender: true,
+              recipient: true,
+              originAddress: true,
+              destinationAddress: true,
+              business: currentUser?.isSuperAdmin ? true : false, // Include business info for SuperAdmin
+            },
+          })
+          .withPages({ page });
+
+      const parcels = parcelsWithPagination.map(
+        (parcel) => new ParcelDto(parcel),
+      );
+
+      return {
+        items: parcels,
+        ...metadata,
+      };
+    } else {
+      // Return all results
+      const allParcels = await this.prismaService.parcel.findMany({
+        where: whereClause,
         orderBy: {
           createdAt: 'desc',
         },
         include: {
           sender: true,
           recipient: true,
-          connections: {
-            include: {
-              connectedTo: {
-                select: { id: true, trackingNumber: true },
-              },
-            },
-          },
+          originAddress: true,
+          destinationAddress: true,
+          business: currentUser?.isSuperAdmin ? true : false, // Include business info for SuperAdmin
         },
-      })
-      .withPages({ page });
-
-    const parcels = parcelsWithPagination.map(
-      (parcel) => new ParcelDto(parcel),
-    );
-
-    return {
-      items: parcels,
-      ...metadata,
-    };
-  }
-
-  async findParcelsByIds(
-    parcelsIds: number[],
-    businessId: number,
-  ): Promise<ParcelDto[]> {
-    if (parcelsIds?.length === 0) {
-      return [];
-    }
-
-    await this.validateBusinessAccess(businessId);
-
-    try {
-      const parcels = await this.prismaService.parcel.findMany({
-        where: this.getBusinessWhere(businessId, {
-          id: {
-            in: parcelsIds,
-          },
-        }),
       });
 
-      return parcels.map((parcel) => new ParcelDto(parcel));
-    } catch (error) {
-      throw new NotFoundException(error);
+      return allParcels.map((parcel) => new ParcelDto(parcel));
     }
   }
 
-  async findParcel(id: number, businessId: number): Promise<ParcelDto> {
-    await this.validateBusinessAccess(businessId);
+  async findOne(
+    id: number,
+    businessId: number,
+    currentUser?: UserRequestType,
+  ): Promise<ParcelDto> {
+    await this.validateBusinessAccess(businessId, currentUser);
 
     const parcel = await this.prismaService.parcel.findUnique({
       where: {
         id,
       },
       include: {
-        connections: {
-          include: {
-            connectedTo: {
-              include: {
-                sender: true,
-                recipient: true,
-              },
-            },
-          },
-        },
+        sender: true,
+        recipient: true,
+        originAddress: true,
+        destinationAddress: true,
+        business: currentUser?.isSuperAdmin ? true : false, // Include business info for SuperAdmin
       },
     });
 
-    if (!parcel || parcel.businessId !== businessId) {
-      throw new NotFoundException();
+    if (!parcel || !this.canAccessBusiness(parcel.businessId, currentUser)) {
+      throw new NotFoundException('Parcel not found');
     }
 
     return new ParcelDto(parcel);
   }
 
-  async updateParcel(
+  async update(
     id: number,
     attrs: Partial<UpdateParcelDto>,
     businessId: number,
+    currentUser?: UserRequestType,
   ): Promise<ParcelDto> {
-    const parcel = await this.findParcel(id, businessId);
+    const parcel = await this.findOne(id, businessId, currentUser);
 
     if (!parcel) {
       throw new Error('Parcel not found');
@@ -176,21 +171,32 @@ export class ParcelsService extends BaseTenantService {
         id,
       },
       data: attrs,
+      include: {
+        sender: true,
+        recipient: true,
+        originAddress: true,
+        destinationAddress: true,
+        business: currentUser?.isSuperAdmin ? true : false,
+      },
     });
 
     return new ParcelDto(updatedParcel);
   }
 
-  async removeParcel(id: number, businessId: number): Promise<void> {
-    await this.validateBusinessAccess(businessId);
+  async remove(
+    id: number,
+    businessId: number,
+    currentUser?: UserRequestType,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId, currentUser);
 
-    // First check if parcel belongs to the business
+    // First check if parcel belongs to the accessible business
     const parcel = await this.prismaService.parcel.findUnique({
       where: { id },
       select: { businessId: true },
     });
 
-    if (!parcel || parcel.businessId !== businessId) {
+    if (!parcel || !this.canAccessBusiness(parcel.businessId, currentUser)) {
       throw new NotFoundException('Parcel not found');
     }
 
@@ -199,6 +205,68 @@ export class ParcelsService extends BaseTenantService {
         id,
       },
     });
+  }
+
+  // SuperAdmin-only method for cross-business operations
+  async findAcrossBusinesses(
+    businessIds: number[],
+    currentUser: UserRequestType,
+  ): Promise<ParcelDto[]> {
+    if (!currentUser.isSuperAdmin) {
+      throw new NotFoundException('Access denied');
+    }
+
+    const parcels = await this.prismaService.parcel.findMany({
+      where: { businessId: { in: businessIds } },
+      include: {
+        sender: true,
+        recipient: true,
+        originAddress: true,
+        destinationAddress: true,
+        business: true, // Always include business info for cross-business queries
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return parcels.map((parcel) => new ParcelDto(parcel));
+  }
+
+  async findParcelsByIds(
+    parcelsIds: number[],
+    businessId: number,
+    currentUser?: UserRequestType,
+  ): Promise<ParcelDto[]> {
+    if (parcelsIds?.length === 0) {
+      return [];
+    }
+
+    await this.validateBusinessAccess(businessId, currentUser);
+
+    try {
+      const parcels = await this.prismaService.parcel.findMany({
+        where: this.getBusinessWhere(
+          businessId,
+          {
+            id: {
+              in: parcelsIds,
+            },
+          },
+          currentUser,
+        ),
+        include: {
+          sender: true,
+          recipient: true,
+          originAddress: true,
+          destinationAddress: true,
+        },
+      });
+
+      return parcels.map((parcel) => new ParcelDto(parcel));
+    } catch (error) {
+      throw new NotFoundException(error);
+    }
   }
 
   private generateTrackingNumber() {

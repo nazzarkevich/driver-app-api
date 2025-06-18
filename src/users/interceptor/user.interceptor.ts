@@ -50,6 +50,7 @@ export class UserInterceptor implements NestInterceptor {
               businessId: user.businessId,
               type: user.type,
               isAdmin: user.isAdmin,
+              isSuperAdmin: user.isSuperAdmin,
             };
           }
         }
