@@ -1,10 +1,19 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsDate } from 'class-validator';
 
 export class UpdateBusinessDto {
-  @IsString()
-  name: string;
-
-  @IsString()
   @IsOptional()
-  description: string;
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsDate()
+  activationDate?: Date;
 }

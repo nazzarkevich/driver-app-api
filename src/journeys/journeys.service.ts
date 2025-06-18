@@ -10,40 +10,67 @@ import { VehiclesService } from 'src/vehicles/vehicles.service';
 import { DriversService } from 'src/profiles/drivers/drivers.service';
 import { Pagination } from 'src/dtos/pagination.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
+import { BaseTenantService } from 'src/common/base-tenant.service';
+import { VehicleDto } from 'src/vehicles/dtos/vehicle.dto';
 
 @Injectable()
-export class JourneysService {
+export class JourneysService extends BaseTenantService {
   constructor(
-    private readonly prismaService: PrismaService,
+    prismaService: PrismaService,
     private readonly parcelsService: ParcelsService,
     private readonly vehiclesService: VehiclesService,
     private readonly driversService: DriversService,
-  ) {}
+  ) {
+    super(prismaService);
+  }
 
-  async createJourney({
-    vehicleId,
-    driverProfiles,
-    parcels,
-    ...rest
-  }: CreateJourneyDto): Promise<void> {
-    const foundParcels = await this.parcelsService.findParcelsByIds(parcels);
-    const vehicle = await this.vehiclesService.findOne(vehicleId);
+  async createJourney(
+    {
+      startLocation,
+      endLocation,
+      vehicleId,
+      departureDate,
+      notes,
+      parcels,
+      driverProfiles,
+    }: CreateJourneyDto,
+    businessId: number,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    // Validate and get vehicle - ensure it's active and belongs to business
+    const vehicle = await this.vehiclesService.findOne(vehicleId, businessId);
+
+    if (!vehicle.isActive) {
+      throw new NotFoundException(
+        'Vehicle is not active and cannot be assigned to journeys',
+      );
+    }
+
+    // Check for vehicle scheduling conflicts
+    await this.validateVehicleAvailability(
+      vehicleId,
+      departureDate,
+      businessId,
+    );
+
+    const foundParcels = await this.parcelsService.findParcelsByIds(
+      parcels,
+      businessId,
+    );
+
+    // Validate driver profiles exist and belong to the business
     const foundDrivers =
       await this.driversService.findManyByIds(driverProfiles);
 
     await this.prismaService.journey.create({
       data: {
-        ...rest,
-        vehicle: {
-          connect: {
-            id: vehicle.id,
-          },
-        },
-        business: {
-          connect: {
-            id: 1, // TODO: add businessId from currentBusiness
-          },
-        },
+        startLocation,
+        endLocation,
+        vehicleId,
+        departureDate,
+        notes,
+        businessId,
         parcels: {
           connect: foundParcels.map((parcel) => ({ id: parcel.id })),
         },
@@ -54,16 +81,68 @@ export class JourneysService {
     });
   }
 
+  private async validateVehicleAvailability(
+    vehicleId: number,
+    departureDate: Date,
+    businessId: number,
+  ): Promise<void> {
+    // Check for conflicting journeys on the same date
+    const conflictingJourneys = await this.prismaService.journey.findMany({
+      where: {
+        vehicleId,
+        businessId,
+        departureDate: {
+          gte: new Date(
+            departureDate.getFullYear(),
+            departureDate.getMonth(),
+            departureDate.getDate(),
+          ),
+          lt: new Date(
+            departureDate.getFullYear(),
+            departureDate.getMonth(),
+            departureDate.getDate() + 1,
+          ),
+        },
+        isCompleted: false,
+        isDeleted: false,
+      },
+    });
+
+    if (conflictingJourneys.length > 0) {
+      throw new NotFoundException(
+        `Vehicle is already assigned to ${conflictingJourneys.length} journey(s) on ${departureDate.toDateString()}. Please choose a different vehicle or date.`,
+      );
+    }
+  }
+
   async findParcelsByJourneyId(
     page: number,
     journeyId: number,
+    businessId: number,
   ): Promise<Pagination<ParcelDto>> {
+    await this.validateBusinessAccess(businessId);
+
+    // First validate that the journey belongs to the business
+    const journey = await this.prismaService.journey.findUnique({
+      where: { id: journeyId },
+      select: { businessId: true },
+    });
+
+    if (!journey || journey.businessId !== businessId) {
+      throw new NotFoundException('Journey not found');
+    }
+
     try {
       const [journeyParcelsWithPagination, metadata] =
         await prismaWithPagination.parcel
           .paginate({
             where: {
               journeyId,
+              businessId, // Add business filter for extra security
+            },
+            include: {
+              sender: true,
+              recipient: true,
             },
           })
           .withPages({ page });
@@ -82,75 +161,188 @@ export class JourneysService {
   }
 
   async findAll(
-    page: number,
-    isCompleted: boolean,
-  ): Promise<Pagination<JourneyDto>> {
-    // TODO: return only journey details in the list
-    const [journeysWithPagination, metadata] =
-      await prismaWithPagination.journey
-        .paginate({
-          orderBy: {
-            createdAt: 'desc',
-          },
-          where: {
-            isCompleted,
-          },
-          include: {
-            driverProfiles: true,
-            parcels: true,
-            vehicle: true,
-          },
-        })
-        .withPages({ page });
+    businessId: number,
+    page?: number,
+    isCompleted?: boolean,
+  ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
+    await this.validateBusinessAccess(businessId);
 
-    const journeys = journeysWithPagination.map(
-      (parcel) => new JourneyDto(parcel),
+    const whereClause = this.getBusinessWhere(
+      businessId,
+      isCompleted !== undefined ? { isCompleted } : {},
     );
 
-    return {
-      items: journeys,
-      ...metadata,
-    };
+    if (page) {
+      // Return paginated results
+      const [journeysWithPagination, metadata] =
+        await prismaWithPagination.journey
+          .paginate({
+            orderBy: {
+              createdAt: 'desc',
+            },
+            where: whereClause,
+            include: {
+              driverProfiles: true,
+              parcels: {
+                include: {
+                  sender: true,
+                  recipient: true,
+                },
+              },
+              vehicle: true,
+            },
+          })
+          .withPages({ page });
+
+      const journeys = journeysWithPagination.map(
+        (journey) => new JourneyDto(journey),
+      );
+
+      return {
+        items: journeys,
+        ...metadata,
+      };
+    } else {
+      // Return all results (for simple lists)
+      const allJourneys = await this.prismaService.journey.findMany({
+        where: whereClause,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          driverProfiles: true,
+          parcels: {
+            include: {
+              sender: true,
+              recipient: true,
+            },
+          },
+          vehicle: true,
+        },
+      });
+
+      return allJourneys.map((journey) => new JourneyDto(journey));
+    }
   }
 
-  async findOne(id: number): Promise<JourneyDto> {
+  async findOne(id: number, businessId: number): Promise<JourneyDto> {
+    await this.validateBusinessAccess(businessId);
+
     const journey = await this.prismaService.journey.findUnique({
       where: {
         id,
       },
       include: {
         driverProfiles: true,
-        parcels: true,
+        parcels: {
+          include: {
+            sender: true,
+            recipient: true,
+          },
+        },
         vehicle: true,
       },
     });
 
-    if (!journey) {
+    if (!journey || journey.businessId !== businessId) {
       throw new NotFoundException('Journey not found');
     }
 
     return new JourneyDto(journey);
   }
 
-  async updateJourney(
+  async update(
     id: number,
     attrs: Partial<UpdateJourneyDto>,
+    businessId: number,
   ): Promise<JourneyDto> {
-    const journey = await this.findOne(id);
+    const journey = await this.findOne(id, businessId);
 
     if (!journey) {
-      throw new NotFoundException('Journey not found');
+      throw new Error('Journey not found');
     }
 
-    console.log('attrs: ', attrs);
+    Object.assign(journey, attrs);
 
     const updatedJourney = await this.prismaService.journey.update({
       where: {
         id,
       },
       data: attrs,
+      include: {
+        driverProfiles: true,
+        parcels: {
+          include: {
+            sender: true,
+            recipient: true,
+          },
+        },
+        vehicle: true,
+      },
     });
 
     return new JourneyDto(updatedJourney);
+  }
+
+  async remove(id: number, businessId: number): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    // First check if journey belongs to the business
+    const journey = await this.prismaService.journey.findUnique({
+      where: { id },
+      select: { businessId: true },
+    });
+
+    if (!journey || journey.businessId !== businessId) {
+      throw new NotFoundException('Journey not found');
+    }
+
+    await this.prismaService.journey.delete({
+      where: {
+        id,
+      },
+    });
+  }
+
+  async getAvailableVehicles(
+    departureDate: Date,
+    businessId: number,
+  ): Promise<VehicleDto[]> {
+    await this.validateBusinessAccess(businessId);
+
+    // Get all active vehicles for the business
+    const allVehicles = await this.vehiclesService.findAll(businessId);
+    const activeVehicles = allVehicles.filter((vehicle) => vehicle.isActive);
+
+    // Get vehicles that are already assigned on this date
+    const assignedVehicleIds = await this.prismaService.journey.findMany({
+      where: {
+        businessId,
+        departureDate: {
+          gte: new Date(
+            departureDate.getFullYear(),
+            departureDate.getMonth(),
+            departureDate.getDate(),
+          ),
+          lt: new Date(
+            departureDate.getFullYear(),
+            departureDate.getMonth(),
+            departureDate.getDate() + 1,
+          ),
+        },
+        isCompleted: false,
+        isDeleted: false,
+      },
+      select: {
+        vehicleId: true,
+      },
+    });
+
+    const assignedIds = assignedVehicleIds.map((journey) => journey.vehicleId);
+
+    // Return vehicles that are not assigned on this date
+    return activeVehicles.filter(
+      (vehicle) => !assignedIds.includes(vehicle.id),
+    );
   }
 }

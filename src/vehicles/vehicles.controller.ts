@@ -1,19 +1,19 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Get,
   Param,
   ParseIntPipe,
   Post,
-  Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
-import { VehicleDto } from './dtos/vehicle.dto';
 import { VehiclesService } from './vehicles.service';
-import { Pagination } from 'src/dtos/pagination.dto';
 import { CreateVehicleDto } from './dtos/create-vehicle.dto';
+import {
+  CurrentUser,
+  UserRequestType,
+} from 'src/users/decorators/current-user.decorator';
 
 @ApiTags('Vehicle')
 @Controller('vehicles')
@@ -21,19 +21,23 @@ export class VehiclesController {
   constructor(private readonly vehiclesService: VehiclesService) {}
 
   @Post()
-  async createVehicle(@Body() body: CreateVehicleDto): Promise<void> {
-    return this.vehiclesService.create(body);
+  createVehicle(
+    @CurrentUser() currentUser: UserRequestType,
+    @Body() body: CreateVehicleDto,
+  ) {
+    return this.vehiclesService.createVehicle(body, currentUser.businessId);
   }
 
   @Get()
-  async getAllVehicles(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-  ): Promise<Pagination<VehicleDto>> {
-    return this.vehiclesService.findAll(page);
+  findAllVehicles(@CurrentUser() currentUser: UserRequestType) {
+    return this.vehiclesService.findAll(currentUser.businessId);
   }
 
   @Get('/:id')
-  async getVehicle(@Param('id', ParseIntPipe) id: number): Promise<VehicleDto> {
-    return this.vehiclesService.findOne(id);
+  findVehicle(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.vehiclesService.findOne(id, currentUser.businessId);
   }
 }

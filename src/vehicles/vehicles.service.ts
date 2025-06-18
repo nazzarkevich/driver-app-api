@@ -1,58 +1,76 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
+import { VehicleDto } from './dtos/vehicle.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateVehicleDto } from './dtos/create-vehicle.dto';
-import { VehicleDto } from './dtos/vehicle.dto';
-import { Pagination } from 'src/dtos/pagination.dto';
-import prismaWithPagination from 'src/prisma/prisma-client';
+import { BaseTenantService } from 'src/common/base-tenant.service';
 
 @Injectable()
-export class VehiclesService {
-  constructor(private readonly prismaService: PrismaService) {}
+export class VehiclesService extends BaseTenantService {
+  constructor(prismaService: PrismaService) {
+    super(prismaService);
+  }
 
-  async create({
-    make,
-    model,
-    plateNumber,
-    year,
-  }: CreateVehicleDto): Promise<void> {
+  async findAll(businessId: number): Promise<VehicleDto[]> {
+    await this.validateBusinessAccess(businessId);
+
+    const allVehicles = await this.prismaService.vehicle.findMany({
+      where: this.getBusinessFilter(businessId),
+    });
+
+    return allVehicles.map((vehicle) => new VehicleDto(vehicle));
+  }
+
+  async createVehicle(
+    { plateNumber, model, make, year }: CreateVehicleDto,
+    businessId: number,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
     await this.prismaService.vehicle.create({
       data: {
-        make,
-        model,
         plateNumber,
+        model,
+        make,
         year,
-        businessId: 1, // TODO: pass businessId from currentBusiness
+        businessId,
       },
     });
   }
 
-  async findAll(page: number): Promise<Pagination<VehicleDto>> {
-    const [parcelsWithPagination, metadata] = await prismaWithPagination.vehicle
-      .paginate()
-      .withPages({ page });
+  async findOne(id: number, businessId: number): Promise<VehicleDto> {
+    await this.validateBusinessAccess(businessId);
 
-    const vehicles = parcelsWithPagination.map(
-      (vehicle) => new VehicleDto(vehicle),
-    );
-
-    return {
-      items: vehicles,
-      ...metadata,
-    };
-  }
-
-  async findOne(id: number): Promise<VehicleDto> {
     const vehicle = await this.prismaService.vehicle.findUnique({
       where: {
         id,
       },
     });
 
-    if (!vehicle) {
-      throw new NotFoundException('Vehicle profile not found');
+    if (!vehicle || vehicle.businessId !== businessId) {
+      throw new NotFoundException();
     }
 
     return new VehicleDto(vehicle);
+  }
+
+  async remove(id: number, businessId: number): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    // First check if vehicle belongs to the business
+    const vehicle = await this.prismaService.vehicle.findUnique({
+      where: { id },
+      select: { businessId: true },
+    });
+
+    if (!vehicle || vehicle.businessId !== businessId) {
+      throw new NotFoundException('Vehicle not found');
+    }
+
+    await this.prismaService.vehicle.delete({
+      where: {
+        id,
+      },
+    });
   }
 }

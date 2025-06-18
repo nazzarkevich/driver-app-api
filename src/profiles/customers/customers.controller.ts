@@ -1,71 +1,78 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Delete,
   Get,
   Param,
   ParseIntPipe,
   Post,
   Put,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
-import { AdminGuard } from 'src/guards/admin.guard';
-import { Pagination } from 'src/dtos/pagination.dto';
 import { CustomersService } from './customers.service';
-import { CustomerProfileDto } from './dtos/customer-profile.dto';
 import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
+import { AdminGuard } from 'src/guards/admin.guard';
+import {
+  CurrentUser,
+  UserRequestType,
+} from 'src/users/decorators/current-user.decorator';
 
-@ApiTags('Customer')
+@ApiTags('Customer Profile')
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Post()
-  async createCustomerProfile(
+  async createProfile(
+    @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateCustomerProfileDto,
-  ): Promise<void> {
-    return this.customersService.createProfile(body);
+  ) {
+    return this.customersService.createProfile(body, currentUser.businessId);
   }
 
   @Get()
-  async findProfiles(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-  ): Promise<Pagination<CustomerProfileDto>> {
-    const profiles = await this.customersService.findAll(page);
-
+  async findAllCustomers(@CurrentUser() currentUser: UserRequestType) {
+    const profiles = await this.customersService.findAll(
+      currentUser.businessId,
+    );
     return profiles;
   }
 
   @Get('/:id')
-  async findProfile(
+  async findCustomer(
+    @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<CustomerProfileDto> {
-    const profiles = await this.customersService.findProfile(id);
+  ) {
+    const profiles = await this.customersService.findOne(
+      id,
+      currentUser.businessId,
+    );
 
     return profiles;
   }
 
   @Put('/:id')
-  updateProfile(
+  updateCustomer(
+    @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateCustomerProfileDto,
-  ): Promise<CustomerProfileDto> {
+  ) {
     // TODO: Add permission
     // 1) user can edit their details
     // 2) Admin can edit all users details
 
-    return this.customersService.updateProfile(id, body);
+    return this.customersService.update(id, body, currentUser.businessId);
   }
 
   @Delete('/:id')
   @UseGuards(AdminGuard)
-  removeProfile(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    // TODO: remove address first
-    return this.customersService.removeProfile(id);
+  removeCustomer(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.customersService.remove(id, currentUser.businessId);
   }
 }

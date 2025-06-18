@@ -41,9 +41,22 @@ export class AuthGuard implements CanActivate {
         where: {
           id: payload.id,
         },
+        include: {
+          business: true,
+        },
       });
 
-      if (user) {
+      if (user && user.business?.isActive && !user.isBlocked) {
+        // Set business context in request for use by interceptors
+        request.currentUser = {
+          id: user.id,
+          name: payload.name,
+          iat: payload.iat,
+          exp: payload.exp,
+          businessId: user.businessId,
+          type: user.type,
+          isAdmin: user.isAdmin,
+        };
         return true;
       }
 

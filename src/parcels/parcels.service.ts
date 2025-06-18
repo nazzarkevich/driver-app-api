@@ -12,14 +12,17 @@ import {
   ConnectedParcelsService,
   ConnectionCriteria,
 } from './connected-parcels.service';
+import { BaseTenantService } from 'src/common/base-tenant.service';
 
 @Injectable()
-export class ParcelsService {
+export class ParcelsService extends BaseTenantService {
   constructor(
-    private readonly prismaService: PrismaService,
+    prismaService: PrismaService,
     private readonly usersService: UsersService,
     private readonly connectedParcelsService: ConnectedParcelsService,
-  ) {}
+  ) {
+    super(prismaService);
+  }
 
   /* 
     TODO: Question:
@@ -31,12 +34,12 @@ export class ParcelsService {
     user: UserRequestType,
     body: CreateParcelDto,
   ): Promise<{ id: number; trackingNumber: string }> {
-    const currentUser = await this.usersService.findOne(user.id);
+    await this.validateBusinessAccess(user.businessId);
 
     const newParcel = await this.prismaService.parcel.create({
       data: {
         ...body,
-        businessId: currentUser.businessId,
+        businessId: user.businessId,
         trackingNumber: this.generateTrackingNumber(),
         pickupDate: new Date(),
       },
@@ -47,7 +50,7 @@ export class ParcelsService {
       senderId: body.senderId,
       destinationAddressId: body.destinationAddressId,
       timeWindow: 24, // Connect parcels created within 24 hours
-      businessId: currentUser.businessId,
+      businessId: user.businessId,
     };
 
     try {
@@ -66,9 +69,15 @@ export class ParcelsService {
     };
   }
 
-  async findParcels(page: number): Promise<Pagination<ParcelDto>> {
+  async findParcels(
+    page: number,
+    businessId: number,
+  ): Promise<Pagination<ParcelDto>> {
+    await this.validateBusinessAccess(businessId);
+
     const [parcelsWithPagination, metadata] = await prismaWithPagination.parcel
       .paginate({
+        where: this.getBusinessFilter(businessId),
         orderBy: {
           createdAt: 'desc',
         },
@@ -96,19 +105,23 @@ export class ParcelsService {
     };
   }
 
-  async findParcelsByIds(parcelsIds: number[]): Promise<ParcelDto[]> {
+  async findParcelsByIds(
+    parcelsIds: number[],
+    businessId: number,
+  ): Promise<ParcelDto[]> {
     if (parcelsIds?.length === 0) {
       return [];
     }
 
-    // TODO: Question: Where is the best place to error handle this?
+    await this.validateBusinessAccess(businessId);
+
     try {
       const parcels = await this.prismaService.parcel.findMany({
-        where: {
+        where: this.getBusinessWhere(businessId, {
           id: {
             in: parcelsIds,
           },
-        },
+        }),
       });
 
       return parcels.map((parcel) => new ParcelDto(parcel));
@@ -117,7 +130,9 @@ export class ParcelsService {
     }
   }
 
-  async findParcel(id: number): Promise<ParcelDto> {
+  async findParcel(id: number, businessId: number): Promise<ParcelDto> {
+    await this.validateBusinessAccess(businessId);
+
     const parcel = await this.prismaService.parcel.findUnique({
       where: {
         id,
@@ -136,7 +151,7 @@ export class ParcelsService {
       },
     });
 
-    if (!parcel) {
+    if (!parcel || parcel.businessId !== businessId) {
       throw new NotFoundException();
     }
 
@@ -146,8 +161,9 @@ export class ParcelsService {
   async updateParcel(
     id: number,
     attrs: Partial<UpdateParcelDto>,
+    businessId: number,
   ): Promise<ParcelDto> {
-    const parcel = await this.findParcel(id);
+    const parcel = await this.findParcel(id, businessId);
 
     if (!parcel) {
       throw new Error('Parcel not found');
@@ -165,7 +181,19 @@ export class ParcelsService {
     return new ParcelDto(updatedParcel);
   }
 
-  async removeParcel(id: number): Promise<void> {
+  async removeParcel(id: number, businessId: number): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    // First check if parcel belongs to the business
+    const parcel = await this.prismaService.parcel.findUnique({
+      where: { id },
+      select: { businessId: true },
+    });
+
+    if (!parcel || parcel.businessId !== businessId) {
+      throw new NotFoundException('Parcel not found');
+    }
+
     await this.prismaService.parcel.delete({
       where: {
         id,

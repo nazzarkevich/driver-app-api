@@ -77,6 +77,8 @@ model User {
   phoneId           Int? // Made optional since Google OAuth may not provide phone
   phoneNumber       Phone?           @relation(fields: [phoneId], references: [id])
   AuditLog          AuditLog[]
+
+  @@index([businessId])
 }
 
 // NEW: Store Supabase auth metadata if needed
@@ -118,6 +120,7 @@ model Business {
   journeys         Journey[]
   parcels          Parcel[]
   customerProfiles CustomerProfile[]
+  addresses        Address[]
   notes            String?
   activationDate   DateTime?
   isActive         Boolean           @default(false)
@@ -209,12 +212,16 @@ model Address {
   note               String?
   region             String?
   postcode           String?
+  businessId         Int
+  business           Business        @relation(fields: [businessId], references: [id])
   originParcels      Parcel[]        @relation("originParcels")
   destinationParcels Parcel[]        @relation("destinationParcels")
   countryId          Int
   country            Country         @relation(fields: [countryId], references: [id])
   profileId          Int             @unique
   profile            CustomerProfile @relation(fields: [profileId], references: [id])
+
+  @@index([businessId])
 }
 
 model Phone {

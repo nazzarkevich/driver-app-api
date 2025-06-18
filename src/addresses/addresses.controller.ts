@@ -1,8 +1,12 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
-import { AddAddressDto } from './dtos/add-address.dto';
 import { AddressesService } from './addresses.service';
+import { AddAddressDto } from './dtos/add-address.dto';
+import {
+  CurrentUser,
+  UserRequestType,
+} from 'src/users/decorators/current-user.decorator';
 
 @ApiTags('Address')
 @Controller('addresses')
@@ -10,12 +14,15 @@ export class AddressesController {
   constructor(private readonly addressesService: AddressesService) {}
 
   @Post()
-  async addAddress(@Body() body: AddAddressDto) {
-    return this.addressesService.addAddress(body);
+  async createAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Body() body: AddAddressDto,
+  ): Promise<void> {
+    return this.addressesService.createAddress(body, currentUser.businessId);
   }
 
   @Get()
-  async getAddressByProfileId(@Query('profileId') profileId: number) {
-    return this.addressesService.findAddressesByProfileId(profileId);
+  async findAllAddresses() {
+    return this.addressesService.findAll();
   }
 }

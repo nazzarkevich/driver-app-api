@@ -88,6 +88,7 @@ export class AuthService {
     lastName,
     phoneNumber,
     countryCode,
+    businessId,
   }: CreateUserDto): Promise<{
     token: string;
     refreshToken: string;
@@ -119,6 +120,15 @@ export class AuthService {
       new Date(),
     );
 
+    // Validate business exists and is active
+    const business = await this.prismaService.business.findUnique({
+      where: { id: businessId },
+    });
+
+    if (!business || !business.isActive) {
+      throw new BadRequestException('Invalid or inactive business');
+    }
+
     // Then create the user in our database
     const user = await this.prismaService.user.create({
       data: {
@@ -128,7 +138,7 @@ export class AuthService {
         type,
         supabaseId: authData.user.id,
         business: {
-          connect: { id: 1 }, // TODO: Question: how to pass businessId?
+          connect: { id: businessId },
         },
         phoneNumber: {
           create: {

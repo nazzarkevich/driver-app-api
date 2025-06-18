@@ -9,6 +9,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 import { Pagination } from 'src/dtos/pagination.dto';
 import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
@@ -16,7 +17,12 @@ import { CourierJourneyDto } from './dtos/courier-journey.dto';
 import { CourierJourneysService } from './courier-journeys.service';
 import { CreateCourierJourneyDto } from './dtos/create-courier-journey.dto';
 import { UpdateCourierJourneyDto } from './dtos/update-courier-journey.dto';
+import {
+  CurrentUser,
+  UserRequestType,
+} from 'src/users/decorators/current-user.decorator';
 
+@ApiTags('Courier Journey')
 @Controller('courier-journeys')
 export class CourierJourneysController {
   constructor(
@@ -25,28 +31,31 @@ export class CourierJourneysController {
 
   @Post()
   async createCourierJourney(
+    @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateCourierJourneyDto,
   ): Promise<void> {
-    return this.courierJourneysService.createCourierJourney(body);
+    return this.courierJourneysService.createCourierJourney(
+      body,
+      currentUser.businessId,
+    );
   }
 
   @Get('/:id')
-  async getJourney(
+  async findCourierJourney(
+    @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<CourierJourneyDto> {
-    return this.courierJourneysService.findOne(id);
+    return this.courierJourneysService.findOne(id, currentUser.businessId);
   }
 
   @Get()
-  async findAllJourneys(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('isCompleted') isCompleted?: boolean,
-  ): Promise<Pagination<CourierJourneyDto>> {
-    return this.courierJourneysService.findAll(page, isCompleted);
+  async findAllCourierJourneys(@CurrentUser() currentUser: UserRequestType) {
+    return this.courierJourneysService.findAll(currentUser.businessId);
   }
 
   @Put('/:id')
-  updateJourney(
+  updateCourierJourney(
+    @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateCourierJourneyDto,
   ): Promise<CourierJourneyDto> {
@@ -54,7 +63,7 @@ export class CourierJourneysController {
     // 1) user can edit their details
     // 2) Admin can edit all users details
 
-    return this.courierJourneysService.updateCourierJourney(id, body);
+    return this.courierJourneysService.update(id, body, currentUser.businessId);
   }
 
   @Get('/:courierJourneyId/parcels')

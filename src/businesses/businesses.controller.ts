@@ -15,6 +15,11 @@ import { AdminGuard } from 'src/guards/admin.guard';
 import { BusinessesService } from './businesses.service';
 import { CreateBusinessDto } from './dtos/create-business.dto';
 import { UpdateBusinessDto } from './dtos/update-business.dto';
+import { CreateBusinessWithAdminDto } from './dtos/create-business-with-admin.dto';
+import {
+  CurrentUser,
+  UserRequestType,
+} from 'src/users/decorators/current-user.decorator';
 
 // TODO: Question: how we can know current business?
 
@@ -24,21 +29,38 @@ export class BusinessesController {
   constructor(private readonly businessesService: BusinessesService) {}
 
   @Post()
-  async createBusiness(@Body() body: CreateBusinessDto) {
+  @UseGuards(AdminGuard)
+  createBusiness(@Body() body: CreateBusinessDto) {
     return this.businessesService.createBusiness(body);
   }
 
+  @Post('with-admin')
+  createBusinessWithAdmin(@Body() body: CreateBusinessWithAdminDto) {
+    return this.businessesService.createBusinessWithAdmin(body);
+  }
+
   @Get()
-  async getAllBusinesses() {
+  async findAllBusinesses() {
     return this.businessesService.findAll();
   }
 
+  @Get('active')
+  async findActiveBusinesses() {
+    return this.businessesService.findActiveBusinesses();
+  }
+
+  @Get('current')
+  async getCurrentBusiness(@CurrentUser() currentUser: UserRequestType) {
+    return this.businessesService.getCurrentBusiness(currentUser.businessId);
+  }
+
   @Get('/:id')
-  async getBusiness(@Param('id', ParseIntPipe) id: number) {
+  async findBusiness(@Param('id', ParseIntPipe) id: number) {
     return this.businessesService.findOne(id);
   }
 
   @Put('/:id')
+  @UseGuards(AdminGuard)
   updateBusiness(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateBusinessDto,
@@ -50,7 +72,19 @@ export class BusinessesController {
     return this.businessesService.update(id, body);
   }
 
-  @Delete()
+  @Put('/:id/activate')
+  @UseGuards(AdminGuard)
+  activateBusiness(@Param('id', ParseIntPipe) id: number) {
+    return this.businessesService.activateBusiness(id);
+  }
+
+  @Put('/:id/deactivate')
+  @UseGuards(AdminGuard)
+  deactivateBusiness(@Param('id', ParseIntPipe) id: number) {
+    return this.businessesService.deactivateBusiness(id);
+  }
+
+  @Delete('/:id')
   @UseGuards(AdminGuard)
   removeBusiness(@Param('id', ParseIntPipe) id: number) {
     // TODO: Question: do we need to remove items or archive?

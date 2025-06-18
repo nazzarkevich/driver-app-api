@@ -8,30 +8,34 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class AddressesService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async addAddress({
-    profileId,
-    countryIsoCode,
-    ...address
-  }: AddAddressDto): Promise<void> {
+  async createAddress(
+    { profileId, countryIsoCode, ...address }: AddAddressDto,
+    businessId: number,
+  ): Promise<void> {
+    // Look up the country by ISO code
     const country = await this.prismaService.country.findUnique({
       where: { isoCode: countryIsoCode },
     });
 
+    if (!country) {
+      throw new Error(`Country with ISO code ${countryIsoCode} not found`);
+    }
+
+    // Use unchecked approach to include businessId
     await this.prismaService.address.create({
       data: {
         ...address,
-        profile: {
-          connect: {
-            id: profileId,
-          },
-        },
-        country: {
-          connect: {
-            id: country.id,
-          },
-        },
+        businessId,
+        profileId,
+        countryId: country.id,
       },
     });
+  }
+
+  async findAll(): Promise<AddressDto[]> {
+    const allAddresses = await this.prismaService.address.findMany({});
+
+    return allAddresses.map((address) => new AddressDto(address));
   }
 
   async findAddressesByProfileId(profileId: number): Promise<AddressDto[]> {

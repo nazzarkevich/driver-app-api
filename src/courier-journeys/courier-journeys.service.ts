@@ -10,78 +10,62 @@ import { VehiclesService } from 'src/vehicles/vehicles.service';
 import { CouriersService } from 'src/profiles/couriers/couriers.service';
 import { UpdateCourierJourneyDto } from './dtos/update-courier-journey.dto';
 import { CreateCourierJourneyDto } from './dtos/create-courier-journey.dto';
+import { BaseTenantService } from 'src/common/base-tenant.service';
 
 @Injectable()
-export class CourierJourneysService {
+export class CourierJourneysService extends BaseTenantService {
   constructor(
-    private readonly prismaService: PrismaService,
+    prismaService: PrismaService,
     private readonly parcelsService: ParcelsService,
     private readonly vehiclesService: VehiclesService,
     private readonly couriersService: CouriersService,
-  ) {}
+  ) {
+    super(prismaService);
+  }
 
-  async createCourierJourney({
-    vehicleId,
-    couriersIds,
-    parcels,
-    ...rest
-  }: CreateCourierJourneyDto): Promise<void> {
-    const vehicle = await this.vehiclesService.findOne(vehicleId);
-    const foundParcels = await this.parcelsService.findParcelsByIds(parcels);
-    const foundCouriers = await this.couriersService.findManyByIds(couriersIds);
+  async createCourierJourney(
+    {
+      destination,
+      vehicleId,
+      departureDate,
+      notes,
+      parcels,
+    }: CreateCourierJourneyDto,
+    businessId: number,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    // Validate vehicle exists in the business
+    await this.vehiclesService.findOne(vehicleId, businessId);
+    const foundParcels = await this.parcelsService.findParcelsByIds(
+      parcels,
+      businessId,
+    );
 
     await this.prismaService.courierJourney.create({
       data: {
-        ...rest,
-        vehicle: {
-          connect: {
-            id: vehicle.id,
-          },
-        },
-        business: {
-          connect: {
-            id: 1, // TODO: add businessId from currentBusiness
-          },
-        },
+        destination,
+        vehicleId,
+        departureDate,
+        notes,
+        businessId,
         parcels: {
           connect: foundParcels.map((parcel) => ({ id: parcel.id })),
-        },
-        courierProfiles: {
-          connect: foundCouriers.map((courier) => ({ id: courier.id })),
         },
       },
     });
   }
 
-  async findAll(
-    page: number,
-    isCompleted: boolean,
-  ): Promise<Pagination<CourierJourneyDto>> {
-    const [courierJourneysWithPagination, metadata] =
-      await prismaWithPagination.courierJourney
-        .paginate({
-          orderBy: {
-            createdAt: 'desc',
-          },
-          where: {
-            isCompleted,
-          },
-          include: {
-            courierProfiles: true,
-            parcels: true,
-            vehicle: true,
-          },
-        })
-        .withPages({ page });
+  async findAll(businessId: number): Promise<CourierJourneyDto[]> {
+    await this.validateBusinessAccess(businessId);
 
-    const courierJourneys = courierJourneysWithPagination.map(
-      (courierJourney) => new CourierJourneyDto(courierJourney),
+    const allCourierJourneys = await this.prismaService.courierJourney.findMany(
+      {
+        where: this.getBusinessFilter(businessId),
+      },
     );
 
-    return {
-      items: courierJourneys,
-      ...metadata,
-    };
+    return allCourierJourneys.map((journey) => new CourierJourneyDto(journey));
   }
 
   async findParcelsByCourierJourneyId(
@@ -115,36 +99,34 @@ export class CourierJourneysService {
     }
   }
 
-  async findOne(id: number): Promise<CourierJourneyDto> {
-    const journey = await this.prismaService.courierJourney.findUnique({
+  async findOne(id: number, businessId: number): Promise<CourierJourneyDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const courierJourney = await this.prismaService.courierJourney.findUnique({
       where: {
         id,
       },
-      include: {
-        courierProfiles: true,
-        parcels: true,
-        vehicle: true,
-      },
     });
 
-    if (!journey) {
-      throw new NotFoundException('Courier journey not found');
+    if (!courierJourney || courierJourney.businessId !== businessId) {
+      throw new NotFoundException();
     }
 
-    return new CourierJourneyDto(journey);
+    return new CourierJourneyDto(courierJourney);
   }
 
-  async updateCourierJourney(
+  async update(
     id: number,
     attrs: Partial<UpdateCourierJourneyDto>,
+    businessId: number,
   ): Promise<CourierJourneyDto> {
-    const journey = await this.findOne(id);
+    const journey = await this.findOne(id, businessId);
 
     if (!journey) {
-      throw new NotFoundException('Courier journey not found');
+      throw new Error('Courier journey not found');
     }
 
-    console.log('attrs: ', attrs);
+    Object.assign(journey, attrs);
 
     const updatedJourney = await this.prismaService.courierJourney.update({
       where: {
@@ -154,5 +136,25 @@ export class CourierJourneysService {
     });
 
     return new CourierJourneyDto(updatedJourney);
+  }
+
+  async remove(id: number, businessId: number): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    // First check if courier journey belongs to the business
+    const journey = await this.prismaService.courierJourney.findUnique({
+      where: { id },
+      select: { businessId: true },
+    });
+
+    if (!journey || journey.businessId !== businessId) {
+      throw new NotFoundException('Courier journey not found');
+    }
+
+    await this.prismaService.courierJourney.delete({
+      where: {
+        id,
+      },
+    });
   }
 }

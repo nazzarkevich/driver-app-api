@@ -8,6 +8,7 @@ import {
   IsNotEmpty,
   MinLength,
   IsDate,
+  IsNumber,
 } from 'class-validator';
 
 // TODO: add password confirmation
@@ -83,4 +84,7 @@ export class CreateUserDto {
   })
   @IsEnum(UserType)
   type: UserType;
+
+  @IsNumber()
+  businessId: number;
 }

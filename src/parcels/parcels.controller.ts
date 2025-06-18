@@ -44,22 +44,33 @@ export class ParcelsController {
 
   @Get()
   async findParcels(
+    @CurrentUser() currentUser: UserRequestType,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   ) {
-    const parcels = await this.parcelsService.findParcels(page);
+    const parcels = await this.parcelsService.findParcels(
+      page,
+      currentUser.businessId,
+    );
 
     return parcels;
   }
 
   @Get('/:id')
-  async findParcel(@Param('id', ParseIntPipe) id: number) {
-    const parcel = await this.parcelsService.findParcel(id);
+  async findParcel(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const parcel = await this.parcelsService.findParcel(
+      id,
+      currentUser.businessId,
+    );
 
     return parcel;
   }
 
   @Put('/:id')
   updateParcel(
+    @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateParcelDto,
   ) {
@@ -67,25 +78,32 @@ export class ParcelsController {
     // 1) user can edit their details
     // 2) Admin can edit all users details
 
-    return this.parcelsService.updateParcel(id, body);
+    return this.parcelsService.updateParcel(id, body, currentUser.businessId);
   }
 
   @Delete('/:id')
   @UseGuards(AdminGuard)
-  removeParcel(@Param('id', ParseIntPipe) id: number) {
+  removeParcel(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
     // TODO: remove address first
-    return this.parcelsService.removeParcel(id);
+    return this.parcelsService.removeParcel(id, currentUser.businessId);
   }
 
   // ========== PARCEL CONNECTIONS ENDPOINTS ==========
 
   @Get('/:id/connections')
-  async getParcelConnections(@Param('id', ParseIntPipe) id: number) {
+  async getParcelConnections(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
     return this.connectedParcelsService.getConnectedParcels(id);
   }
 
   @Post('/:id/connect/:targetId')
   async connectParcels(
+    @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Param('targetId', ParseIntPipe) targetId: number,
     @Body() body: { connectionType: ConnectionType },
@@ -99,6 +117,7 @@ export class ParcelsController {
 
   @Delete('/:id/disconnect/:targetId')
   async disconnectParcels(
+    @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Param('targetId', ParseIntPipe) targetId: number,
   ) {
@@ -107,9 +126,6 @@ export class ParcelsController {
 
   @Get('/groups/list')
   async getParcelGroups(@CurrentUser() currentUser: UserRequestType) {
-    const user = await this.parcelsService['usersService'].findOne(
-      currentUser.id,
-    );
-    return this.connectedParcelsService.getParcelGroups(user.businessId);
+    return this.connectedParcelsService.getParcelGroups(currentUser.businessId);
   }
 }

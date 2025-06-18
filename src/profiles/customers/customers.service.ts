@@ -1,102 +1,122 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CustomerProfileDto } from './dtos/customer-profile.dto';
-import { BusinessesService } from 'src/businesses/businesses.service';
 import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
+import { CustomerProfileDto } from './dtos/customer-profile.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
-import { Pagination } from 'src/dtos/pagination.dto';
-import prismaWithPagination from 'src/prisma/prisma-client';
+import { BaseTenantService } from 'src/common/base-tenant.service';
 
 @Injectable()
-export class CustomersService {
-  constructor(
-    private readonly prismaService: PrismaService,
-    private readonly businessesService: BusinessesService,
-  ) {}
-
-  async createProfile({
-    address,
-    phoneNumber,
-    ...profile
-  }: CreateCustomerProfileDto): Promise<void> {
-    // TODO: Question: add transaction for creating profile + address?
-    // TODO: Question: do we need yto break down into two steps?
-    const businessId = 1; // TODO: add dynamic business ID
-    const business = await this.businessesService.findOne(businessId);
-
-    await this.prismaService.customerProfile.create({
-      data: {
-        ...profile,
-        business: {
-          connect: {
-            id: business.id,
-          },
-        },
-        phoneNumber: {
-          create: {
-            ...phoneNumber,
-          },
-        },
-        primaryAddress: {
-          create: {
-            ...address,
-            country: {
-              connect: {
-                isoCode: address.countryIsoCode,
-              },
-            },
-          },
-        },
-      },
-    });
+export class CustomersService extends BaseTenantService {
+  constructor(prismaService: PrismaService) {
+    super(prismaService);
   }
 
-  async findAll(page: number): Promise<Pagination<CustomerProfileDto>> {
-    const [customerProfilesWithPagination, metadata] =
-      await prismaWithPagination.customerProfile
-        .paginate({
-          orderBy: {
-            createdAt: 'desc',
-          },
-          include: {
-            primaryAddress: true,
-          },
-        })
-        .withPages({ page });
+  async createProfile(
+    {
+      firstName,
+      lastName,
+      gender,
+      phoneNumber,
+      note,
+      address,
+    }: CreateCustomerProfileDto,
+    businessId: number,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId);
 
-    const customerProfiles = customerProfilesWithPagination.map(
-      (profile) => new CustomerProfileDto(profile),
-    );
-
-    return {
-      items: customerProfiles,
-      ...metadata,
-    };
-  }
-
-  async findProfile(id: number): Promise<CustomerProfileDto> {
-    const profile = await this.prismaService.customerProfile.findUnique({
-      where: {
-        id,
-      },
-    });
-
-    if (!profile) {
-      throw new NotFoundException('Customer profile not found');
+    // Create phone first if provided
+    let phoneId: number | undefined;
+    if (phoneNumber) {
+      const phone = await this.prismaService.phone.create({
+        data: {
+          number: phoneNumber.number,
+          countryCode: phoneNumber.countryCode,
+        },
+      });
+      phoneId = phone.id;
     }
 
-    return new CustomerProfileDto(profile);
+    // Create customer profile with unchecked approach
+    const customerProfile = await this.prismaService.customerProfile.create({
+      data: {
+        firstName,
+        lastName,
+        gender,
+        note,
+        businessId,
+        phoneId,
+      },
+    });
+
+    // Create address separately with business context
+    if (address) {
+      const country = await this.prismaService.country.findUnique({
+        where: { isoCode: address.countryIsoCode },
+      });
+
+      if (!country) {
+        throw new Error(
+          `Country with ISO code ${address.countryIsoCode} not found`,
+        );
+      }
+
+      await this.prismaService.address.create({
+        data: {
+          ...address,
+          businessId,
+          profileId: customerProfile.id,
+          countryId: country.id,
+        },
+      });
+    }
   }
 
-  async updateProfile(
+  async findAll(businessId: number): Promise<CustomerProfileDto[]> {
+    await this.validateBusinessAccess(businessId);
+
+    const customerProfiles = await this.prismaService.customerProfile.findMany({
+      where: this.getBusinessFilter(businessId),
+      include: {
+        phoneNumber: true,
+        primaryAddress: true,
+      },
+    });
+
+    return customerProfiles.map((profile) => new CustomerProfileDto(profile));
+  }
+
+  async findOne(id: number, businessId: number): Promise<CustomerProfileDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const customerProfile = await this.prismaService.customerProfile.findUnique(
+      {
+        where: {
+          id,
+        },
+        include: {
+          phoneNumber: true,
+          primaryAddress: true,
+        },
+      },
+    );
+
+    if (!customerProfile || customerProfile.businessId !== businessId) {
+      throw new NotFoundException();
+    }
+
+    return new CustomerProfileDto(customerProfile);
+  }
+
+  async update(
     id: number,
     attrs: Partial<UpdateCustomerProfileDto>,
+    businessId: number,
   ): Promise<CustomerProfileDto> {
-    const profile = await this.findProfile(id);
+    const profile = await this.findOne(id, businessId);
 
     if (!profile) {
-      throw new Error('Customer Profile not found');
+      throw new Error('Customer profile not found');
     }
 
     Object.assign(profile, attrs);
@@ -106,12 +126,28 @@ export class CustomersService {
         id,
       },
       data: attrs,
+      include: {
+        phoneNumber: true,
+        primaryAddress: true,
+      },
     });
 
     return new CustomerProfileDto(updatedProfile);
   }
 
-  async removeProfile(id: number): Promise<void> {
+  async remove(id: number, businessId: number): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    // First check if customer profile belongs to the business
+    const profile = await this.prismaService.customerProfile.findUnique({
+      where: { id },
+      select: { businessId: true },
+    });
+
+    if (!profile || profile.businessId !== businessId) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
     await this.prismaService.customerProfile.delete({
       where: {
         id,

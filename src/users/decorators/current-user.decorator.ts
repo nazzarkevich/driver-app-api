@@ -4,6 +4,7 @@ import { UserType } from '@prisma/client';
 export interface UserRequestType {
   name: string;
   id: number;
+  businessId: number;
   iat: number;
   exp: number;
   type: UserType;
