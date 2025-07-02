@@ -3,7 +3,7 @@ import { Logger, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { AppService } from './app.service';
-import { AuthGuard } from './guards/auth.guard';
+import { SupabaseAuthGuard } from './guards/supabase-auth.guard';
 import { AppController } from './app.controller';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -95,7 +95,7 @@ import { AuditInterceptor } from './audit/audit.interceptor';
     },
     {
       provide: APP_GUARD,
-      useClass: AuthGuard,
+      useClass: SupabaseAuthGuard,
     },
     CourierJourneysService,
     Logger,

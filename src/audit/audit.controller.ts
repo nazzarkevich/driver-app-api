@@ -50,7 +50,7 @@ export class AuditController {
     // Only allow viewing business-specific logs unless user is admin
     if (!currentUser.isAdmin) {
       // Get user's business ID from the audit service
-      const userBusinessId = await this.getUserBusinessId(currentUser.id);
+      const userBusinessId = await this.getUserBusinessId();
       if (userBusinessId) {
         filters.businessId = userBusinessId;
       }
@@ -82,7 +82,7 @@ export class AuditController {
 
     // Only allow viewing business-specific logs unless user is admin
     if (!currentUser.isAdmin) {
-      const userBusinessId = await this.getUserBusinessId(currentUser.id);
+      const userBusinessId = await this.getUserBusinessId();
       if (userBusinessId) {
         filters.businessId = userBusinessId;
       }
@@ -100,7 +100,7 @@ export class AuditController {
     const filters: any = {};
 
     if (!currentUser.isAdmin) {
-      const userBusinessId = await this.getUserBusinessId(currentUser.id);
+      const userBusinessId = await this.getUserBusinessId();
       if (userBusinessId) {
         filters.businessId = userBusinessId;
       }
@@ -136,7 +136,7 @@ export class AuditController {
     };
   }
 
-  private async getUserBusinessId(userId: number): Promise<number | undefined> {
+  private async getUserBusinessId(): Promise<number | undefined> {
     // This is a helper method to get user's business ID
     // In a real implementation, you might want to inject PrismaService
     // For now, we'll return undefined and let the service handle it

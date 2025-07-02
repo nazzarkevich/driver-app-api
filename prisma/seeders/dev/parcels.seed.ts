@@ -13,12 +13,44 @@ export const seedParcels = async (businessId: number) => {
   const journeys = await prisma.journey.findMany();
   const parcelTypes = ['Regular', 'Passport', 'Document', 'Money'];
 
+  if (addresses.length < 2) {
+    console.log('⚠️  Not enough addresses found, skipping parcel seeding');
+    return;
+  }
+
+  if (customers.length < 2) {
+    console.log('⚠️  Not enough customers found, skipping parcel seeding');
+    return;
+  }
+
+  if (journeys.length === 0) {
+    console.log('⚠️  No journeys found, skipping parcel seeding');
+    return;
+  }
+
+  const parcels = [];
+
   for (let i = 1; i <= 10; i++) {
-    await prisma.parcel.create({
+    const trackingNumber = `ABC123${i}`;
+
+    // Check if parcel already exists
+    const existingParcel = await prisma.parcel.findFirst({
+      where: {
+        trackingNumber,
+        businessId,
+      },
+    });
+
+    if (existingParcel) {
+      parcels.push(existingParcel);
+      continue;
+    }
+
+    const parcel = await prisma.parcel.create({
       data: {
         weight: 1.5,
         cargoType: parcelTypes[i % parcelTypes.length] as ParcelType,
-        trackingNumber: `ABC123${i}`,
+        trackingNumber,
         price: 10,
         cost: 5,
         deliveryStatus: DeliveryStatus.Delivered,
@@ -29,9 +61,14 @@ export const seedParcels = async (businessId: number) => {
         },
         business: { connect: { id: businessId } },
         journey: { connect: { id: journeys[i % journeys.length].id } },
-        originAddress: { connect: { id: addresses[0].id } }, // Assuming you have 10 addresses with ids from 1 to 10
+        originAddress: { connect: { id: addresses[0].id } },
         destinationAddress: { connect: { id: addresses[1].id } },
       },
     });
+
+    parcels.push(parcel);
   }
+
+  console.log(`✅ Seeded ${parcels.length} parcels`);
+  return parcels;
 };

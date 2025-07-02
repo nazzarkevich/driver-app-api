@@ -180,4 +180,30 @@ export class BusinessesService {
   async getCurrentBusiness(businessId: number): Promise<BusinessDto> {
     return this.findOne(businessId);
   }
+
+  async getDefaultBusiness(): Promise<BusinessDto> {
+    const defaultBusinessId = process.env.DEFAULT_BUSINESS_ID
+      ? parseInt(process.env.DEFAULT_BUSINESS_ID)
+      : 1; // Default to UALogistics (ID: 1)
+
+    const business = await this.prismaService.business.findUnique({
+      where: {
+        id: defaultBusinessId,
+        isActive: true,
+      },
+    });
+
+    if (!business) {
+      throw new NotFoundException(
+        `Default business with ID ${defaultBusinessId} not found or inactive`,
+      );
+    }
+
+    return new BusinessDto(business);
+  }
+
+  async getDefaultBusinessId(): Promise<number> {
+    const defaultBusiness = await this.getDefaultBusiness();
+    return defaultBusiness.id;
+  }
 }

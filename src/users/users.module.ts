@@ -8,6 +8,7 @@ import { DriversService } from 'src/profiles/drivers/drivers.service';
 import { CouriersService } from 'src/profiles/couriers/couriers.service';
 import { SupabaseService } from 'src/supabase/supabase.service';
 import { AuthProfilesModule } from './auth-profiles/auth-profiles.module';
+import { BusinessesService } from 'src/businesses/businesses.service';
 
 @Module({
   imports: [AuthProfilesModule],
@@ -19,6 +20,7 @@ import { AuthProfilesModule } from './auth-profiles/auth-profiles.module';
     DriversService,
     CouriersService,
     SupabaseService,
+    BusinessesService,
   ],
   exports: [UsersService, AuthService],
 })

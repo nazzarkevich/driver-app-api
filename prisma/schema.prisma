@@ -7,15 +7,328 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Keep all your existing enums
+model User {
+  id                Int              @id @default(autoincrement())
+  lastName          String
+  email             String           @unique
+  type              UserType         @default(Member)
+  isBlocked         Boolean          @default(false)
+  gender            Gender?
+  isAdmin           Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  businessId        Int
+  imageId           Int?
+  customerProfileId Int?             @unique
+  dateOfBirth       DateTime?
+  firstName         String
+  isDeleted         Boolean          @default(false)
+  phoneId           Int?
+  supabaseId        String?          @unique
+  isSuperAdmin      Boolean          @default(false)
+  AuditLog          AuditLog[]
+  courierProfile    CourierProfile?
+  driverProfile     DriverProfile?
+  business          Business         @relation(fields: [businessId], references: [id])
+  customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
+  imageUrl          Image?           @relation(fields: [imageId], references: [id])
+  phoneNumber       Phone?           @relation(fields: [phoneId], references: [id])
+
+  @@index([businessId])
+}
+
+model AuthProfile {
+  id         Int       @id @default(autoincrement())
+  supabaseId String    @unique
+  provider   String
+  lastSignIn DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model DriverProfile {
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  userId    Int       @unique
+  isDeleted Boolean   @default(false)
+  user      User      @relation(fields: [userId], references: [id])
+  journeys  Journey[] @relation("DriverProfileToJourney")
+}
+
+model CourierProfile {
+  id               Int             @id @default(autoincrement())
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  userId           Int             @unique
+  courierJourneyId Int?
+  isDeleted        Boolean         @default(false)
+  courierJourney   CourierJourney? @relation(fields: [courierJourneyId], references: [id])
+  user             User            @relation(fields: [userId], references: [id])
+}
+
+model Business {
+  id               Int               @id @default(autoincrement())
+  name             String
+  notes            String?
+  activationDate   DateTime?
+  isActive         Boolean           @default(false)
+  description      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  imageId          Int?
+  isDeleted        Boolean           @default(false)
+  addresses        Address[]
+  AuditLog         AuditLog[]
+  imageUrl         Image?            @relation(fields: [imageId], references: [id])
+  courierJourney   CourierJourney[]
+  customerProfiles CustomerProfile[]
+  journeys         Journey[]
+  parcels          Parcel[]
+  users            User[]
+  vehicles         Vehicle[]
+}
+
+model CustomerProfile {
+  id                Int              @id @default(autoincrement())
+  businessId        Int
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  firstName         String
+  gender            Gender
+  lastName          String
+  note              String?
+  isDeleted         Boolean          @default(false)
+  novaPostAddressId Int?
+  phoneId           Int              @unique
+  primaryAddress    Address?
+  business          Business         @relation(fields: [businessId], references: [id])
+  novaPostAddress   NovaPostAddress? @relation(fields: [novaPostAddressId], references: [id])
+  phoneNumber       Phone            @relation(fields: [phoneId], references: [id])
+  parcelsReceived   Parcel[]         @relation("receivedParcels")
+  parcelsSent       Parcel[]         @relation("sentParcels")
+  user              User?
+}
+
+model Parcel {
+  id                     Int               @id @default(autoincrement())
+  weight                 Float
+  notes                  String?
+  trackingNumber         String
+  parcelMoneyAmount      Float?
+  isLost                 Boolean           @default(false)
+  pickupDate             DateTime          @default(now())
+  deliveryDate           DateTime?
+  isArchived             Boolean           @default(false)
+  price                  Float
+  discount               Float?
+  discountType           DiscountType      @default(None)
+  hasBorderCheck         Boolean           @default(false)
+  isDamaged              Boolean           @default(false)
+  deliveryStatus         DeliveryStatus    @default(Initial)
+  paymentStatus          PaymentStatus     @default(NotPaid)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  senderId               Int
+  businessId             Int
+  journeyId              Int?
+  recipientId            Int
+  courierJourneyId       Int?
+  isDeleted              Boolean           @default(false)
+  cargoType              ParcelType        @default(Regular)
+  cost                   Float
+  destinationAddressId   Int
+  novaPostAddressId      Int?
+  novaPostTrackingNumber String?
+  originAddressId        Int
+  recipientPhoneNumber   String?
+  senderPhoneNumber      String?
+  connectedFrom          ConnectedParcel[] @relation("ConnectedToParcels")
+  connections            ConnectedParcel[] @relation("ParcelConnections")
+  images                 Image[]
+  business               Business          @relation(fields: [businessId], references: [id])
+  courierJourney         CourierJourney?   @relation(fields: [courierJourneyId], references: [id])
+  destinationAddress     Address           @relation("destinationParcels", fields: [destinationAddressId], references: [id])
+  journey                Journey?          @relation(fields: [journeyId], references: [id])
+  novaPostAddress        NovaPostAddress?  @relation(fields: [novaPostAddressId], references: [id])
+  originAddress          Address           @relation("originParcels", fields: [originAddressId], references: [id])
+  recipient              CustomerProfile   @relation("receivedParcels", fields: [recipientId], references: [id])
+  sender                 CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
+}
+
+model Address {
+  id                 Int             @id @default(autoincrement())
+  street             String
+  city               String
+  postcode           String?
+  profileId          Int             @unique
+  block              String?
+  building           String?
+  countryId          Int
+  flat               String?
+  note               String?
+  region             String?
+  businessId         Int
+  business           Business        @relation(fields: [businessId], references: [id])
+  country            Country         @relation(fields: [countryId], references: [id])
+  profile            CustomerProfile @relation(fields: [profileId], references: [id])
+  destinationParcels Parcel[]        @relation("destinationParcels")
+  originParcels      Parcel[]        @relation("originParcels")
+
+  @@index([businessId])
+}
+
+model Phone {
+  id              Int              @id @default(autoincrement())
+  number          String
+  countryCode     String
+  parcelId        Int?
+  customerProfile CustomerProfile?
+  users           User[]
+}
+
+model NovaPostAddress {
+  id                 Int               @id @default(autoincrement())
+  city               String
+  Area               String
+  MainDescription    String
+  Region             String
+  SettlementTypeCode String
+  Warehouses         String
+  street             String
+  customerProfile    CustomerProfile[]
+  parcel             Parcel[]
+}
+
+model ConnectedParcel {
+  id             Int      @id @default(autoincrement())
+  parcelId       Int
+  connectedToId  Int
+  connectionType String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  connectedTo    Parcel   @relation("ConnectedToParcels", fields: [connectedToId], references: [id], onDelete: Cascade, map: "ConnectedParcel_connectedTo_fkey")
+  parcel         Parcel   @relation("ParcelConnections", fields: [parcelId], references: [id], map: "ConnectedParcel_parcel_fkey")
+
+  @@unique([parcelId, connectedToId])
+  @@index([parcelId])
+  @@index([connectedToId])
+  @@index([connectionType])
+}
+
+model CourierJourney {
+  id              Int              @id @default(autoincrement())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  isArchived      Boolean          @default(false)
+  notes           String?
+  departureDate   DateTime
+  isCompleted     Boolean          @default(false)
+  isDeleted       Boolean          @default(false)
+  businessId      Int
+  vehicleId       Int
+  destination     String
+  business        Business         @relation(fields: [businessId], references: [id])
+  vehicle         Vehicle          @relation(fields: [vehicleId], references: [id])
+  courierProfiles CourierProfile[]
+  parcels         Parcel[]
+}
+
+model Journey {
+  id             Int             @id @default(autoincrement())
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  notes          String?
+  departureDate  DateTime
+  isCompleted    Boolean         @default(false)
+  arrivalDate    DateTime?
+  vehicleId      Int
+  businessId     Int
+  isArchived     Boolean         @default(false)
+  endLocation    String
+  startLocation  String
+  isDeleted      Boolean         @default(false)
+  business       Business        @relation(fields: [businessId], references: [id])
+  vehicle        Vehicle         @relation(fields: [vehicleId], references: [id])
+  parcels        Parcel[]
+  driverProfiles DriverProfile[] @relation("DriverProfileToJourney")
+}
+
+model Image {
+  id          Int        @id @default(autoincrement())
+  url         String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  vehicleId   Int?
+  parcelId    Int?
+  businessess Business[]
+  parcel      Parcel?    @relation(fields: [parcelId], references: [id])
+  vehicle     Vehicle?   @relation(fields: [vehicleId], references: [id])
+  users       User[]
+}
+
+model Country {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  isoCode   String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  address   Address[]
+}
+
+model Vehicle {
+  id             Int              @id @default(autoincrement())
+  plateNumber    String
+  model          String
+  make           String
+  year           DateTime
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  businessId     Int
+  isDeleted      Boolean          @default(false)
+  courierJourney CourierJourney[]
+  images         Image[]
+  journeys       Journey[]
+  business       Business         @relation(fields: [businessId], references: [id])
+}
+
+model AuditLog {
+  id          Int         @id @default(autoincrement())
+  userId      Int?
+  action      AuditAction
+  entityType  String
+  entityId    String?
+  description String
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  sessionId   String?
+  method      String?
+  endpoint    String?
+  requestId   String?
+  duration    Int?
+  statusCode  Int?
+  businessId  Int?
+  createdAt   DateTime    @default(now())
+  business    Business?   @relation(fields: [businessId], references: [id])
+  user        User?       @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+  @@index([businessId])
+}
+
 enum UserType {
   Moderator
   Customer
   Manager
-  Subscriber
   Member
   InternationalDriver
   ParcelCourier
+  Subscriber
 }
 
 enum Gender {
@@ -50,299 +363,6 @@ enum PaymentStatus {
   Paid
 }
 
-// MODIFIED: User model to integrate with Supabase auth
-model User {
-  id                Int              @id @default(autoincrement())
-  // NEW: Link to Supabase auth.users table
-  supabaseId        String?          @unique // UUID from auth.users
-  firstName         String
-  lastName          String
-  email             String           @unique
-  type              UserType         @default(Member)
-  isBlocked         Boolean          @default(false)
-  dateOfBirth       DateTime? // Made optional for Google OAuth users
-  gender            Gender? // Made optional for Google OAuth users
-  isAdmin           Boolean          @default(false)
-  isSuperAdmin      Boolean          @default(false)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  isDeleted         Boolean          @default(false)
-  imageId           Int?
-  imageUrl          Image?           @relation(fields: [imageId], references: [id])
-  driverProfile     DriverProfile?
-  courierProfile    CourierProfile?
-  customerProfileId Int?             @unique
-  customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
-  businessId        Int
-  business          Business         @relation(fields: [businessId], references: [id])
-  phoneId           Int? // Made optional since Google OAuth may not provide phone
-  phoneNumber       Phone?           @relation(fields: [phoneId], references: [id])
-  AuditLog          AuditLog[]
-
-  @@index([businessId])
-}
-
-// NEW: Store Supabase auth metadata if needed
-model AuthProfile {
-  id         Int       @id @default(autoincrement())
-  supabaseId String    @unique
-  provider   String // 'email' or 'google'
-  lastSignIn DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-}
-
-model DriverProfile {
-  id        Int       @id @default(autoincrement())
-  journeys  Journey[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  isDeleted Boolean   @default(false)
-  userId    Int       @unique
-  user      User      @relation(fields: [userId], references: [id])
-}
-
-model CourierProfile {
-  id               Int             @id @default(autoincrement())
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  isDeleted        Boolean         @default(false)
-  userId           Int             @unique
-  user             User            @relation(fields: [userId], references: [id])
-  courierJourneyId Int?
-  courierJourney   CourierJourney? @relation(fields: [courierJourneyId], references: [id])
-}
-
-model Business {
-  id               Int               @id @default(autoincrement())
-  name             String
-  users            User[]
-  vehicles         Vehicle[]
-  journeys         Journey[]
-  parcels          Parcel[]
-  customerProfiles CustomerProfile[]
-  addresses        Address[]
-  notes            String?
-  activationDate   DateTime?
-  isActive         Boolean           @default(false)
-  description      String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  imageId          Int?
-  imageUrl         Image?            @relation(fields: [imageId], references: [id])
-  courierJourney   CourierJourney[]
-  isDeleted        Boolean           @default(false)
-  AuditLog         AuditLog[]
-}
-
-model CustomerProfile {
-  id                Int              @id @default(autoincrement())
-  firstName         String
-  lastName          String
-  businessId        Int
-  business          Business         @relation(fields: [businessId], references: [id])
-  parcelsSent       Parcel[]         @relation("sentParcels")
-  parcelsReceived   Parcel[]         @relation("receivedParcels")
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  gender            Gender
-  phoneId           Int              @unique
-  phoneNumber       Phone            @relation(fields: [phoneId], references: [id])
-  note              String?
-  user              User?
-  primaryAddress    Address?
-  novaPostAddressId Int?
-  novaPostAddress   NovaPostAddress? @relation(fields: [novaPostAddressId], references: [id])
-  isDeleted         Boolean          @default(false)
-}
-
-model Parcel {
-  id                     Int               @id @default(autoincrement())
-  weight                 Float
-  cargoType              ParcelType        @default(Regular)
-  notes                  String?
-  trackingNumber         String
-  novaPostTrackingNumber String?
-  parcelMoneyAmount      Float?
-  isLost                 Boolean           @default(false)
-  pickupDate             DateTime          @default(now())
-  deliveryDate           DateTime?
-  isArchived             Boolean           @default(false)
-  price                  Float
-  cost                   Float
-  discount               Float?
-  senderPhoneNumber      String?
-  recipientPhoneNumber   String?
-  discountType           DiscountType      @default(None)
-  images                 Image[]
-  hasBorderCheck         Boolean           @default(false)
-  isDamaged              Boolean           @default(false)
-  deliveryStatus         DeliveryStatus    @default(Initial)
-  paymentStatus          PaymentStatus     @default(NotPaid)
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
-  connections            ConnectedParcel[] @relation("ParcelConnections")
-  connectedFrom          ConnectedParcel[] @relation("ConnectedToParcels")
-  isDeleted              Boolean           @default(false)
-  senderId               Int
-  sender                 CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
-  recipientId            Int
-  recipient              CustomerProfile   @relation("receivedParcels", fields: [recipientId], references: [id])
-  businessId             Int
-  business               Business          @relation(fields: [businessId], references: [id])
-  journeyId              Int?
-  journey                Journey?          @relation(fields: [journeyId], references: [id])
-  courierJourneyId       Int?
-  courierJourney         CourierJourney?   @relation(fields: [courierJourneyId], references: [id])
-  originAddressId        Int
-  originAddress          Address           @relation("originParcels", fields: [originAddressId], references: [id])
-  destinationAddressId   Int
-  destinationAddress     Address           @relation("destinationParcels", fields: [destinationAddressId], references: [id])
-  novaPostAddressId      Int?
-  novaPostAddress        NovaPostAddress?  @relation(fields: [novaPostAddressId], references: [id])
-  ConnectedParcel        ConnectedParcel[]
-}
-
-model Address {
-  id                 Int             @id @default(autoincrement())
-  street             String
-  city               String
-  flat               String?
-  building           String?
-  block              String?
-  note               String?
-  region             String?
-  postcode           String?
-  businessId         Int
-  business           Business        @relation(fields: [businessId], references: [id])
-  originParcels      Parcel[]        @relation("originParcels")
-  destinationParcels Parcel[]        @relation("destinationParcels")
-  countryId          Int
-  country            Country         @relation(fields: [countryId], references: [id])
-  profileId          Int             @unique
-  profile            CustomerProfile @relation(fields: [profileId], references: [id])
-
-  @@index([businessId])
-}
-
-model Phone {
-  id              Int              @id @default(autoincrement())
-  number          String
-  countryCode     String
-  users           User[]
-  parcelId        Int?
-  customerProfile CustomerProfile?
-}
-
-model NovaPostAddress {
-  id                 Int               @id @default(autoincrement())
-  city               String
-  street             String
-  Warehouses         String
-  MainDescription    String
-  Area               String
-  Region             String
-  SettlementTypeCode String
-  parcel             Parcel[]
-  customerProfile    CustomerProfile[]
-}
-
-model ConnectedParcel {
-  id             Int      @id @default(autoincrement())
-  parcelId       Int
-  connectedToId  Int
-  connectionType String // "SAME_DESTINATION", "SAME_SENDER", "BULK_SHIPMENT", "MANUAL"
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Bidirectional relationships with unique constraint names
-  parcel      Parcel @relation("ParcelConnections", fields: [parcelId], references: [id], onDelete: Cascade, map: "ConnectedParcel_parcel_fkey")
-  connectedTo Parcel @relation("ConnectedToParcels", fields: [connectedToId], references: [id], onDelete: Cascade, map: "ConnectedParcel_connectedTo_fkey")
-  Parcel      Parcel @relation(fields: [parcelId], references: [id])
-
-  @@unique([parcelId, connectedToId])
-  @@index([parcelId])
-  @@index([connectedToId])
-  @@index([connectionType])
-}
-
-model CourierJourney {
-  id              Int              @id @default(autoincrement())
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  parcels         Parcel[]
-  courierProfiles CourierProfile[]
-  isArchived      Boolean          @default(false)
-  destination     String
-  notes           String?
-  departureDate   DateTime
-  isCompleted     Boolean          @default(false)
-  isDeleted       Boolean          @default(false)
-  businessId      Int
-  business        Business         @relation(fields: [businessId], references: [id])
-  vehicleId       Int
-  vehicle         Vehicle          @relation(fields: [vehicleId], references: [id])
-}
-
-model Journey {
-  id             Int             @id @default(autoincrement())
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  startLocation  String
-  endLocation    String
-  parcels        Parcel[]
-  notes          String?
-  departureDate  DateTime
-  isCompleted    Boolean         @default(false)
-  arrivalDate    DateTime?
-  vehicleId      Int
-  vehicle        Vehicle         @relation(fields: [vehicleId], references: [id])
-  businessId     Int
-  business       Business        @relation(fields: [businessId], references: [id])
-  driverProfiles DriverProfile[]
-  isArchived     Boolean         @default(false)
-  isDeleted      Boolean         @default(false)
-}
-
-model Image {
-  id          Int        @id @default(autoincrement())
-  url         String
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  vehicleId   Int?
-  vehicle     Vehicle?   @relation(fields: [vehicleId], references: [id])
-  parcelId    Int?
-  parcel      Parcel?    @relation(fields: [parcelId], references: [id])
-  businessess Business[]
-  users       User[]
-}
-
-model Country {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
-  isoCode   String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  address   Address[]
-}
-
-model Vehicle {
-  id             Int              @id @default(autoincrement())
-  plateNumber    String
-  model          String
-  make           String
-  year           DateTime
-  isActive       Boolean          @default(true)
-  images         Image[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  journeys       Journey[]
-  courierJourney CourierJourney[]
-  businessId     Int
-  business       Business         @relation(fields: [businessId], references: [id])
-  isDeleted      Boolean          @default(false)
-}
-
 enum AuditAction {
   CREATE
   READ
@@ -365,32 +385,4 @@ enum AuditAction {
   ASSIGN
   UNASSIGN
   CUSTOM
-}
-
-model AuditLog {
-  id          Int         @id @default(autoincrement())
-  userId      Int? // Nullable for system actions or anonymous users
-  user        User?       @relation(fields: [userId], references: [id])
-  action      AuditAction
-  entityType  String // e.g., "User", "Parcel", "Journey"
-  entityId    String? // ID of the affected entity (as string for flexibility)
-  description String // Human-readable description of the action
-  metadata    Json? // Additional data (request body, changed fields, etc.)
-  ipAddress   String?
-  userAgent   String?
-  sessionId   String?
-  method      String? // HTTP method (GET, POST, PUT, DELETE)
-  endpoint    String? // API endpoint
-  requestId   String? // Unique request identifier
-  duration    Int? // Request duration in ms
-  statusCode  Int? // HTTP status code
-  businessId  Int? // For multi-tenant logging
-  business    Business?   @relation(fields: [businessId], references: [id])
-  createdAt   DateTime    @default(now())
-
-  @@index([userId])
-  @@index([action])
-  @@index([entityType])
-  @@index([createdAt])
-  @@index([businessId])
 }

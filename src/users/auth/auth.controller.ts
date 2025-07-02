@@ -58,7 +58,11 @@ export class AuthController {
   @Public()
   @Post('/oauth')
   async oauthSignIn(@Body() body: OAuthSignInDto) {
-    return this.authService.handleOAuthSignIn(body.provider, body.token);
+    return this.authService.handleOAuthSignIn(
+      body.provider,
+      body.token,
+      body.businessId,
+    );
   }
 
   @ApiCreatedResponse({

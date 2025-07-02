@@ -49,15 +49,19 @@ export class AuthProfilesService {
 
   async updateLastSignIn(supabaseId: string): Promise<AuthProfile> {
     try {
-      return await this.prismaService.authProfile.update({
-        where: { supabaseId },
-        data: {
-          lastSignIn: new Date(),
-          updatedAt: new Date(),
-        },
-      });
+      // Add validation for supabaseId
+      if (!supabaseId) {
+        throw new Error('supabaseId is required');
+      }
+
+      this.logger.debug(`Updating last sign-in for supabaseId: ${supabaseId}`);
+
+      // Use the existing createOrUpdate method which already handles this case properly
+      return await this.createOrUpdate(supabaseId, 'email', new Date());
     } catch (error) {
-      this.logger.error(`Error updating last sign-in: ${error.message}`);
+      this.logger.error(
+        `Error updating last sign-in for supabaseId ${supabaseId}: ${error.message}`,
+      );
       throw error;
     }
   }

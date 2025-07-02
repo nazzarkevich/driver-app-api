@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuthProfilesService } from './auth-profiles.service';
-import { AuthGuard } from 'src/guards/auth.guard';
+import { SupabaseAuthGuard } from 'src/guards/supabase-auth.guard';
 import { AdminGuard } from 'src/guards/admin.guard';
 import {
   CurrentUser,
@@ -24,7 +24,7 @@ export class AuthProfilesController {
   ) {}
 
   @Get('me')
-  @UseGuards(AuthGuard)
+  @UseGuards(SupabaseAuthGuard)
   async getMyAuthProfile(@CurrentUser() user: UserRequestType) {
     this.logger.log(`Getting auth profile for user with ID: ${user.id}`);
 
@@ -41,7 +41,7 @@ export class AuthProfilesController {
   }
 
   @Get()
-  @UseGuards(AuthGuard, AdminGuard)
+  @UseGuards(SupabaseAuthGuard, AdminGuard)
   async getAllAuthProfiles() {
     this.logger.log('Getting all auth profiles (admin only)');
     return this.authProfilesService.getAll();

@@ -2,61 +2,60 @@ import {
   CallHandler,
   ExecutionContext,
   NestInterceptor,
-  UnauthorizedException,
   Injectable,
 } from '@nestjs/common';
 import { TokenUtils } from 'src/utils/token.utils';
 import { PrismaService } from 'src/prisma/prisma.service';
-
-interface JWTPayload {
-  id: number;
-  name: string;
-  iat: number;
-  exp: number;
-}
+import { SupabaseService } from 'src/supabase/supabase.service';
 
 @Injectable()
 export class UserInterceptor implements NestInterceptor {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
 
   async intercept(context: ExecutionContext, handler: CallHandler) {
     const request = context.switchToHttp().getRequest();
+
+    // If currentUser is already set by the guard, don't override it
+    if (request.currentUser) {
+      return handler.handle();
+    }
+
     const token = TokenUtils.extractTokenFromHeader(request);
     let currentUser = null;
 
     if (token) {
       try {
-        const payload = await TokenUtils.verifyToken(
-          token,
-          process.env.JSON_TOKEN_KEY,
-        );
+        const {
+          data: { user },
+          error,
+        } = await this.supabaseService.client.auth.getUser(token);
 
-        // Check if payload is an object and has the expected structure
-        if (typeof payload === 'object' && payload && 'id' in payload) {
-          const jwtPayload = payload as JWTPayload;
-
+        if (!error && user) {
           // Load user with business context from database
-          const user = await this.prismaService.user.findUnique({
-            where: { id: jwtPayload.id },
+          const dbUser = await this.prismaService.user.findUnique({
+            where: { supabaseId: user.id },
             include: { business: true },
           });
 
-          if (user && user.business?.isActive) {
+          if (dbUser && dbUser.business?.isActive) {
             currentUser = {
-              id: jwtPayload.id,
-              name: jwtPayload.name,
-              iat: jwtPayload.iat,
-              exp: jwtPayload.exp,
-              businessId: user.businessId,
-              type: user.type,
-              isAdmin: user.isAdmin,
-              isSuperAdmin: user.isSuperAdmin,
+              id: dbUser.id,
+              name: `${dbUser.firstName} ${dbUser.lastName}`,
+              iat: Math.floor(Date.now() / 1000),
+              exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+              businessId: dbUser.businessId,
+              type: dbUser.type,
+              isAdmin: dbUser.isAdmin,
+              isSuperAdmin: dbUser.isSuperAdmin,
             };
           }
         }
       } catch (error) {
-        console.error('Token verification failed:', error);
-        throw new UnauthorizedException('Invalid token');
+        console.error('Supabase token verification failed:', error);
+        // Don't throw - let the guard handle authentication
       }
     }
 

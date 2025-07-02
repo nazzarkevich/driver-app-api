@@ -24,7 +24,7 @@ import {
   CurrentUser,
   UserRequestType,
 } from './decorators/current-user.decorator';
-import { AuthGuard } from 'src/guards/auth.guard';
+import { SupabaseAuthGuard } from 'src/guards/supabase-auth.guard';
 
 @ApiTags('User')
 @Controller('users')
@@ -48,7 +48,7 @@ export class UsersController {
   }
 
   @Put('/:id')
-  @UseGuards(AuthGuard)
+  @UseGuards(SupabaseAuthGuard)
   async updateOwnUser(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateUserDto,

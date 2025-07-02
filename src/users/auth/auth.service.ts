@@ -13,6 +13,7 @@ import { CouriersService } from 'src/profiles/couriers/couriers.service';
 import { SupabaseService } from 'src/supabase/supabase.service';
 import { UserDto } from '../dtos/user.dto';
 import { AuthProfilesService } from '../auth-profiles/auth-profiles.service';
+import { BusinessesService } from 'src/businesses/businesses.service';
 
 @Injectable()
 export class AuthService {
@@ -22,6 +23,7 @@ export class AuthService {
     private readonly couriersService: CouriersService,
     private readonly supabaseService: SupabaseService,
     private readonly authProfilesService: AuthProfilesService,
+    private readonly businessesService: BusinessesService,
   ) {}
 
   private isDriver(type: UserType): boolean {
@@ -88,7 +90,6 @@ export class AuthService {
     lastName,
     phoneNumber,
     countryCode,
-    businessId,
   }: CreateUserDto): Promise<{
     token: string;
     refreshToken: string;
@@ -120,14 +121,8 @@ export class AuthService {
       new Date(),
     );
 
-    // Validate business exists and is active
-    const business = await this.prismaService.business.findUnique({
-      where: { id: businessId },
-    });
-
-    if (!business || !business.isActive) {
-      throw new BadRequestException('Invalid or inactive business');
-    }
+    // Get the default business ID
+    const businessId = await this.businessesService.getDefaultBusinessId();
 
     // Then create the user in our database
     const user = await this.prismaService.user.create({
@@ -187,6 +182,9 @@ export class AuthService {
     // Update the auth profile's last sign-in time
     await this.authProfilesService.updateLastSignIn(session.user.id);
 
+    console.log(`Looking for user with supabaseId: ${session.user.id}`);
+    console.log(`User email from Supabase: ${session.user.email}`);
+
     const user = await this.prismaService.user.findUnique({
       where: { supabaseId: session.user.id },
       include: {
@@ -195,6 +193,32 @@ export class AuthService {
     });
 
     if (!user) {
+      console.log(`No user found with supabaseId: ${session.user.id}`);
+      // Let's also check if a user exists with this email
+      const userByEmail = await this.prismaService.user.findUnique({
+        where: { email: session.user.email },
+        include: { phoneNumber: true },
+      });
+
+      if (userByEmail) {
+        console.log(`Found user by email but supabaseId mismatch:`, {
+          dbSupabaseId: userByEmail.supabaseId,
+          authSupabaseId: session.user.id,
+        });
+        // Update the supabaseId in the database to match
+        const updatedUser = await this.prismaService.user.update({
+          where: { email: session.user.email },
+          data: { supabaseId: session.user.id },
+          include: { phoneNumber: true },
+        });
+        console.log(`Updated user supabaseId successfully`);
+        return {
+          token: session.access_token,
+          refreshToken: session.refresh_token,
+          user: new UserDto(updatedUser),
+        };
+      }
+
       throw new UnauthorizedException('User not found in application database');
     }
 
@@ -212,6 +236,7 @@ export class AuthService {
   async handleOAuthSignIn(
     provider: string,
     token: string,
+    businessId?: number,
   ): Promise<{ token: string; refreshToken: string; user: UserDto }> {
     // Exchange the provider token for a Supabase session
     const { data, error } =
@@ -243,6 +268,10 @@ export class AuthService {
 
     // If the user doesn't exist in our database yet, create them
     if (!user) {
+      // Use provided businessId or default business
+      const finalBusinessId =
+        businessId || (await this.businessesService.getDefaultBusinessId());
+
       const userData = supabaseUser.user_metadata || {};
 
       user = await this.prismaService.user.create({
@@ -254,7 +283,7 @@ export class AuthService {
           type: UserType.Member, // Default type for OAuth users
           supabaseId: supabaseUser.id,
           business: {
-            connect: { id: 1 }, // Default business connection
+            connect: { id: finalBusinessId },
           },
           // Create phone if provided by OAuth provider
           ...(userData.phone && {

@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
@@ -31,7 +26,7 @@ export class SupabaseAuthGuard implements CanActivate {
     }
 
     if (!token) {
-      throw new UnauthorizedException();
+      return false;
     }
 
     try {
@@ -41,25 +36,53 @@ export class SupabaseAuthGuard implements CanActivate {
       } = await this.supabaseService.client.auth.getUser(token);
 
       if (error || !user) {
-        throw new UnauthorizedException();
+        console.log(`❌ Supabase auth failed:`, error?.message);
+        return false;
       }
 
-      // Find or create the user in our database
+      // Find the user in our database
       const dbUser = await this.prismaService.user.findUnique({
         where: { supabaseId: user.id },
+        include: {
+          business: true,
+        },
       });
 
       if (!dbUser) {
-        throw new UnauthorizedException(
-          'User not found in application database',
-        );
+        console.log(`❌ User not found with supabaseId: ${user.id}`);
+        return false;
       }
 
       if (dbUser.isBlocked) {
-        throw new UnauthorizedException('User is blocked');
+        console.log(`❌ User is blocked: ${dbUser.email}`);
+        return false;
       }
 
-      // Attach user to request
+      if (!dbUser.business?.isActive) {
+        console.log(`❌ User's business is not active:`, {
+          userEmail: dbUser.email,
+          businessId: dbUser.businessId,
+          businessName: dbUser.business?.name,
+          businessIsActive: dbUser.business?.isActive,
+        });
+        return false;
+      }
+
+      console.log(`✅ User authorized successfully: ${dbUser.email}`);
+
+      // Set currentUser in request to match existing structure
+      request.currentUser = {
+        id: dbUser.id,
+        name: `${dbUser.firstName} ${dbUser.lastName}`,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+        businessId: dbUser.businessId,
+        type: dbUser.type,
+        isAdmin: dbUser.isAdmin,
+        isSuperAdmin: dbUser.isSuperAdmin,
+      };
+
+      // Also set user for backward compatibility
       request.user = {
         ...dbUser,
         supabaseUser: user,
@@ -67,7 +90,8 @@ export class SupabaseAuthGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      throw new UnauthorizedException();
+      console.error('Authentication error:', error);
+      return false;
     }
   }
 
