@@ -1,17 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { UserType, Gender } from '@prisma/client';
-import { Exclude, Expose } from 'class-transformer';
+import { Expose } from 'class-transformer';
 
 @Expose()
 export class UserDto {
-  @Exclude()
-  isAdmin: boolean;
-
   @ApiProperty({
     example: '3',
     description: 'Users id',
   })
   id: number;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether the user is an admin',
+  })
+  isAdmin: boolean;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether the user is a super admin',
+  })
+  isSuperAdmin: boolean;
 
   @ApiProperty({
     example: 'abc123-def456-ghi789',
