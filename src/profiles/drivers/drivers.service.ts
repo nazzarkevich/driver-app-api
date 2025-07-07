@@ -44,7 +44,25 @@ export class DriversService {
 
   async findAll(page: number): Promise<Pagination<DriverProfileDto>> {
     const [driversProfilesWithPagination, metadata] =
-      await prismaWithPagination.driverProfile.paginate().withPages({ page });
+      await prismaWithPagination.driverProfile
+        .paginate({
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                imageUrl: {
+                  select: {
+                    id: true,
+                    url: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+        .withPages({ page });
 
     const driversProfiles = driversProfilesWithPagination.map(
       (profile) => new DriverProfileDto(profile),
@@ -60,6 +78,21 @@ export class DriversService {
     const profile = await this.prismaService.driverProfile.findUnique({
       where: {
         id,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            imageUrl: {
+              select: {
+                id: true,
+                url: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -79,6 +112,21 @@ export class DriversService {
       where: {
         id: {
           in: driverProfileIds,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            imageUrl: {
+              select: {
+                id: true,
+                url: true,
+              },
+            },
+          },
         },
       },
     });

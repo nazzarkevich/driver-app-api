@@ -48,6 +48,21 @@ export class CouriersService {
     const [courierProfilesWithPagination, metadata] =
       await prismaWithPagination.courierProfile
         .paginate({
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                imageUrl: {
+                  select: {
+                    id: true,
+                    url: true,
+                  },
+                },
+              },
+            },
+          },
           orderBy: {
             createdAt: 'desc',
           },
@@ -69,6 +84,21 @@ export class CouriersService {
       where: {
         id,
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            imageUrl: {
+              select: {
+                id: true,
+                url: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!profile) {
@@ -89,6 +119,21 @@ export class CouriersService {
       where: {
         id: {
           in: couriersProfileIds,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            imageUrl: {
+              select: {
+                id: true,
+                url: true,
+              },
+            },
+          },
         },
       },
     });
