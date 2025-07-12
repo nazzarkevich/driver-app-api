@@ -131,6 +131,10 @@ export class DriversService {
       },
     });
 
+    if (driverProfiles.length !== driverProfileIds.length) {
+      throw new NotFoundException('One or more driver profiles not found');
+    }
+
     return driverProfiles.map((profile) => new DriverProfileDto(profile));
   }
 

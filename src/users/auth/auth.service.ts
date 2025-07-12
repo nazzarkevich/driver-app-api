@@ -130,7 +130,7 @@ export class AuthService {
         email,
         firstName,
         lastName,
-        type,
+        type: type || UserType.Member,
         supabaseId: authData.user.id,
         business: {
           connect: { id: businessId },
@@ -289,7 +289,7 @@ export class AuthService {
           ...(userData.phone && {
             phoneNumber: {
               create: {
-                countryCode: '+1', // Default country code
+                countryCode: '+44', // Default country code
                 number: userData.phone,
               },
             },

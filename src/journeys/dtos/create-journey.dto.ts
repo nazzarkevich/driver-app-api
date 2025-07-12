@@ -16,6 +16,7 @@ export class CreateJourneyDto {
   endLocation: string;
 
   @IsOptional()
+  @IsNumber({}, { each: true })
   parcels: number[];
 
   @IsNotEmpty()

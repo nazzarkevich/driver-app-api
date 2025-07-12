@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 
 import { JourneyDto } from './dtos/journey.dto';
 import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
@@ -35,7 +39,7 @@ export class JourneysService extends BaseTenantService {
       driverProfiles,
     }: CreateJourneyDto,
     businessId: number,
-  ): Promise<void> {
+  ): Promise<JourneyDto> {
     await this.validateBusinessAccess(businessId);
 
     // Validate and get vehicle - ensure it's active and belongs to business
@@ -47,72 +51,108 @@ export class JourneysService extends BaseTenantService {
       );
     }
 
-    // Check for vehicle scheduling conflicts
-    await this.validateVehicleAvailability(
-      vehicleId,
-      departureDate,
-      businessId,
-    );
+    // Validate driver profiles exist and belong to the business
+    const foundDrivers =
+      await this.driversService.findManyByIds(driverProfiles);
 
     const foundParcels = await this.parcelsService.findParcelsByIds(
       parcels,
       businessId,
     );
 
-    // Validate driver profiles exist and belong to the business
-    const foundDrivers =
-      await this.driversService.findManyByIds(driverProfiles);
+    // Use transaction to ensure atomicity
+    const createdJourney = await this.prismaService.$transaction(async (tx) => {
+      // Check for duplicate journey (idempotency)
+      const existingJourney = await tx.journey.findFirst({
+        where: {
+          startLocation,
+          endLocation,
+          vehicleId,
+          departureDate,
+          businessId,
+          isDeleted: false,
+        },
+        include: {
+          driverProfiles: true,
+          parcels: {
+            include: {
+              sender: true,
+              recipient: true,
+            },
+          },
+          vehicle: true,
+        },
+      });
 
-    await this.prismaService.journey.create({
-      data: {
-        startLocation,
-        endLocation,
-        vehicleId,
-        departureDate,
-        notes,
-        businessId,
-        parcels: {
-          connect: foundParcels.map((parcel) => ({ id: parcel.id })),
+      if (existingJourney) {
+        // Journey already exists, return existing journey (idempotent)
+        return existingJourney;
+      }
+
+      // Check for vehicle scheduling conflicts within transaction
+      const conflictingJourneys = await tx.journey.findMany({
+        where: {
+          vehicleId,
+          businessId,
+          departureDate: {
+            gte: new Date(
+              departureDate.getFullYear(),
+              departureDate.getMonth(),
+              departureDate.getDate(),
+            ),
+            lt: new Date(
+              departureDate.getFullYear(),
+              departureDate.getMonth(),
+              departureDate.getDate() + 1,
+            ),
+          },
+          isCompleted: false,
+          isDeleted: false,
         },
-        driverProfiles: {
-          connect: foundDrivers.map((driver) => ({ id: driver.id })),
+      });
+
+      if (conflictingJourneys.length > 0) {
+        throw new ConflictException(
+          `Vehicle is already assigned to ${conflictingJourneys.length} journey(s) on ${departureDate.toDateString()}. Please choose a different vehicle or date.`,
+        );
+      }
+
+      // Create the journey
+      const newJourney = await tx.journey.create({
+        data: {
+          startLocation,
+          endLocation,
+          vehicleId,
+          departureDate,
+          notes,
+          businessId,
+          parcels: {
+            connect: foundParcels.map((parcel) => ({ id: parcel.id })),
+          },
+          driverProfiles: {
+            connect: foundDrivers.map((driver) => ({ id: driver.id })),
+          },
         },
-      },
+        include: {
+          driverProfiles: true,
+          parcels: {
+            include: {
+              sender: true,
+              recipient: true,
+            },
+          },
+          vehicle: true,
+        },
+      });
+
+      return newJourney;
     });
-  }
 
-  private async validateVehicleAvailability(
-    vehicleId: number,
-    departureDate: Date,
-    businessId: number,
-  ): Promise<void> {
-    // Check for conflicting journeys on the same date
-    const conflictingJourneys = await this.prismaService.journey.findMany({
-      where: {
-        vehicleId,
-        businessId,
-        departureDate: {
-          gte: new Date(
-            departureDate.getFullYear(),
-            departureDate.getMonth(),
-            departureDate.getDate(),
-          ),
-          lt: new Date(
-            departureDate.getFullYear(),
-            departureDate.getMonth(),
-            departureDate.getDate() + 1,
-          ),
-        },
-        isCompleted: false,
-        isDeleted: false,
-      },
-    });
-
-    if (conflictingJourneys.length > 0) {
-      throw new NotFoundException(
-        `Vehicle is already assigned to ${conflictingJourneys.length} journey(s) on ${departureDate.toDateString()}. Please choose a different vehicle or date.`,
-      );
+    if (!createdJourney) {
+      throw new Error('Failed to create or retrieve journey');
     }
+
+    return new JourneyDto(createdJourney);
   }
 
   async findParcelsByJourneyId(

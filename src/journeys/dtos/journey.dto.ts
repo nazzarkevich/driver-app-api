@@ -3,6 +3,7 @@ import { Expose } from 'class-transformer';
 
 @Expose()
 export class JourneyDto {
+  id: number;
   startLocation: string;
   endLocation: string;
   parcels: Parcel[];

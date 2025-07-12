@@ -33,7 +33,7 @@ export class JourneysController {
   async createJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateJourneyDto,
-  ): Promise<void> {
+  ): Promise<JourneyDto> {
     return this.journeysService.createJourney(body, currentUser.businessId);
   }
 
