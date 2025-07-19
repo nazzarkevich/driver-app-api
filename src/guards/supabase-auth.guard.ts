@@ -4,6 +4,7 @@ import { Request } from 'express';
 
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TokenStorageService } from '../auth/token-storage.service';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
@@ -11,6 +12,7 @@ export class SupabaseAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly supabaseService: SupabaseService,
     private readonly prismaService: PrismaService,
+    private readonly tokenStorageService: TokenStorageService,
   ) {}
 
   async canActivate(context: ExecutionContext) {
@@ -70,6 +72,9 @@ export class SupabaseAuthGuard implements CanActivate {
 
       console.log(`✅ User authorized successfully: ${dbUser.email}`);
 
+      // Get refresh token from storage for potential automatic refresh
+      const refreshToken = this.tokenStorageService.getRefreshToken(token);
+
       // Set currentUser in request to match existing structure
       request.currentUser = {
         id: dbUser.id,
@@ -87,6 +92,10 @@ export class SupabaseAuthGuard implements CanActivate {
         ...dbUser,
         supabaseUser: user,
       };
+
+      // Store token and refresh token in request for interceptor access
+      request.accessToken = token;
+      request.refreshToken = refreshToken;
 
       return true;
     } catch (error) {

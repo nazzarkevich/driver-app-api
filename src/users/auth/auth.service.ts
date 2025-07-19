@@ -14,6 +14,7 @@ import { SupabaseService } from 'src/supabase/supabase.service';
 import { UserDto } from '../dtos/user.dto';
 import { AuthProfilesService } from '../auth-profiles/auth-profiles.service';
 import { BusinessesService } from 'src/businesses/businesses.service';
+import { TokenStorageService } from 'src/auth/token-storage.service';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +25,7 @@ export class AuthService {
     private readonly supabaseService: SupabaseService,
     private readonly authProfilesService: AuthProfilesService,
     private readonly businessesService: BusinessesService,
+    private readonly tokenStorageService: TokenStorageService,
   ) {}
 
   private isDriver(type: UserType): boolean {
@@ -48,38 +50,98 @@ export class AuthService {
 
   async refreshToken(
     refreshToken: string,
-  ): Promise<{ token: string; user: UserDto }> {
-    const { data, error } =
-      await this.supabaseService.client.auth.refreshSession({
-        refresh_token: refreshToken,
+    oldAccessToken?: string,
+  ): Promise<{ token: string; refreshToken: string; user: UserDto }> {
+    try {
+      const { data, error } =
+        await this.supabaseService.client.auth.refreshSession({
+          refresh_token: refreshToken,
+        });
+
+      if (error || !data.session) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Update the auth profile's last sign-in time
+      await this.authProfilesService.updateLastSignIn(data.session.user.id);
+
+      const user = await this.prismaService.user.findUnique({
+        where: { supabaseId: data.session.user.id },
+        include: {
+          phoneNumber: true,
+        },
       });
 
-    if (error || !data.session) {
-      throw new UnauthorizedException('Invalid refresh token');
+      if (!user) {
+        throw new UnauthorizedException(
+          'User not found in application database',
+        );
+      }
+
+      if (user.isBlocked) {
+        throw new UnauthorizedException('User is blocked');
+      }
+
+      // Calculate refresh token expiration (typically 30 days from now)
+      const refreshTokenExpiresAt = new Date();
+      refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30);
+
+      // Update token storage if old token provided
+      if (oldAccessToken) {
+        this.tokenStorageService.updateAccessToken(
+          oldAccessToken,
+          data.session.access_token,
+          data.session.refresh_token,
+          refreshTokenExpiresAt,
+        );
+      } else {
+        // Store new token
+        this.tokenStorageService.storeRefreshToken(
+          data.session.access_token,
+          data.session.refresh_token,
+          user.id.toString(),
+          refreshTokenExpiresAt,
+        );
+      }
+
+      return {
+        token: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        user: new UserDto(user),
+      };
+    } catch (error) {
+      // Clean up tokens on refresh failure
+      if (oldAccessToken) {
+        this.tokenStorageService.removeToken(oldAccessToken);
+      }
+      throw error;
     }
+  }
 
-    // Update the auth profile's last sign-in time
-    await this.authProfilesService.updateLastSignIn(data.session.user.id);
+  async logout(accessToken: string, userId?: string): Promise<void> {
+    try {
+      // Sign out from Supabase
+      const { error } = await this.supabaseService.client.auth.signOut();
 
-    const user = await this.prismaService.user.findUnique({
-      where: { supabaseId: data.session.user.id },
-      include: {
-        phoneNumber: true,
-      },
-    });
+      if (error) {
+        console.error('Error signing out from Supabase:', error.message);
+      }
 
-    if (!user) {
-      throw new UnauthorizedException('User not found in application database');
+      // Remove tokens from storage
+      if (userId) {
+        this.tokenStorageService.removeUserTokens(userId);
+      } else {
+        this.tokenStorageService.removeToken(accessToken);
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Always clean up tokens even if Supabase logout fails
+      if (userId) {
+        this.tokenStorageService.removeUserTokens(userId);
+      } else {
+        this.tokenStorageService.removeToken(accessToken);
+      }
     }
-
-    if (user.isBlocked) {
-      throw new UnauthorizedException('User is blocked');
-    }
-
-    return {
-      token: data.session.access_token,
-      user: new UserDto(user),
-    };
   }
 
   async signUp({
@@ -155,6 +217,19 @@ export class AuthService {
       await this.createCourierProfile(user.id);
     }
 
+    // Store refresh token for automatic refresh handling
+    if (authData.session?.access_token && authData.session?.refresh_token) {
+      const refreshTokenExpiresAt = new Date();
+      refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30);
+
+      this.tokenStorageService.storeRefreshToken(
+        authData.session.access_token,
+        authData.session.refresh_token,
+        user.id.toString(),
+        refreshTokenExpiresAt,
+      );
+    }
+
     return {
       token: authData.session?.access_token,
       refreshToken: authData.session?.refresh_token,
@@ -225,6 +300,17 @@ export class AuthService {
     if (user.isBlocked) {
       throw new UnauthorizedException('User is blocked');
     }
+
+    // Store refresh token for automatic refresh handling
+    const refreshTokenExpiresAt = new Date();
+    refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30);
+
+    this.tokenStorageService.storeRefreshToken(
+      session.access_token,
+      session.refresh_token,
+      user.id.toString(),
+      refreshTokenExpiresAt,
+    );
 
     return {
       token: session.access_token,
@@ -304,6 +390,17 @@ export class AuthService {
     if (user.isBlocked) {
       throw new UnauthorizedException('User is blocked');
     }
+
+    // Store refresh token for automatic refresh handling
+    const refreshTokenExpiresAt = new Date();
+    refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30);
+
+    this.tokenStorageService.storeRefreshToken(
+      data.session.access_token,
+      data.session.refresh_token,
+      user.id.toString(),
+      refreshTokenExpiresAt,
+    );
 
     return {
       token: data.session.access_token,

@@ -66,18 +66,24 @@ export class JourneysController {
   @Get()
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'isCompleted', required: false, type: Boolean })
+  @ApiQuery({ name: 'driverProfileId', required: false, type: Number })
   async findAllJourneys(
     @CurrentUser() currentUser: UserRequestType,
     @Query('page') page?: string,
     @Query('isCompleted') isCompleted?: string,
+    @Query('driverProfileId') driverProfileId?: string,
   ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const completedStatus =
       isCompleted !== undefined ? isCompleted === 'true' : undefined;
+    const driverProfileIdNumber = driverProfileId
+      ? parseInt(driverProfileId, 10)
+      : undefined;
     return this.journeysService.findAll(
       currentUser.businessId,
       pageNumber,
       completedStatus,
+      driverProfileIdNumber,
     );
   }
 

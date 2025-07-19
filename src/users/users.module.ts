@@ -9,6 +9,7 @@ import { CouriersService } from 'src/profiles/couriers/couriers.service';
 import { SupabaseService } from 'src/supabase/supabase.service';
 import { AuthProfilesModule } from './auth-profiles/auth-profiles.module';
 import { BusinessesService } from 'src/businesses/businesses.service';
+import { TokenStorageService } from 'src/auth/token-storage.service';
 
 @Module({
   imports: [AuthProfilesModule],
@@ -21,6 +22,7 @@ import { BusinessesService } from 'src/businesses/businesses.service';
     CouriersService,
     SupabaseService,
     BusinessesService,
+    TokenStorageService,
   ],
   exports: [UsersService, AuthService],
 })

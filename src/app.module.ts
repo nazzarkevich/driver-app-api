@@ -22,6 +22,8 @@ import { CourierJourneysModule } from './courier-journeys/courier-journeys.modul
 import { SupabaseModule } from './supabase/supabase.module';
 import { AuditModule } from './audit/audit.module';
 import { AuditInterceptor } from './audit/audit.interceptor';
+import { TokenStorageService } from './auth/token-storage.service';
+import { TokenRefreshInterceptor } from './interceptors/token-refresh.interceptor';
 
 /*
   - Extend courier service and controller ✅
@@ -85,9 +87,14 @@ import { AuditInterceptor } from './audit/audit.interceptor';
   controllers: [AppController],
   providers: [
     AppService,
+    TokenStorageService,
     {
       provide: APP_INTERCEPTOR,
       useClass: UserInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TokenRefreshInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

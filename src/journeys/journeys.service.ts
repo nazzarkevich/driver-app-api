@@ -204,13 +204,26 @@ export class JourneysService extends BaseTenantService {
     businessId: number,
     page?: number,
     isCompleted?: boolean,
+    driverProfileId?: number,
   ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
     await this.validateBusinessAccess(businessId);
 
-    const whereClause = this.getBusinessWhere(
+    let whereClause: any = this.getBusinessWhere(
       businessId,
       isCompleted !== undefined ? { isCompleted } : {},
     );
+
+    if (driverProfileId) {
+      await this.validateDriverProfileAccess(driverProfileId, businessId);
+      whereClause = {
+        ...whereClause,
+        driverProfiles: {
+          some: {
+            id: driverProfileId,
+          },
+        },
+      };
+    }
 
     if (page) {
       // Return paginated results
@@ -342,6 +355,28 @@ export class JourneysService extends BaseTenantService {
         id,
       },
     });
+  }
+
+  private async validateDriverProfileAccess(
+    driverProfileId: number,
+    businessId: number,
+  ): Promise<void> {
+    const driverProfile = await this.prismaService.driverProfile.findUnique({
+      where: { id: driverProfileId },
+      include: {
+        user: {
+          select: { businessId: true },
+        },
+      },
+    });
+
+    if (!driverProfile) {
+      throw new NotFoundException('Driver profile not found');
+    }
+
+    if (driverProfile.user.businessId !== businessId) {
+      throw new NotFoundException('Driver profile not found');
+    }
   }
 
   async getAvailableVehicles(

@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Request } from 'express';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiTags,
+  ApiOkResponse,
 } from '@nestjs/swagger';
 
 import {
@@ -73,6 +75,17 @@ export class AuthController {
   @Post('/refresh')
   async refreshToken(@Body() body: RefreshTokenDto) {
     return this.authService.refreshToken(body.refreshToken);
+  }
+
+  @ApiOkResponse({
+    description: 'Successfully logged out',
+  })
+  @Post('/logout')
+  async logout(@CurrentUser() user: UserRequestType, @Req() request: Request) {
+    const accessToken =
+      request.accessToken || request.headers.authorization?.split(' ')[1];
+    await this.authService.logout(accessToken, user.id.toString());
+    return { message: 'Successfully logged out' };
   }
 
   @Get('me')
