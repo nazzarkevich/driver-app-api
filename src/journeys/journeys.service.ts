@@ -16,6 +16,7 @@ import { Pagination } from 'src/dtos/pagination.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
 import { BaseTenantService } from 'src/common/base-tenant.service';
 import { VehicleDto } from 'src/vehicles/dtos/vehicle.dto';
+import { JourneyNumberService } from './services/journey-number.service';
 
 @Injectable()
 export class JourneysService extends BaseTenantService {
@@ -24,6 +25,7 @@ export class JourneysService extends BaseTenantService {
     private readonly parcelsService: ParcelsService,
     private readonly vehiclesService: VehiclesService,
     private readonly driversService: DriversService,
+    private readonly journeyNumberService: JourneyNumberService,
   ) {
     super(prismaService);
   }
@@ -59,6 +61,17 @@ export class JourneysService extends BaseTenantService {
       parcels,
       businessId,
     );
+
+    const journeyNumber =
+      await this.journeyNumberService.generateUniqueJourneyNumber(
+        departureDate,
+        businessId,
+      );
+
+    // Validate journey number before proceeding
+    if (!journeyNumber || typeof journeyNumber !== 'string') {
+      throw new Error(`Invalid journey number generated: ${journeyNumber}`);
+    }
 
     // Use transaction to ensure atomicity
     const createdJourney = await this.prismaService.$transaction(async (tx) => {
@@ -120,6 +133,7 @@ export class JourneysService extends BaseTenantService {
       // Create the journey
       const newJourney = await tx.journey.create({
         data: {
+          journeyNumber,
           startLocation,
           endLocation,
           vehicleId,

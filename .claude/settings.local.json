@@ -4,7 +4,9 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(yarn build)",
-      "Bash(yarn start:dev)"
+      "Bash(yarn start:dev)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npx prisma:*)"
     ],
     "deny": []
   }

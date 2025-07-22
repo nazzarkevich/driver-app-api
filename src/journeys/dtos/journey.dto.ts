@@ -4,10 +4,12 @@ import { Expose } from 'class-transformer';
 @Expose()
 export class JourneyDto {
   id: number;
+  journeyNumber: string;
   startLocation: string;
   endLocation: string;
   parcels: Parcel[];
   driverProfiles: DriverProfile[];
+  businessId: number;
   vehicle: Vehicle;
   notes: string;
   isCompleted: boolean;

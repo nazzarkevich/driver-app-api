@@ -30,9 +30,10 @@ export class TokenRefreshInterceptor implements NestInterceptor {
 
         // Check if this is a 401/403 error that might be due to token expiration
         // For 403 errors, we only attempt refresh if it seems token-related
-        const isTokenRelatedError = error.status === 401 || 
+        const isTokenRelatedError =
+          error.status === 401 ||
           (error.status === 403 && this.isTokenRelated403(error));
-          
+
         if (
           isTokenRelatedError &&
           error.message !== 'Invalid refresh token' &&

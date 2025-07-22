@@ -237,6 +237,7 @@ model CourierJourney {
 
 model Journey {
   id             Int             @id @default(autoincrement())
+  journeyNumber  String          @unique
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   notes          String?
@@ -253,6 +254,9 @@ model Journey {
   vehicle        Vehicle         @relation(fields: [vehicleId], references: [id])
   parcels        Parcel[]
   driverProfiles DriverProfile[] @relation("DriverProfileToJourney")
+
+  @@index([journeyNumber])
+  @@index([businessId, departureDate])
 }
 
 model Image {
