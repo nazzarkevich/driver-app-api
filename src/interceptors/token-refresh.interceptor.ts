@@ -23,13 +23,31 @@ export class TokenRefreshInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const request = context.switchToHttp().getRequest<Request>();
+
+    this.logger.debug(
+      `[TokenRefreshInterceptor] Intercepting request to ${request.url}`,
+    );
+    this.logger.debug(
+      `[TokenRefreshInterceptor] Has accessToken: ${!!request.accessToken}`,
+    );
+    this.logger.debug(
+      `[TokenRefreshInterceptor] Has refreshToken: ${!!request.refreshToken}`,
+    );
+
     return next.handle().pipe(
       catchError((error) => {
-        const request = context.switchToHttp().getRequest<Request>();
         const response = context.switchToHttp().getResponse<Response>();
 
+        this.logger.debug(`[TokenRefreshInterceptor] Caught error:`, {
+          status: error.status,
+          message: error.message,
+          hasAccessToken: !!request.accessToken,
+          hasRefreshToken: !!request.refreshToken,
+          currentUser: request.currentUser?.id,
+        });
+
         // Check if this is a 401/403 error that might be due to token expiration
-        // For 403 errors, we only attempt refresh if it seems token-related
         const isTokenRelatedError =
           error.status === 401 ||
           (error.status === 403 && this.isTokenRelated403(error));
@@ -41,11 +59,20 @@ export class TokenRefreshInterceptor implements NestInterceptor {
           request.refreshToken
         ) {
           this.logger.debug(
-            `Attempting automatic token refresh for ${error.status} error for user ${request.currentUser?.id}`,
+            `[TokenRefreshInterceptor] Attempting automatic token refresh for ${error.status} error for user ${request.currentUser?.id}`,
           );
 
           // Attempt to refresh the token
           return this.attemptTokenRefresh(request, response, context, next);
+        } else {
+          this.logger.debug(
+            `[TokenRefreshInterceptor] Not attempting refresh:`,
+            {
+              isTokenRelatedError,
+              hasTokens: !!(request.accessToken && request.refreshToken),
+              errorMessage: error.message,
+            },
+          );
         }
 
         // If it's not a 401/403 or we can't refresh, pass through the error

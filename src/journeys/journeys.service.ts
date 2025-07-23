@@ -86,7 +86,23 @@ export class JourneysService extends BaseTenantService {
           isDeleted: false,
         },
         include: {
-          driverProfiles: true,
+          driverProfiles: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  imageUrl: {
+                    select: {
+                      id: true,
+                      url: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           parcels: {
             include: {
               sender: true,
@@ -148,7 +164,23 @@ export class JourneysService extends BaseTenantService {
           },
         },
         include: {
-          driverProfiles: true,
+          driverProfiles: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  imageUrl: {
+                    select: {
+                      id: true,
+                      url: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           parcels: {
             include: {
               sender: true,
@@ -249,7 +281,23 @@ export class JourneysService extends BaseTenantService {
             },
             where: whereClause,
             include: {
-              driverProfiles: true,
+              driverProfiles: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      firstName: true,
+                      lastName: true,
+                      imageUrl: {
+                        select: {
+                          id: true,
+                          url: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
               parcels: {
                 include: {
                   sender: true,
@@ -277,7 +325,23 @@ export class JourneysService extends BaseTenantService {
           createdAt: 'desc',
         },
         include: {
-          driverProfiles: true,
+          driverProfiles: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  imageUrl: {
+                    select: {
+                      id: true,
+                      url: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           parcels: {
             include: {
               sender: true,
@@ -300,7 +364,23 @@ export class JourneysService extends BaseTenantService {
         id,
       },
       include: {
-        driverProfiles: true,
+        driverProfiles: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                imageUrl: {
+                  select: {
+                    id: true,
+                    url: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         parcels: {
           include: {
             sender: true,
@@ -337,7 +417,23 @@ export class JourneysService extends BaseTenantService {
       },
       data: attrs,
       include: {
-        driverProfiles: true,
+        driverProfiles: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                imageUrl: {
+                  select: {
+                    id: true,
+                    url: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         parcels: {
           include: {
             sender: true,

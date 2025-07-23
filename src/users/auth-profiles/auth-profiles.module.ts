@@ -3,12 +3,11 @@ import { AuthProfilesService } from './auth-profiles.service';
 import { AuthProfilesController } from './auth-profiles.controller';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { SupabaseModule } from 'src/supabase/supabase.module';
-import { SupabaseAuthGuard } from 'src/guards/supabase-auth.guard';
 
 @Module({
   imports: [PrismaModule, SupabaseModule],
   controllers: [AuthProfilesController],
-  providers: [AuthProfilesService, SupabaseAuthGuard],
+  providers: [AuthProfilesService],
   exports: [AuthProfilesService],
 })
 export class AuthProfilesModule {}
