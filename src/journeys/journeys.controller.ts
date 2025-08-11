@@ -67,11 +67,25 @@ export class JourneysController {
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'isCompleted', required: false, type: Boolean })
   @ApiQuery({ name: 'driverProfileId', required: false, type: Number })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Filter journeys from this date (ISO format: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Filter journeys until this date (ISO format: YYYY-MM-DD)',
+  })
   async findAllJourneys(
     @CurrentUser() currentUser: UserRequestType,
     @Query('page') page?: string,
     @Query('isCompleted') isCompleted?: string,
     @Query('driverProfileId') driverProfileId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const completedStatus =
@@ -79,11 +93,17 @@ export class JourneysController {
     const driverProfileIdNumber = driverProfileId
       ? parseInt(driverProfileId, 10)
       : undefined;
+
+    const startDateParsed = startDate ? new Date(startDate) : undefined;
+    const endDateParsed = endDate ? new Date(endDate) : undefined;
+
     return this.journeysService.findAll(
       currentUser.businessId,
       pageNumber,
       completedStatus,
       driverProfileIdNumber,
+      startDateParsed,
+      endDateParsed,
     );
   }
 

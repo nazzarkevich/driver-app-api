@@ -251,6 +251,8 @@ export class JourneysService extends BaseTenantService {
     page?: number,
     isCompleted?: boolean,
     driverProfileId?: number,
+    startDate?: Date,
+    endDate?: Date,
   ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
     await this.validateBusinessAccess(businessId);
 
@@ -271,13 +273,25 @@ export class JourneysService extends BaseTenantService {
       };
     }
 
+    if (startDate || endDate) {
+      whereClause = {
+        ...whereClause,
+        departureDate: {
+          ...(startDate && { gte: startDate }),
+          ...(endDate && {
+            lte: new Date(endDate.getTime() + 24 * 60 * 60 * 1000 - 1),
+          }),
+        },
+      };
+    }
+
     if (page) {
       // Return paginated results
       const [journeysWithPagination, metadata] =
         await prismaWithPagination.journey
           .paginate({
             orderBy: {
-              createdAt: 'desc',
+              departureDate: 'desc',
             },
             where: whereClause,
             include: {
@@ -322,7 +336,7 @@ export class JourneysService extends BaseTenantService {
       const allJourneys = await this.prismaService.journey.findMany({
         where: whereClause,
         orderBy: {
-          createdAt: 'desc',
+          departureDate: 'desc',
         },
         include: {
           driverProfiles: {
