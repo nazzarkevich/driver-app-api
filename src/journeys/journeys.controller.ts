@@ -79,6 +79,20 @@ export class JourneysController {
     type: String,
     description: 'Filter journeys until this date (ISO format: YYYY-MM-DD)',
   })
+  @ApiQuery({
+    name: 'startCountryId',
+    required: false,
+    type: Number,
+    description:
+      'Filter journeys by origin country ID (1: Ukraine, 2: United Kingdom)',
+  })
+  @ApiQuery({
+    name: 'endCountryId',
+    required: false,
+    type: Number,
+    description:
+      'Filter journeys by destination country ID (1: Ukraine, 2: United Kingdom)',
+  })
   async findAllJourneys(
     @CurrentUser() currentUser: UserRequestType,
     @Query('page') page?: string,
@@ -86,6 +100,8 @@ export class JourneysController {
     @Query('driverProfileId') driverProfileId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('startCountryId') startCountryId?: string,
+    @Query('endCountryId') endCountryId?: string,
   ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const completedStatus =
@@ -96,6 +112,12 @@ export class JourneysController {
 
     const startDateParsed = startDate ? new Date(startDate) : undefined;
     const endDateParsed = endDate ? new Date(endDate) : undefined;
+    const startCountryIdNumber = startCountryId
+      ? parseInt(startCountryId, 10)
+      : undefined;
+    const endCountryIdNumber = endCountryId
+      ? parseInt(endCountryId, 10)
+      : undefined;
 
     return this.journeysService.findAll(
       currentUser.businessId,
@@ -104,6 +126,8 @@ export class JourneysController {
       driverProfileIdNumber,
       startDateParsed,
       endDateParsed,
+      startCountryIdNumber,
+      endCountryIdNumber,
     );
   }
 

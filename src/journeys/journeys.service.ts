@@ -32,8 +32,8 @@ export class JourneysService extends BaseTenantService {
 
   async createJourney(
     {
-      startLocation,
-      endLocation,
+      startCountryId,
+      endCountryId,
       vehicleId,
       departureDate,
       notes,
@@ -78,8 +78,8 @@ export class JourneysService extends BaseTenantService {
       // Check for duplicate journey (idempotency)
       const existingJourney = await tx.journey.findFirst({
         where: {
-          startLocation,
-          endLocation,
+          startCountryId,
+          endCountryId,
           vehicleId,
           departureDate,
           businessId,
@@ -110,6 +110,8 @@ export class JourneysService extends BaseTenantService {
             },
           },
           vehicle: true,
+          startCountry: true,
+          endCountry: true,
         },
       });
 
@@ -150,8 +152,8 @@ export class JourneysService extends BaseTenantService {
       const newJourney = await tx.journey.create({
         data: {
           journeyNumber,
-          startLocation,
-          endLocation,
+          startCountryId,
+          endCountryId,
           vehicleId,
           departureDate,
           notes,
@@ -188,6 +190,8 @@ export class JourneysService extends BaseTenantService {
             },
           },
           vehicle: true,
+          startCountry: true,
+          endCountry: true,
         },
       });
 
@@ -253,6 +257,8 @@ export class JourneysService extends BaseTenantService {
     driverProfileId?: number,
     startDate?: Date,
     endDate?: Date,
+    startCountryId?: number,
+    endCountryId?: number,
   ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
     await this.validateBusinessAccess(businessId);
 
@@ -282,6 +288,20 @@ export class JourneysService extends BaseTenantService {
             lte: new Date(endDate.getTime() + 24 * 60 * 60 * 1000 - 1),
           }),
         },
+      };
+    }
+
+    if (startCountryId) {
+      whereClause = {
+        ...whereClause,
+        startCountryId,
+      };
+    }
+
+    if (endCountryId) {
+      whereClause = {
+        ...whereClause,
+        endCountryId,
       };
     }
 
@@ -319,6 +339,8 @@ export class JourneysService extends BaseTenantService {
                 },
               },
               vehicle: true,
+              startCountry: true,
+              endCountry: true,
             },
           })
           .withPages({ page });
@@ -363,6 +385,8 @@ export class JourneysService extends BaseTenantService {
             },
           },
           vehicle: true,
+          startCountry: true,
+          endCountry: true,
         },
       });
 
@@ -402,6 +426,8 @@ export class JourneysService extends BaseTenantService {
           },
         },
         vehicle: true,
+        startCountry: true,
+        endCountry: true,
       },
     });
 

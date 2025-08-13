@@ -7,13 +7,13 @@ import {
 } from 'class-validator';
 
 export class CreateJourneyDto {
-  @IsString()
+  @IsNumber()
   @IsNotEmpty()
-  startLocation: string;
+  startCountryId: number;
 
-  @IsString()
+  @IsNumber()
   @IsNotEmpty()
-  endLocation: string;
+  endCountryId: number;
 
   @IsOptional()
   @IsNumber({}, { each: true })

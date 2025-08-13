@@ -9,13 +9,13 @@ import {
 // TODO: Question: how to update the parcels in the journey?
 
 export class UpdateJourneyDto {
-  @IsString()
+  @IsNumber()
   @IsOptional()
-  startLocation: string;
+  startCountryId: number;
 
-  @IsString()
+  @IsNumber()
   @IsOptional()
-  endLocation: string;
+  endCountryId: number;
 
   //   @IsOptional()
   //   parcels: number[];

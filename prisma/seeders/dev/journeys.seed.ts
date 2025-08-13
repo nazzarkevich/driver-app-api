@@ -16,8 +16,8 @@ export const seedJourneys = async (businessId: number) => {
     const journeyUKtoUA = await prisma.journey.create({
       data: {
         journeyNumber: `${datePrefix}-${i * 2 + 1}`,
-        startLocation: countryUK.name,
-        endLocation: countryUA.name,
+        startCountry: { connect: { id: countryUK.id } },
+        endCountry: { connect: { id: countryUA.id } },
         departureDate: new Date(),
         vehicle: { connect: { id: vehicles[i % vehicles.length].id } },
         business: { connect: { id: businessId } },
@@ -27,8 +27,8 @@ export const seedJourneys = async (businessId: number) => {
     const journeyUAtoUK = await prisma.journey.create({
       data: {
         journeyNumber: `${datePrefix}-${i * 2 + 2}`,
-        startLocation: countryUA.name,
-        endLocation: countryUK.name,
+        startCountry: { connect: { id: countryUA.id } },
+        endCountry: { connect: { id: countryUK.id } },
         departureDate: new Date(),
         vehicle: { connect: { id: vehicles[i % vehicles.length].id } },
         business: { connect: { id: businessId } },

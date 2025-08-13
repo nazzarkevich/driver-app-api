@@ -236,27 +236,31 @@ model CourierJourney {
 }
 
 model Journey {
-  id             Int             @id @default(autoincrement())
-  journeyNumber  String          @unique
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  notes          String?
-  departureDate  DateTime
-  isCompleted    Boolean         @default(false)
-  arrivalDate    DateTime?
-  vehicleId      Int
-  businessId     Int
-  isArchived     Boolean         @default(false)
-  endLocation    String
-  startLocation  String
-  isDeleted      Boolean         @default(false)
-  business       Business        @relation(fields: [businessId], references: [id])
-  vehicle        Vehicle         @relation(fields: [vehicleId], references: [id])
-  parcels        Parcel[]
-  driverProfiles DriverProfile[] @relation("DriverProfileToJourney")
+  id              Int             @id @default(autoincrement())
+  journeyNumber   String          @unique
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  notes           String?
+  departureDate   DateTime
+  isCompleted     Boolean         @default(false)
+  arrivalDate     DateTime?
+  vehicleId       Int
+  businessId      Int
+  isArchived      Boolean         @default(false)
+  startCountryId  Int
+  endCountryId    Int
+  isDeleted       Boolean         @default(false)
+  business        Business        @relation(fields: [businessId], references: [id])
+  vehicle         Vehicle         @relation(fields: [vehicleId], references: [id])
+  startCountry    Country         @relation("JourneyStartCountry", fields: [startCountryId], references: [id])
+  endCountry      Country         @relation("JourneyEndCountry", fields: [endCountryId], references: [id])
+  parcels         Parcel[]
+  driverProfiles  DriverProfile[] @relation("DriverProfileToJourney")
 
   @@index([journeyNumber])
   @@index([businessId, departureDate])
+  @@index([startCountryId])
+  @@index([endCountryId])
 }
 
 model Image {
@@ -273,12 +277,14 @@ model Image {
 }
 
 model Country {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
-  isoCode   String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  address   Address[]
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  isoCode         String    @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  address         Address[]
+  journeysFrom    Journey[] @relation("JourneyStartCountry")
+  journeysTo      Journey[] @relation("JourneyEndCountry")
 }
 
 model Vehicle {

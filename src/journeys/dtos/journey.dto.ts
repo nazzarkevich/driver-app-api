@@ -1,4 +1,4 @@
-import { Parcel, Vehicle } from '@prisma/client';
+import { Parcel, Vehicle, Country } from '@prisma/client';
 import { Expose, Type } from 'class-transformer';
 import { DriverProfileWithUserDto } from './driver-profile-with-user.dto';
 
@@ -6,8 +6,10 @@ import { DriverProfileWithUserDto } from './driver-profile-with-user.dto';
 export class JourneyDto {
   id: number;
   journeyNumber: string;
-  startLocation: string;
-  endLocation: string;
+  startCountryId: number;
+  endCountryId: number;
+  startCountry: Country;
+  endCountry: Country;
   parcels: Parcel[];
   @Type(() => DriverProfileWithUserDto)
   driverProfiles: DriverProfileWithUserDto[];
@@ -21,6 +23,14 @@ export class JourneyDto {
   updatedAt: Date;
 
   // Computed properties for backward compatibility
+  get startLocation(): string {
+    return this.startCountry?.name || '';
+  }
+
+  get endLocation(): string {
+    return this.endCountry?.name || '';
+  }
+
   get origin(): string {
     return this.startLocation;
   }
