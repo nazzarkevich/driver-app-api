@@ -249,6 +249,7 @@ model Journey {
   isArchived      Boolean         @default(false)
   startCountryId  Int
   endCountryId    Int
+  hasTrailer      Boolean         @default(false)
   isDeleted       Boolean         @default(false)
   business        Business        @relation(fields: [businessId], references: [id])
   vehicle         Vehicle         @relation(fields: [vehicleId], references: [id])

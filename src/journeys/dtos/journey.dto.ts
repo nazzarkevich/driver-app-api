@@ -17,6 +17,7 @@ export class JourneyDto {
   vehicle: Vehicle;
   notes: string;
   isCompleted: boolean;
+  hasTrailer: boolean;
   departureDate: Date;
   arrivalDate: Date;
   createdAt: Date;

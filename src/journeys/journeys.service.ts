@@ -39,6 +39,7 @@ export class JourneysService extends BaseTenantService {
       notes,
       parcels,
       driverProfiles,
+      hasTrailer,
     }: CreateJourneyDto,
     businessId: number,
   ): Promise<JourneyDto> {
@@ -157,6 +158,7 @@ export class JourneysService extends BaseTenantService {
           vehicleId,
           departureDate,
           notes,
+          hasTrailer: hasTrailer || false,
           businessId,
           parcels: {
             connect: foundParcels.map((parcel) => ({ id: parcel.id })),

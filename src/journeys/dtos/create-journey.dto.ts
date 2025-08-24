@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreateJourneyDto {
@@ -34,4 +35,8 @@ export class CreateJourneyDto {
   @IsDate()
   @IsNotEmpty()
   departureDate: Date;
+
+  @IsBoolean()
+  @IsOptional()
+  hasTrailer: boolean;
 }
