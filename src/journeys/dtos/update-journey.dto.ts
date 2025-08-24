@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsBoolean,
   IsDate,
   IsNumber,
@@ -23,6 +24,11 @@ export class UpdateJourneyDto {
   @IsNumber()
   @IsOptional()
   driverId: number;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  driverProfiles: number[];
 
   @IsNumber()
   @IsOptional()

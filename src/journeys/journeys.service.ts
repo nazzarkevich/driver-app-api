@@ -449,14 +449,29 @@ export class JourneysService extends BaseTenantService {
       throw new Error('Journey not found');
     }
 
-    Object.assign(journey, attrs);
+    // Prepare update data
+    const updateData: any = { ...attrs };
+
+    // Handle driverProfiles if provided
+    if (attrs.driverProfiles !== undefined) {
+      // Remove driverProfiles from direct update data
+      delete updateData.driverProfiles;
+
+      // Update will handle driver profiles separately
+      updateData.driverProfiles = {
+        set: [], // First disconnect all existing drivers
+        connect: attrs.driverProfiles.map((driverId) => ({ id: driverId })), // Then connect new ones
+      };
+    }
 
     const updatedJourney = await this.prismaService.journey.update({
       where: {
         id,
       },
-      data: attrs,
+      data: updateData,
       include: {
+        startCountry: true,
+        endCountry: true,
         driverProfiles: {
           include: {
             user: {
