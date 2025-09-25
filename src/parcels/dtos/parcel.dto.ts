@@ -5,6 +5,7 @@ import {
   PaymentStatus,
 } from '@prisma/client';
 import { Expose } from 'class-transformer';
+import { AddressWithCountryDto } from './address-with-country.dto';
 
 export interface ConnectedParcelInfo {
   id: number;
@@ -60,6 +61,8 @@ export class ParcelDto {
   courierJourneyId: number;
   originAddressId: number;
   destinationAddressId: number;
+  originAddress: AddressWithCountryDto;
+  destinationAddress: AddressWithCountryDto;
 
   constructor(partial: Partial<ParcelDto>) {
     Object.assign(this, partial);
@@ -67,5 +70,17 @@ export class ParcelDto {
     // Calculate connection stats
     this.connectionCount = this.connectedParcels?.length || 0;
     this.hasConnections = this.connectionCount > 0;
+
+    // Map address objects with country details
+    if (partial?.originAddress) {
+      this.originAddress = new AddressWithCountryDto(
+        partial.originAddress as any,
+      );
+    }
+    if (partial?.destinationAddress) {
+      this.destinationAddress = new AddressWithCountryDto(
+        partial.destinationAddress as any,
+      );
+    }
   }
 }

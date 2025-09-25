@@ -90,8 +90,16 @@ export class ParcelsService extends BaseTenantService {
             include: {
               sender: true,
               recipient: true,
-              originAddress: true,
-              destinationAddress: true,
+              originAddress: {
+                include: {
+                  country: true,
+                },
+              },
+              destinationAddress: {
+                include: {
+                  country: true,
+                },
+              },
               business: currentUser?.isSuperAdmin ? true : false, // Include business info for SuperAdmin
             },
           })
@@ -115,8 +123,16 @@ export class ParcelsService extends BaseTenantService {
         include: {
           sender: true,
           recipient: true,
-          originAddress: true,
-          destinationAddress: true,
+          originAddress: {
+            include: {
+              country: true,
+            },
+          },
+          destinationAddress: {
+            include: {
+              country: true,
+            },
+          },
           business: currentUser?.isSuperAdmin ? true : false, // Include business info for SuperAdmin
         },
       });
@@ -139,8 +155,16 @@ export class ParcelsService extends BaseTenantService {
       include: {
         sender: true,
         recipient: true,
-        originAddress: true,
-        destinationAddress: true,
+        originAddress: {
+          include: {
+            country: true,
+          },
+        },
+        destinationAddress: {
+          include: {
+            country: true,
+          },
+        },
         business: currentUser?.isSuperAdmin ? true : false, // Include business info for SuperAdmin
       },
     });
@@ -174,8 +198,16 @@ export class ParcelsService extends BaseTenantService {
       include: {
         sender: true,
         recipient: true,
-        originAddress: true,
-        destinationAddress: true,
+        originAddress: {
+          include: {
+            country: true,
+          },
+        },
+        destinationAddress: {
+          include: {
+            country: true,
+          },
+        },
         business: currentUser?.isSuperAdmin ? true : false,
       },
     });
@@ -221,8 +253,16 @@ export class ParcelsService extends BaseTenantService {
       include: {
         sender: true,
         recipient: true,
-        originAddress: true,
-        destinationAddress: true,
+        originAddress: {
+          include: {
+            country: true,
+          },
+        },
+        destinationAddress: {
+          include: {
+            country: true,
+          },
+        },
         business: true, // Always include business info for cross-business queries
       },
       orderBy: {
@@ -258,8 +298,16 @@ export class ParcelsService extends BaseTenantService {
         include: {
           sender: true,
           recipient: true,
-          originAddress: true,
-          destinationAddress: true,
+          originAddress: {
+            include: {
+              country: true,
+            },
+          },
+          destinationAddress: {
+            include: {
+              country: true,
+            },
+          },
         },
       });
 

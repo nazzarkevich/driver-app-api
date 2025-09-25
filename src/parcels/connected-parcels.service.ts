@@ -96,16 +96,32 @@ export class ConnectedParcelsService {
           include: {
             sender: true,
             recipient: true,
-            originAddress: true,
-            destinationAddress: true,
+            originAddress: {
+              include: {
+                country: true,
+              },
+            },
+            destinationAddress: {
+              include: {
+                country: true,
+              },
+            },
           },
         },
         connectedTo: {
           include: {
             sender: true,
             recipient: true,
-            originAddress: true,
-            destinationAddress: true,
+            originAddress: {
+              include: {
+                country: true,
+              },
+            },
+            destinationAddress: {
+              include: {
+                country: true,
+              },
+            },
           },
         },
       },
