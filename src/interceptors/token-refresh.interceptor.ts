@@ -34,6 +34,9 @@ export class TokenRefreshInterceptor implements NestInterceptor {
     this.logger.debug(
       `[TokenRefreshInterceptor] Has refreshToken: ${!!request.refreshToken}`,
     );
+    this.logger.debug(
+      `[TokenRefreshInterceptor] Token was already refreshed: ${!!request.tokenWasRefreshed}`,
+    );
 
     return next.handle().pipe(
       catchError((error) => {
@@ -44,8 +47,17 @@ export class TokenRefreshInterceptor implements NestInterceptor {
           message: error.message,
           hasAccessToken: !!request.accessToken,
           hasRefreshToken: !!request.refreshToken,
+          tokenWasRefreshed: !!request.tokenWasRefreshed,
           currentUser: request.currentUser?.id,
         });
+
+        // Skip refresh if token was already refreshed by the guard
+        if (request.tokenWasRefreshed) {
+          this.logger.debug(
+            `[TokenRefreshInterceptor] Skipping refresh - token was already refreshed by guard`,
+          );
+          return throwError(() => error);
+        }
 
         // Check if this is a 401/403 error that might be due to token expiration
         const isTokenRelatedError =

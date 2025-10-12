@@ -5,6 +5,7 @@ declare global {
     interface Request {
       accessToken?: string;
       refreshToken?: string;
+      tokenWasRefreshed?: boolean;
       currentUser?: UserRequestType;
       user?: any;
     }
