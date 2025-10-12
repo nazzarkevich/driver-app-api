@@ -36,12 +36,47 @@ export class ParcelsService extends BaseTenantService {
   ): Promise<{ id: number; trackingNumber: string }> {
     await this.validateBusinessAccess(user.businessId);
 
+    // Extract only valid CreateParcelDto properties
+    const {
+      weight,
+      price,
+      cost,
+      parcelMoneyAmount,
+      discount,
+      discountType,
+      cargoType,
+      paymentStatus,
+      senderId,
+      recipientId,
+      recipientPhoneNumber,
+      senderPhoneNumber,
+      journeyId,
+      notes,
+      originAddressId,
+      destinationAddressId,
+    } = body;
+
     const newParcel = await this.prismaService.parcel.create({
       data: {
-        ...body,
+        weight,
+        price,
+        cost,
+        parcelMoneyAmount,
+        discount,
+        discountType,
+        cargoType,
+        paymentStatus,
+        pickupDate: new Date(), // Override with current date
+        senderId,
+        recipientId,
+        recipientPhoneNumber,
+        senderPhoneNumber,
+        journeyId,
+        notes,
+        originAddressId,
+        destinationAddressId,
         businessId: user.businessId,
         trackingNumber: this.generateTrackingNumber(),
-        pickupDate: new Date(),
       },
     });
 
@@ -73,10 +108,130 @@ export class ParcelsService extends BaseTenantService {
     businessId: number,
     currentUser?: UserRequestType,
     page?: number,
+    isDelivered?: boolean,
+    trackingNumber?: string,
+    senderId?: number,
+    recipientId?: number,
+    startDate?: Date,
+    endDate?: Date,
+    originCountryId?: number,
+    destinationCountryId?: number,
+    search?: string,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     await this.validateBusinessAccess(businessId, currentUser);
 
-    const whereClause = this.getBusinessWhere(businessId, {}, currentUser);
+    let whereClause: any = this.getBusinessWhere(
+      businessId,
+      isDelivered !== undefined
+        ? {
+            deliveryStatus: isDelivered
+              ? 'Delivered'
+              : { in: ['Initial', 'InProgress'] },
+          }
+        : {},
+      currentUser,
+    );
+
+    if (trackingNumber) {
+      whereClause = {
+        ...whereClause,
+        trackingNumber: {
+          contains: trackingNumber,
+          mode: 'insensitive',
+        },
+      };
+    }
+
+    if (senderId) {
+      whereClause = {
+        ...whereClause,
+        senderId,
+      };
+    }
+
+    if (recipientId) {
+      whereClause = {
+        ...whereClause,
+        recipientId,
+      };
+    }
+
+    if (startDate || endDate) {
+      whereClause = {
+        ...whereClause,
+        createdAt: {
+          ...(startDate && { gte: startDate }),
+          ...(endDate && {
+            lte: new Date(endDate.getTime() + 24 * 60 * 60 * 1000 - 1),
+          }),
+        },
+      };
+    }
+
+    if (originCountryId) {
+      whereClause = {
+        ...whereClause,
+        originAddress: {
+          countryId: originCountryId,
+        },
+      };
+    }
+
+    if (destinationCountryId) {
+      whereClause = {
+        ...whereClause,
+        destinationAddress: {
+          countryId: destinationCountryId,
+        },
+      };
+    }
+
+    if (search) {
+      const searchCondition = {
+        OR: [
+          { trackingNumber: { contains: search, mode: 'insensitive' } },
+          {
+            originAddress: {
+              OR: [
+                { street: { contains: search, mode: 'insensitive' } },
+                { city: { contains: search, mode: 'insensitive' } },
+                { postcode: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+          {
+            destinationAddress: {
+              OR: [
+                { street: { contains: search, mode: 'insensitive' } },
+                { city: { contains: search, mode: 'insensitive' } },
+                { postcode: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+          {
+            sender: {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+          {
+            recipient: {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        ],
+      };
+
+      whereClause = {
+        ...whereClause,
+        ...searchCondition,
+      };
+    }
 
     if (page) {
       // Return paginated results

@@ -51,9 +51,13 @@ export class CreateParcelDto {
   @IsNotEmpty()
   recipientId: number;
 
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
-  phoneNumber: number;
+  recipientPhoneNumber: string;
+
+  @IsString()
+  @IsNotEmpty()
+  senderPhoneNumber: string;
 
   @IsNumber()
   @IsOptional()

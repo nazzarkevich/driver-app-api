@@ -53,12 +53,78 @@ export class ParcelsController {
     type: Number,
     description: 'SuperAdmin only: specify business to query',
   })
+  @ApiQuery({ name: 'isDelivered', required: false, type: Boolean })
+  @ApiQuery({
+    name: 'trackingNumber',
+    required: false,
+    type: String,
+    description: 'Search by tracking number',
+  })
+  @ApiQuery({ name: 'senderId', required: false, type: Number })
+  @ApiQuery({ name: 'recipientId', required: false, type: Number })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Filter parcels from this date (ISO format: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Filter parcels until this date (ISO format: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'originCountryId',
+    required: false,
+    type: Number,
+    description:
+      'Filter parcels by origin country ID (1: Ukraine, 2: United Kingdom)',
+  })
+  @ApiQuery({
+    name: 'destinationCountryId',
+    required: false,
+    type: Number,
+    description:
+      'Filter parcels by destination country ID (1: Ukraine, 2: United Kingdom)',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description:
+      'Search parcels by tracking number, address (street, city, postcode), recipient name, or sender name',
+  })
   async findAllParcels(
     @CurrentUser() currentUser: UserRequestType,
     @Query('page') page?: string,
     @Query() query?: SuperAdminQueryDto,
+    @Query('isDelivered') isDelivered?: string,
+    @Query('trackingNumber') trackingNumber?: string,
+    @Query('senderId') senderId?: string,
+    @Query('recipientId') recipientId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('originCountryId') originCountryId?: string,
+    @Query('destinationCountryId') destinationCountryId?: string,
+    @Query('search') search?: string,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
+    const deliveredStatus =
+      isDelivered !== undefined ? isDelivered === 'true' : undefined;
+    const senderIdNumber = senderId ? parseInt(senderId, 10) : undefined;
+    const recipientIdNumber = recipientId
+      ? parseInt(recipientId, 10)
+      : undefined;
+
+    const startDateParsed = startDate ? new Date(startDate) : undefined;
+    const endDateParsed = endDate ? new Date(endDate) : undefined;
+    const originCountryIdNumber = originCountryId
+      ? parseInt(originCountryId, 10)
+      : undefined;
+    const destinationCountryIdNumber = destinationCountryId
+      ? parseInt(destinationCountryId, 10)
+      : undefined;
 
     // SuperAdmin can specify different businessId, regular users use their own
     const targetBusinessId =
@@ -70,6 +136,15 @@ export class ParcelsController {
       targetBusinessId,
       currentUser,
       pageNumber,
+      deliveredStatus,
+      trackingNumber,
+      senderIdNumber,
+      recipientIdNumber,
+      startDateParsed,
+      endDateParsed,
+      originCountryIdNumber,
+      destinationCountryIdNumber,
+      search,
     );
   }
 
