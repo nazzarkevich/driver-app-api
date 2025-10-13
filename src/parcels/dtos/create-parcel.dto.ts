@@ -74,4 +74,8 @@ export class CreateParcelDto {
   @IsNumber()
   @IsNotEmpty()
   destinationAddressId: number;
+
+  @IsNumber()
+  @IsOptional()
+  tariffId?: number;
 }

@@ -86,6 +86,7 @@ model Business {
   customerProfiles CustomerProfile[]
   journeys         Journey[]
   parcels          Parcel[]
+  tariffs          Tariff[]
   users            User[]
   vehicles         Vehicle[]
 }
@@ -144,6 +145,7 @@ model Parcel {
   originAddressId        Int
   recipientPhoneNumber   String?
   senderPhoneNumber      String?
+  tariffId               Int?
   connectedFrom          ConnectedParcel[] @relation("ConnectedToParcels")
   connections            ConnectedParcel[] @relation("ParcelConnections")
   images                 Image[]
@@ -155,6 +157,7 @@ model Parcel {
   originAddress          Address           @relation("originParcels", fields: [originAddressId], references: [id])
   recipient              CustomerProfile   @relation("receivedParcels", fields: [recipientId], references: [id])
   sender                 CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
+  tariff                 Tariff?           @relation(fields: [tariffId], references: [id])
 }
 
 model Address {
@@ -331,6 +334,28 @@ model AuditLog {
   @@index([entityType])
   @@index([createdAt])
   @@index([businessId])
+}
+
+model Tariff {
+  id              Int          @id @default(autoincrement())
+  name            String
+  description     String?
+  minimumPrice    Float
+  pricePerKg      Float?
+  weightThreshold Float?
+  currency        String
+  isWeightBased   Boolean      @default(false)
+  parcelTypes     ParcelType[]
+  isActive        Boolean      @default(true)
+  businessId      Int
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  isDeleted       Boolean      @default(false)
+  business        Business     @relation(fields: [businessId], references: [id])
+  parcels         Parcel[]
+
+  @@index([businessId])
+  @@index([isActive])
 }
 
 enum UserType {

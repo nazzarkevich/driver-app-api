@@ -13,6 +13,7 @@ import {
   ConnectionCriteria,
 } from './connected-parcels.service';
 import { BaseTenantService } from 'src/common/base-tenant.service';
+import { TariffsService } from 'src/tariffs/tariffs.service';
 
 @Injectable()
 export class ParcelsService extends BaseTenantService {
@@ -20,6 +21,7 @@ export class ParcelsService extends BaseTenantService {
     prismaService: PrismaService,
     private readonly usersService: UsersService,
     private readonly connectedParcelsService: ConnectedParcelsService,
+    private readonly tariffsService: TariffsService,
   ) {
     super(prismaService);
   }
@@ -54,19 +56,29 @@ export class ParcelsService extends BaseTenantService {
       notes,
       originAddressId,
       destinationAddressId,
+      tariffId,
     } = body;
+
+    let calculatedPrice = price;
+    if (tariffId) {
+      calculatedPrice = await this.tariffsService.calculatePrice(
+        weight,
+        tariffId,
+        cargoType,
+      );
+    }
 
     const newParcel = await this.prismaService.parcel.create({
       data: {
         weight,
-        price,
+        price: calculatedPrice,
         cost,
         parcelMoneyAmount,
         discount,
         discountType,
         cargoType,
         paymentStatus,
-        pickupDate: new Date(), // Override with current date
+        pickupDate: new Date(),
         senderId,
         recipientId,
         recipientPhoneNumber,
@@ -75,6 +87,7 @@ export class ParcelsService extends BaseTenantService {
         notes,
         originAddressId,
         destinationAddressId,
+        tariffId,
         businessId: user.businessId,
         trackingNumber: this.generateTrackingNumber(),
       },

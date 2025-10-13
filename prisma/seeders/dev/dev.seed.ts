@@ -8,6 +8,7 @@ import { seedCustomers } from './customers.seed';
 import { seedParcelCouriers } from './parcelCouriers.seed';
 import { seedCourierJourneys } from './courierJourneys.seed';
 import { seedInternationalDrivers } from './internationalDrivers.seed';
+import { seedTariffs } from './tariffs.seed';
 
 export async function devSeeder() {
   const business = await seedBusiness();
@@ -18,6 +19,7 @@ export async function devSeeder() {
   await seedCountries();
   await seedCustomers(business.id);
   await seedVehicles(business.id);
+  await seedTariffs(business.id);
   await seedJourneys(business.id);
   await seedParcels(business.id);
   await seedCourierJourneys(business.id);
