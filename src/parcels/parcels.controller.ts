@@ -108,6 +108,13 @@ export class ParcelsController {
     description:
       'Filter parcels by cargo type (comma-separated): Unknown, Regular, Passport, Document, Money',
   })
+  @ApiQuery({
+    name: 'paymentStatus',
+    required: false,
+    type: String,
+    description:
+      'Filter parcels by payment status (comma-separated): NotPaid, PartiallyPaid, Paid',
+  })
   async findAllParcels(
     @CurrentUser() currentUser: UserRequestType,
     @Query('page') page?: string,
@@ -122,6 +129,7 @@ export class ParcelsController {
     @Query('destinationCountryId') destinationCountryId?: string,
     @Query('search') search?: string,
     @Query('cargoType') cargoType?: string,
+    @Query('paymentStatus') paymentStatus?: string,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const senderIdNumber = senderId ? parseInt(senderId, 10) : undefined;
@@ -158,6 +166,7 @@ export class ParcelsController {
       destinationCountryIdNumber,
       search,
       cargoType,
+      paymentStatus,
     );
   }
 
