@@ -53,7 +53,13 @@ export class ParcelsController {
     type: Number,
     description: 'SuperAdmin only: specify business to query',
   })
-  @ApiQuery({ name: 'isDelivered', required: false, type: Boolean })
+  @ApiQuery({
+    name: 'deliveryStatus',
+    required: false,
+    type: String,
+    description:
+      'Filter by delivery status: Initial, InProgress, Delivered, Cancelled, Returned, Lost',
+  })
   @ApiQuery({
     name: 'trackingNumber',
     required: false,
@@ -99,7 +105,7 @@ export class ParcelsController {
     @CurrentUser() currentUser: UserRequestType,
     @Query('page') page?: string,
     @Query() query?: SuperAdminQueryDto,
-    @Query('isDelivered') isDelivered?: string,
+    @Query('deliveryStatus') deliveryStatus?: string,
     @Query('trackingNumber') trackingNumber?: string,
     @Query('senderId') senderId?: string,
     @Query('recipientId') recipientId?: string,
@@ -110,8 +116,6 @@ export class ParcelsController {
     @Query('search') search?: string,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
-    const deliveredStatus =
-      isDelivered !== undefined ? isDelivered === 'true' : undefined;
     const senderIdNumber = senderId ? parseInt(senderId, 10) : undefined;
     const recipientIdNumber = recipientId
       ? parseInt(recipientId, 10)
@@ -136,7 +140,7 @@ export class ParcelsController {
       targetBusinessId,
       currentUser,
       pageNumber,
-      deliveredStatus,
+      deliveryStatus,
       trackingNumber,
       senderIdNumber,
       recipientIdNumber,

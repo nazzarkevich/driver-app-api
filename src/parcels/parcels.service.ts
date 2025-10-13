@@ -108,7 +108,7 @@ export class ParcelsService extends BaseTenantService {
     businessId: number,
     currentUser?: UserRequestType,
     page?: number,
-    isDelivered?: boolean,
+    deliveryStatus?: string,
     trackingNumber?: string,
     senderId?: number,
     recipientId?: number,
@@ -120,74 +120,59 @@ export class ParcelsService extends BaseTenantService {
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     await this.validateBusinessAccess(businessId, currentUser);
 
-    let whereClause: any = this.getBusinessWhere(
-      businessId,
-      isDelivered !== undefined
-        ? {
-            deliveryStatus: isDelivered
-              ? 'Delivered'
-              : { in: ['Initial', 'InProgress'] },
-          }
-        : {},
-      currentUser,
-    );
+    const baseWhere = this.getBusinessWhere(businessId, {}, currentUser);
+    const conditions: any[] = [];
+
+    if (deliveryStatus && deliveryStatus.trim() !== '') {
+      conditions.push({ deliveryStatus: deliveryStatus });
+    }
 
     if (trackingNumber) {
-      whereClause = {
-        ...whereClause,
+      conditions.push({
         trackingNumber: {
           contains: trackingNumber,
           mode: 'insensitive',
         },
-      };
+      });
     }
 
     if (senderId) {
-      whereClause = {
-        ...whereClause,
-        senderId,
-      };
+      conditions.push({ senderId });
     }
 
     if (recipientId) {
-      whereClause = {
-        ...whereClause,
-        recipientId,
-      };
+      conditions.push({ recipientId });
     }
 
     if (startDate || endDate) {
-      whereClause = {
-        ...whereClause,
+      conditions.push({
         createdAt: {
           ...(startDate && { gte: startDate }),
           ...(endDate && {
             lte: new Date(endDate.getTime() + 24 * 60 * 60 * 1000 - 1),
           }),
         },
-      };
+      });
     }
 
     if (originCountryId) {
-      whereClause = {
-        ...whereClause,
+      conditions.push({
         originAddress: {
           countryId: originCountryId,
         },
-      };
+      });
     }
 
     if (destinationCountryId) {
-      whereClause = {
-        ...whereClause,
+      conditions.push({
         destinationAddress: {
           countryId: destinationCountryId,
         },
-      };
+      });
     }
 
     if (search) {
-      const searchCondition = {
+      conditions.push({
         OR: [
           { trackingNumber: { contains: search, mode: 'insensitive' } },
           {
@@ -225,13 +210,16 @@ export class ParcelsService extends BaseTenantService {
             },
           },
         ],
-      };
-
-      whereClause = {
-        ...whereClause,
-        ...searchCondition,
-      };
+      });
     }
+
+    const whereClause =
+      conditions.length > 0
+        ? {
+            ...baseWhere,
+            AND: conditions,
+          }
+        : baseWhere;
 
     if (page) {
       // Return paginated results
