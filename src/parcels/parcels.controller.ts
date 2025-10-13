@@ -101,6 +101,13 @@ export class ParcelsController {
     description:
       'Search parcels by tracking number, address (street, city, postcode), recipient name, or sender name',
   })
+  @ApiQuery({
+    name: 'cargoType',
+    required: false,
+    type: String,
+    description:
+      'Filter parcels by cargo type (comma-separated): Unknown, Regular, Passport, Document, Money',
+  })
   async findAllParcels(
     @CurrentUser() currentUser: UserRequestType,
     @Query('page') page?: string,
@@ -114,6 +121,7 @@ export class ParcelsController {
     @Query('originCountryId') originCountryId?: string,
     @Query('destinationCountryId') destinationCountryId?: string,
     @Query('search') search?: string,
+    @Query('cargoType') cargoType?: string,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const senderIdNumber = senderId ? parseInt(senderId, 10) : undefined;
@@ -149,6 +157,7 @@ export class ParcelsController {
       originCountryIdNumber,
       destinationCountryIdNumber,
       search,
+      cargoType,
     );
   }
 

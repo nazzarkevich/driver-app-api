@@ -117,6 +117,7 @@ export class ParcelsService extends BaseTenantService {
     originCountryId?: number,
     destinationCountryId?: number,
     search?: string,
+    cargoType?: string,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     await this.validateBusinessAccess(businessId, currentUser);
 
@@ -167,6 +168,15 @@ export class ParcelsService extends BaseTenantService {
       conditions.push({
         destinationAddress: {
           countryId: destinationCountryId,
+        },
+      });
+    }
+
+    if (cargoType && cargoType.trim() !== '') {
+      const cargoTypes = cargoType.split(',').map((type) => type.trim());
+      conditions.push({
+        cargoType: {
+          in: cargoTypes,
         },
       });
     }
