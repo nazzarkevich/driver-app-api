@@ -37,8 +37,22 @@ export class SupabaseAuthGuard implements CanActivate {
     // Store token in request context early for interceptor access
     request.accessToken = token;
 
-    // Get refresh token from storage
-    const refreshToken = this.tokenStorageService.getRefreshToken(token);
+    // Get refresh token from storage OR from header
+    let refreshToken = this.tokenStorageService.getRefreshToken(token);
+
+    // If not in storage, check for X-Refresh-Token header (frontend can send it)
+    if (!refreshToken) {
+      const headerRefreshToken = request.headers['x-refresh-token'] as string;
+      if (headerRefreshToken) {
+        refreshToken = headerRefreshToken;
+        console.log('📥 Using refresh token from X-Refresh-Token header');
+      } else {
+        console.log('⚠️  No refresh token found in storage or header');
+      }
+    } else {
+      console.log('💾 Using refresh token from in-memory storage');
+    }
+
     request.refreshToken = refreshToken;
 
     console.log(

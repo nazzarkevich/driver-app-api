@@ -25,6 +25,17 @@ export class TokenRefreshInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest<Request>();
 
+    // Check for refresh token from header if not in request
+    if (!request.refreshToken) {
+      const headerRefreshToken = request.headers['x-refresh-token'] as string;
+      if (headerRefreshToken) {
+        request.refreshToken = headerRefreshToken;
+        this.logger.debug(
+          `[TokenRefreshInterceptor] Using refresh token from header`,
+        );
+      }
+    }
+
     this.logger.debug(
       `[TokenRefreshInterceptor] Intercepting request to ${request.url}`,
     );
