@@ -93,7 +93,13 @@ export class AuthService {
         `✅ Supabase session refreshed for user: ${data.session.user.id}`,
       );
 
-      await this.authProfilesService.updateLastSignIn(data.session.user.id);
+      this.authProfilesService
+        .updateLastSignIn(data.session.user.id)
+        .catch((err) => {
+          console.warn(
+            `⚠️  Failed to update last sign-in (non-critical): ${err.message}`,
+          );
+        });
 
       const user = await this.prismaService.user.findUnique({
         where: { supabaseId: data.session.user.id },
@@ -226,12 +232,13 @@ export class AuthService {
       );
     }
 
-    // Create or update the auth profile
-    await this.authProfilesService.createOrUpdate(
-      authData.user.id,
-      'email', // Default provider is email
-      new Date(),
-    );
+    this.authProfilesService
+      .createOrUpdate(authData.user.id, 'email', new Date())
+      .catch((err) => {
+        console.warn(
+          `⚠️  Failed to create auth profile (non-critical): ${err.message}`,
+        );
+      });
 
     // Get the default business ID
     const businessId = await this.businessesService.getDefaultBusinessId();
@@ -304,8 +311,11 @@ export class AuthService {
       throw new UnauthorizedException(error, 'Invalid credentials');
     }
 
-    // Update the auth profile's last sign-in time
-    await this.authProfilesService.updateLastSignIn(session.user.id);
+    this.authProfilesService.updateLastSignIn(session.user.id).catch((err) => {
+      console.warn(
+        `⚠️  Failed to update last sign-in (non-critical): ${err.message}`,
+      );
+    });
 
     console.log(`Looking for user with supabaseId: ${session.user.id}`);
     console.log(`User email from Supabase: ${session.user.email}`);
@@ -395,12 +405,13 @@ export class AuthService {
       include: { phoneNumber: true },
     });
 
-    // Create or update the auth profile
-    await this.authProfilesService.createOrUpdate(
-      supabaseUser.id,
-      provider,
-      new Date(),
-    );
+    this.authProfilesService
+      .createOrUpdate(supabaseUser.id, provider, new Date())
+      .catch((err) => {
+        console.warn(
+          `⚠️  Failed to update auth profile (non-critical): ${err.message}`,
+        );
+      });
 
     // If the user doesn't exist in our database yet, create them
     if (!user) {

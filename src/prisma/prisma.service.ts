@@ -15,7 +15,14 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(private readonly configService: ConfigService) {
-    super();
+    super({
+      datasources: {
+        db: {
+          url: configService.get<string>('DATABASE_URL'),
+        },
+      },
+      log: ['error', 'warn'],
+    });
   }
 
   async onModuleInit() {
