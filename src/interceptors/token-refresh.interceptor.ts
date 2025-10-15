@@ -25,7 +25,6 @@ export class TokenRefreshInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest<Request>();
 
-    // Check for refresh token from header if not in request
     if (!request.refreshToken) {
       const headerRefreshToken = request.headers['x-refresh-token'] as string;
       if (headerRefreshToken) {
@@ -36,69 +35,48 @@ export class TokenRefreshInterceptor implements NestInterceptor {
       }
     }
 
+    this.logger.debug(`[TokenRefreshInterceptor] Request: ${request.method} ${request.url}`);
     this.logger.debug(
-      `[TokenRefreshInterceptor] Intercepting request to ${request.url}`,
-    );
-    this.logger.debug(
-      `[TokenRefreshInterceptor] Has accessToken: ${!!request.accessToken}`,
-    );
-    this.logger.debug(
-      `[TokenRefreshInterceptor] Has refreshToken: ${!!request.refreshToken}`,
-    );
-    this.logger.debug(
-      `[TokenRefreshInterceptor] Token was already refreshed: ${!!request.tokenWasRefreshed}`,
+      `[TokenRefreshInterceptor] Auth state: accessToken=${!!request.accessToken}, refreshToken=${!!request.refreshToken}, alreadyRefreshed=${!!request.tokenWasRefreshed}`,
     );
 
     return next.handle().pipe(
       catchError((error) => {
         const response = context.switchToHttp().getResponse<Response>();
 
-        this.logger.debug(`[TokenRefreshInterceptor] Caught error:`, {
-          status: error.status,
-          message: error.message,
-          hasAccessToken: !!request.accessToken,
-          hasRefreshToken: !!request.refreshToken,
-          tokenWasRefreshed: !!request.tokenWasRefreshed,
-          currentUser: request.currentUser?.id,
-        });
+        this.logger.debug(
+          `[TokenRefreshInterceptor] Error caught - Status: ${error.status}, Message: ${error.message}`,
+        );
 
-        // Skip refresh if token was already refreshed by the guard
         if (request.tokenWasRefreshed) {
           this.logger.debug(
-            `[TokenRefreshInterceptor] Skipping refresh - token was already refreshed by guard`,
+            `[TokenRefreshInterceptor] Skipping refresh - token already refreshed by guard`,
           );
           return throwError(() => error);
         }
 
-        // Check if this is a 401/403 error that might be due to token expiration
         const isTokenRelatedError =
           error.status === 401 ||
           (error.status === 403 && this.isTokenRelated403(error));
 
-        if (
+        const canAttemptRefresh =
           isTokenRelatedError &&
           error.message !== 'Invalid refresh token' &&
+          error.message !== 'Refresh token is required' &&
           request.accessToken &&
-          request.refreshToken
-        ) {
-          this.logger.debug(
-            `[TokenRefreshInterceptor] Attempting automatic token refresh for ${error.status} error for user ${request.currentUser?.id}`,
-          );
+          request.refreshToken;
 
-          // Attempt to refresh the token
-          return this.attemptTokenRefresh(request, response, context, next);
-        } else {
+        if (canAttemptRefresh) {
           this.logger.debug(
-            `[TokenRefreshInterceptor] Not attempting refresh:`,
-            {
-              isTokenRelatedError,
-              hasTokens: !!(request.accessToken && request.refreshToken),
-              errorMessage: error.message,
-            },
+            `[TokenRefreshInterceptor] Attempting automatic refresh for user ${request.currentUser?.id}`,
           );
+          return this.attemptTokenRefresh(request, response, context, next);
         }
 
-        // If it's not a 401/403 or we can't refresh, pass through the error
+        this.logger.debug(
+          `[TokenRefreshInterceptor] Not attempting refresh - isTokenError=${isTokenRelatedError}, hasTokens=${!!(request.accessToken && request.refreshToken)}, errorMsg="${error.message}"`,
+        );
+
         return throwError(() => error);
       }),
     );

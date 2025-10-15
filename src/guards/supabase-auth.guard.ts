@@ -30,24 +30,29 @@ export class SupabaseAuthGuard implements CanActivate {
     }
 
     if (!token) {
-      console.log('❌ No token provided');
+      console.log('❌ No token provided in Authorization header');
       return false;
     }
 
-    // Store token in request context early for interceptor access
     request.accessToken = token;
 
-    // Get refresh token from storage OR from header
     let refreshToken = this.tokenStorageService.getRefreshToken(token);
 
-    // If not in storage, check for X-Refresh-Token header (frontend can send it)
     if (!refreshToken) {
       const headerRefreshToken = request.headers['x-refresh-token'] as string;
       if (headerRefreshToken) {
         refreshToken = headerRefreshToken;
         console.log('📥 Using refresh token from X-Refresh-Token header');
+        this.tokenStorageService.storeRefreshToken(
+          token,
+          headerRefreshToken,
+          'temp',
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        );
       } else {
-        console.log('⚠️  No refresh token found in storage or header');
+        console.log(
+          '⚠️  No refresh token found. Token validation may fail without ability to refresh.',
+        );
       }
     } else {
       console.log('💾 Using refresh token from in-memory storage');
@@ -66,7 +71,6 @@ export class SupabaseAuthGuard implements CanActivate {
         return this.setupUserContext(request, result.user, result.dbUser);
       }
 
-      // Token validation failed, attempt refresh if we have a refresh token
       if (refreshToken) {
         console.log('🔄 Token validation failed, attempting refresh...');
         const refreshResult = await this.attemptTokenRefresh(
@@ -81,9 +85,13 @@ export class SupabaseAuthGuard implements CanActivate {
             refreshResult.dbUser,
           );
         }
+        console.log('❌ Token refresh failed. User needs to log in again.');
+      } else {
+        console.log(
+          '❌ Token validation failed and no refresh token available. User needs to log in again.',
+        );
       }
 
-      console.log('❌ Token validation and refresh both failed');
       return false;
     } catch (error) {
       console.error('Authentication error:', error);

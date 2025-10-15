@@ -52,17 +52,47 @@ export class AuthService {
     refreshToken: string,
     oldAccessToken?: string,
   ): Promise<{ token: string; refreshToken: string; user: UserDto }> {
+    if (!refreshToken || refreshToken.trim() === '') {
+      console.error('❌ Refresh token is missing or empty');
+      throw new BadRequestException('Refresh token is required');
+    }
+
     try {
+      console.log('🔄 Attempting to refresh session with Supabase...');
       const { data, error } =
         await this.supabaseService.client.auth.refreshSession({
           refresh_token: refreshToken,
         });
 
-      if (error || !data.session) {
-        throw new UnauthorizedException('Invalid refresh token');
+      if (error) {
+        console.error('❌ Supabase refresh failed:', {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+        });
+
+        if (error.message?.includes('expired') || error.status === 401) {
+          throw new UnauthorizedException(
+            'Refresh token has expired. Please log in again.',
+          );
+        }
+
+        throw new UnauthorizedException(
+          `Token refresh failed: ${error.message}`,
+        );
       }
 
-      // Update the auth profile's last sign-in time
+      if (!data.session) {
+        console.error('❌ No session returned from Supabase');
+        throw new UnauthorizedException(
+          'Failed to refresh session. Please log in again.',
+        );
+      }
+
+      console.log(
+        `✅ Supabase session refreshed for user: ${data.session.user.id}`,
+      );
+
       await this.authProfilesService.updateLastSignIn(data.session.user.id);
 
       const user = await this.prismaService.user.findUnique({
@@ -73,21 +103,24 @@ export class AuthService {
       });
 
       if (!user) {
+        console.error(
+          `❌ User not found with supabaseId: ${data.session.user.id}`,
+        );
         throw new UnauthorizedException(
           'User not found in application database',
         );
       }
 
       if (user.isBlocked) {
+        console.error(`❌ User is blocked: ${user.email}`);
         throw new UnauthorizedException('User is blocked');
       }
 
-      // Calculate refresh token expiration (typically 30 days from now)
       const refreshTokenExpiresAt = new Date();
       refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30);
 
-      // Update token storage if old token provided
       if (oldAccessToken) {
+        console.log(`🔄 Updating token storage for user ${user.id}`);
         this.tokenStorageService.updateAccessToken(
           oldAccessToken,
           data.session.access_token,
@@ -95,7 +128,7 @@ export class AuthService {
           refreshTokenExpiresAt,
         );
       } else {
-        // Store new token
+        console.log(`💾 Storing new tokens for user ${user.id}`);
         this.tokenStorageService.storeRefreshToken(
           data.session.access_token,
           data.session.refresh_token,
@@ -104,17 +137,34 @@ export class AuthService {
         );
       }
 
+      console.log(
+        `✅ Token refresh completed successfully for user ${user.id}`,
+      );
+
       return {
         token: data.session.access_token,
         refreshToken: data.session.refresh_token,
         user: new UserDto(user),
       };
     } catch (error) {
-      // Clean up tokens on refresh failure
       if (oldAccessToken) {
+        console.log(
+          `🧹 Cleaning up old token due to refresh failure: ${error.message}`,
+        );
         this.tokenStorageService.removeToken(oldAccessToken);
       }
-      throw error;
+
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      console.error('❌ Unexpected error during token refresh:', error);
+      throw new UnauthorizedException(
+        'An error occurred while refreshing your session. Please log in again.',
+      );
     }
   }
 

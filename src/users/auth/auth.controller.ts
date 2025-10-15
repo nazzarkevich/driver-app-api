@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  BadRequestException,
+} from '@nestjs/common';
 import { Request } from 'express';
 import {
   ApiBadRequestResponse,
@@ -73,8 +80,31 @@ export class AuthController {
   @ApiBadRequestResponse({ description: 'Invalid refresh token' })
   @Public()
   @Post('/refresh')
-  async refreshToken(@Body() body: RefreshTokenDto) {
-    return this.authService.refreshToken(body.refreshToken);
+  async refreshToken(@Body() body: RefreshTokenDto, @Req() request: Request) {
+    const refreshToken =
+      body.refreshToken || request.headers['x-refresh-token'];
+    const accessToken = request.headers.authorization?.split(' ')[1];
+
+    console.log('📨 /auth/refresh endpoint called:', {
+      hasBodyRefreshToken: !!body.refreshToken,
+      hasHeaderRefreshToken: !!request.headers['x-refresh-token'],
+      hasAccessToken: !!accessToken,
+      bodyRefreshTokenLength: body.refreshToken?.length || 0,
+    });
+
+    if (!refreshToken) {
+      console.error(
+        '❌ No refresh token provided in request body or X-Refresh-Token header',
+      );
+      throw new BadRequestException(
+        'Refresh token is required in request body or X-Refresh-Token header',
+      );
+    }
+
+    return this.authService.refreshToken(
+      refreshToken as string,
+      accessToken as string,
+    );
   }
 
   @ApiOkResponse({
