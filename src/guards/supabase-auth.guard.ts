@@ -161,26 +161,17 @@ export class SupabaseAuthGuard implements CanActivate {
         oldToken,
       );
 
-      // Update request with new tokens
       request.accessToken = refreshResult.token;
       request.refreshToken = refreshResult.refreshToken;
       request.tokenWasRefreshed = true;
-
-      // Update authorization header
       request.headers.authorization = `Bearer ${refreshResult.token}`;
 
       console.log('✅ Token refresh successful');
 
-      // Find the user in our database (refresh result already includes user)
-      const dbUser = await this.prismaService.user.findUnique({
-        where: { id: refreshResult.user.id },
-        include: {
-          business: true,
-        },
-      });
+      const dbUser = refreshResult.dbUser;
 
       if (!dbUser) {
-        console.log(`❌ User not found with id: ${refreshResult.user.id}`);
+        console.log(`❌ User data not available from refresh result`);
         return { success: false };
       }
 

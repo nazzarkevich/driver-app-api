@@ -90,6 +90,9 @@ export class AuthController {
       hasHeaderRefreshToken: !!request.headers['x-refresh-token'],
       hasAccessToken: !!accessToken,
       bodyRefreshTokenLength: body.refreshToken?.length || 0,
+      headerRefreshTokenLength: request.headers['x-refresh-token']
+        ? (request.headers['x-refresh-token'] as string).length
+        : 0,
     });
 
     if (!refreshToken) {
@@ -98,6 +101,18 @@ export class AuthController {
       );
       throw new BadRequestException(
         'Refresh token is required in request body or X-Refresh-Token header',
+      );
+    }
+
+    if (
+      typeof refreshToken === 'string' &&
+      (refreshToken.length < 50 || refreshToken.length > 500)
+    ) {
+      console.error(
+        `❌ Refresh token appears invalid (length: ${refreshToken.length})`,
+      );
+      throw new BadRequestException(
+        'Invalid refresh token format. Token appears corrupted. Please log in again.',
       );
     }
 

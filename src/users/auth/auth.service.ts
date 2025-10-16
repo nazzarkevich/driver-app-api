@@ -18,6 +18,8 @@ import { TokenStorageService } from 'src/auth/token-storage.service';
 
 @Injectable()
 export class AuthService {
+  private refreshLocks = new Map<string, Promise<any>>();
+
   constructor(
     private readonly prismaService: PrismaService,
     private readonly driversService: DriversService,
@@ -51,12 +53,48 @@ export class AuthService {
   async refreshToken(
     refreshToken: string,
     oldAccessToken?: string,
-  ): Promise<{ token: string; refreshToken: string; user: UserDto }> {
+  ): Promise<{
+    token: string;
+    refreshToken: string;
+    user: UserDto;
+    dbUser?: any;
+  }> {
     if (!refreshToken || refreshToken.trim() === '') {
       console.error('❌ Refresh token is missing or empty');
       throw new BadRequestException('Refresh token is required');
     }
 
+    const lockKey = refreshToken.substring(0, 20);
+
+    if (this.refreshLocks.has(lockKey)) {
+      console.log('⏳ Refresh already in progress for this token, waiting...');
+      return this.refreshLocks.get(lockKey);
+    }
+
+    const refreshPromise = this.performTokenRefresh(
+      refreshToken,
+      oldAccessToken,
+    );
+    this.refreshLocks.set(lockKey, refreshPromise);
+
+    try {
+      const result = await refreshPromise;
+      return result;
+    } finally {
+      this.refreshLocks.delete(lockKey);
+      console.log('🔓 Released refresh lock for token');
+    }
+  }
+
+  private async performTokenRefresh(
+    refreshToken: string,
+    oldAccessToken?: string,
+  ): Promise<{
+    token: string;
+    refreshToken: string;
+    user: UserDto;
+    dbUser?: any;
+  }> {
     try {
       console.log('🔄 Attempting to refresh session with Supabase...');
       const { data, error } =
@@ -70,6 +108,12 @@ export class AuthService {
           status: error.status,
           name: error.name,
         });
+
+        if (error.message?.includes('Already Used')) {
+          throw new UnauthorizedException(
+            'Refresh token has already been used. This usually means another request already refreshed your session. Please use the latest tokens or log in again.',
+          );
+        }
 
         if (error.message?.includes('expired') || error.status === 401) {
           throw new UnauthorizedException(
@@ -105,6 +149,7 @@ export class AuthService {
         where: { supabaseId: data.session.user.id },
         include: {
           phoneNumber: true,
+          business: true,
         },
       });
 
@@ -151,6 +196,7 @@ export class AuthService {
         token: data.session.access_token,
         refreshToken: data.session.refresh_token,
         user: new UserDto(user),
+        dbUser: user,
       };
     } catch (error) {
       if (oldAccessToken) {

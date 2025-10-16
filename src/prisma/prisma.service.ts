@@ -15,13 +15,52 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(private readonly configService: ConfigService) {
+    const databaseUrl = configService.get<string>('DATABASE_URL');
+    const isPgBouncer = databaseUrl?.includes('pgbouncer=true');
+
     super({
       datasources: {
         db: {
-          url: configService.get<string>('DATABASE_URL'),
+          url: databaseUrl,
         },
       },
-      log: ['error', 'warn'],
+      log: [
+        { level: 'error', emit: 'stdout' },
+        { level: 'warn', emit: 'stdout' },
+        { level: 'query', emit: 'event' },
+      ],
+      errorFormat: 'pretty',
+    });
+
+    if (isPgBouncer) {
+      this.logger.log(
+        'PgBouncer detected - using connection pooling configuration',
+      );
+      this.$extends({
+        query: {
+          $allModels: {
+            async $allOperations({ args, query }) {
+              const start = performance.now();
+              const result = await query(args);
+              const duration = performance.now() - start;
+
+              if (duration > 1000) {
+                this.logger.warn(
+                  `Slow query detected: ${duration.toFixed(2)}ms`,
+                );
+              }
+
+              return result;
+            },
+          },
+        },
+      });
+    }
+
+    (this as any).$on('query', (e: any) => {
+      if (e.duration > 1000) {
+        this.logger.warn(`Slow query (${e.duration}ms): ${e.query}`);
+      }
     });
   }
 
@@ -38,9 +77,13 @@ export class PrismaService
       throw new Error('DATABASE_URL is not defined.');
     }
 
-    // Mask password for safe logging
     const maskedUrl = databaseUrl.replace(/:([^:@]+)@/, ':****@');
     this.logger.log(`DATABASE_URL format: ${maskedUrl}`);
+
+    const poolConfig = this.extractPoolConfig(databaseUrl);
+    this.logger.log(
+      `📊 Connection Pool Configuration: ${JSON.stringify(poolConfig)}`,
+    );
 
     try {
       this.logger.log('Attempting to connect to database...');
@@ -48,11 +91,28 @@ export class PrismaService
       await this.$connect();
 
       this.logger.log('✅ Database connected successfully');
+
+      await this.$queryRaw`SELECT 1 as connection_test`;
+      this.logger.log('✅ Database query test passed');
     } catch (error) {
       this.logger.error('❌ Database connection failed:', error.message);
 
       throw error;
     }
+  }
+
+  private extractPoolConfig(url: string): any {
+    const urlParams = new URL(url);
+    return {
+      isPgBouncer: urlParams.searchParams.has('pgbouncer'),
+      connectionLimit:
+        urlParams.searchParams.get('connection_limit') || 'default (17)',
+      poolTimeout:
+        urlParams.searchParams.get('pool_timeout') || 'default (10s)',
+      database: urlParams.pathname.replace('/', ''),
+      host: urlParams.hostname,
+      port: urlParams.port,
+    };
   }
 
   async onModuleDestroy() {
