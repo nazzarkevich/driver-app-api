@@ -357,6 +357,15 @@ export class AuthService {
       throw new UnauthorizedException(error, 'Invalid credentials');
     }
 
+    console.log('[AuthService] 🔍 Supabase session tokens received:', {
+      accessTokenLength: session.access_token?.length || 0,
+      refreshTokenLength: session.refresh_token?.length || 0,
+      accessTokenPreview: session.access_token?.substring(0, 20) + '...',
+      refreshTokenPreview: session.refresh_token?.substring(0, 20) + '...',
+      refreshTokenType: typeof session.refresh_token,
+      fullRefreshToken: session.refresh_token,
+    });
+
     this.authProfilesService.updateLastSignIn(session.user.id).catch((err) => {
       console.warn(
         `⚠️  Failed to update last sign-in (non-critical): ${err.message}`,
@@ -417,6 +426,14 @@ export class AuthService {
       user.id.toString(),
       refreshTokenExpiresAt,
     );
+
+    console.log('[AuthService] 📤 Returning login response:', {
+      accessTokenLength: session.access_token?.length || 0,
+      refreshTokenLength: session.refresh_token?.length || 0,
+      accessTokenPreview: session.access_token?.substring(0, 20) + '...',
+      refreshTokenPreview: session.refresh_token?.substring(0, 20) + '...',
+      userId: user.id,
+    });
 
     return {
       token: session.access_token,
