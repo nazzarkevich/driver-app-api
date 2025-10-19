@@ -129,6 +129,7 @@ model Parcel {
   isDamaged              Boolean           @default(false)
   deliveryStatus         DeliveryStatus    @default(Initial)
   paymentStatus          PaymentStatus     @default(NotPaid)
+  paidBy                 PaymentParty      @default(Sender)
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
   senderId               Int
@@ -401,6 +402,11 @@ enum PaymentStatus {
   NotPaid
   PartiallyPaid
   Paid
+}
+
+enum PaymentParty {
+  Sender
+  Recipient
 }
 
 enum AuditAction {

@@ -28,6 +28,7 @@ import { ParcelDto } from './dtos/parcel.dto';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { SuperAdminGuard } from 'src/guards/super-admin.guard';
 import { SuperAdminQueryDto } from 'src/dtos/super-admin-query.dto';
+import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
 
 @ApiTags('Parcel')
 @Controller('parcels')
@@ -43,6 +44,14 @@ export class ParcelsController {
     @Body() body: CreateParcelDto,
   ) {
     return this.parcelsService.createParcel(currentUser, body);
+  }
+
+  @Post('bulk')
+  async createBulkParcels(
+    @CurrentUser() currentUser: UserRequestType,
+    @Body() body: CreateBulkParcelsDto,
+  ): Promise<ParcelDto[]> {
+    return this.parcelsService.createBulk(currentUser, body);
   }
 
   @Get()

@@ -1,4 +1,9 @@
-import { DiscountType, ParcelType, PaymentStatus } from '@prisma/client';
+import {
+  DiscountType,
+  ParcelType,
+  PaymentParty,
+  PaymentStatus,
+} from '@prisma/client';
 import {
   IsEnum,
   IsString,
@@ -35,6 +40,10 @@ export class UpdateParcelDto {
   @IsEnum(PaymentStatus)
   @IsOptional()
   paymentStatus: PaymentStatus;
+
+  @IsEnum(PaymentParty)
+  @IsOptional()
+  paidBy: PaymentParty;
 
   @IsDate()
   @IsOptional()

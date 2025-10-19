@@ -14,6 +14,9 @@ import {
 } from './connected-parcels.service';
 import { BaseTenantService } from 'src/common/base-tenant.service';
 import { TariffsService } from 'src/tariffs/tariffs.service';
+import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from '@prisma/client';
 
 @Injectable()
 export class ParcelsService extends BaseTenantService {
@@ -22,6 +25,7 @@ export class ParcelsService extends BaseTenantService {
     private readonly usersService: UsersService,
     private readonly connectedParcelsService: ConnectedParcelsService,
     private readonly tariffsService: TariffsService,
+    private readonly auditService: AuditService,
   ) {
     super(prismaService);
   }
@@ -48,6 +52,7 @@ export class ParcelsService extends BaseTenantService {
       discountType,
       cargoType,
       paymentStatus,
+      paidBy,
       senderId,
       recipientId,
       recipientPhoneNumber,
@@ -78,6 +83,7 @@ export class ParcelsService extends BaseTenantService {
         discountType,
         cargoType,
         paymentStatus,
+        paidBy,
         pickupDate: new Date(),
         senderId,
         recipientId,
@@ -493,6 +499,106 @@ export class ParcelsService extends BaseTenantService {
     } catch (error) {
       throw new NotFoundException(error);
     }
+  }
+
+  async createBulk(
+    user: UserRequestType,
+    body: CreateBulkParcelsDto,
+  ): Promise<ParcelDto[]> {
+    await this.validateBusinessAccess(user.businessId, user);
+
+    const {
+      senderId,
+      recipientId,
+      senderPhoneNumber,
+      recipientPhoneNumber,
+      originAddressId,
+      destinationAddressId,
+      journeyId,
+      pickupDate,
+      parcels,
+    } = body;
+
+    return await this.prismaService.$transaction(async (tx) => {
+      const createdParcels = [];
+
+      for (const parcelItem of parcels) {
+        const parcel = await tx.parcel.create({
+          data: {
+            weight: parcelItem.weight,
+            price: parcelItem.price,
+            cost: parcelItem.cost,
+            cargoType: parcelItem.cargoType,
+            paymentStatus: parcelItem.paymentStatus,
+            paidBy: parcelItem.paidBy,
+            tariffId: parcelItem.tariffId,
+            notes: parcelItem.notes,
+            parcelMoneyAmount: parcelItem.parcelMoneyAmount,
+            discount: parcelItem.discount,
+            discountType: parcelItem.discountType,
+            hasBorderCheck: parcelItem.hasBorderCheck,
+            senderId,
+            recipientId,
+            senderPhoneNumber,
+            recipientPhoneNumber,
+            originAddressId,
+            destinationAddressId,
+            journeyId,
+            pickupDate,
+            businessId: user.businessId,
+            trackingNumber: this.generateTrackingNumber(),
+          },
+          include: {
+            sender: true,
+            recipient: true,
+            originAddress: {
+              include: {
+                country: true,
+              },
+            },
+            destinationAddress: {
+              include: {
+                country: true,
+              },
+            },
+          },
+        });
+
+        createdParcels.push(parcel);
+      }
+
+      if (createdParcels.length > 1) {
+        for (let i = 0; i < createdParcels.length; i++) {
+          for (let j = i + 1; j < createdParcels.length; j++) {
+            await tx.connectedParcel.create({
+              data: {
+                parcelId: createdParcels[i].id,
+                connectedToId: createdParcels[j].id,
+                connectionType: 'batch',
+              },
+            });
+          }
+        }
+      }
+
+      await this.auditService.log({
+        userId: user.id,
+        action: AuditAction.CREATE,
+        entityType: 'Parcel',
+        description: `Bulk created ${createdParcels.length} parcels`,
+        metadata: {
+          parcelCount: createdParcels.length,
+          parcelIds: createdParcels.map((p) => p.id),
+          trackingNumbers: createdParcels.map((p) => p.trackingNumber),
+          senderId,
+          recipientId,
+          linked: createdParcels.length > 1,
+        },
+        businessId: user.businessId,
+      });
+
+      return createdParcels.map((parcel) => new ParcelDto(parcel));
+    });
   }
 
   private generateTrackingNumber() {

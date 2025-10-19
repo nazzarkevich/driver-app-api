@@ -3,6 +3,7 @@ import {
   DiscountType,
   DeliveryStatus,
   PaymentStatus,
+  PaymentParty,
 } from '@prisma/client';
 import { Expose } from 'class-transformer';
 import { AddressWithCountryDto } from './address-with-country.dto';
@@ -48,6 +49,7 @@ export class ParcelDto {
   updatedAt: Date;
   deliveryStatus: DeliveryStatus;
   paymentStatus: PaymentStatus;
+  paidBy: PaymentParty;
 
   // Connection information
   connectedParcels: ConnectedParcelInfo[];
