@@ -1,13 +1,16 @@
-import { Gender, Phone } from '@prisma/client';
+import { Gender } from '@prisma/client';
 import {
   IsOptional,
   IsString,
   IsNotEmpty,
   IsEnum,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 import { CreateAddressDto } from 'src/dtos/create-address.dto';
+import { CreatePhoneDto } from 'src/dtos/create-phone.dto';
 
 // TODO: Add NovaPoshta details
 export class CreateCustomerProfileDto {
@@ -19,24 +22,14 @@ export class CreateCustomerProfileDto {
   @IsNotEmpty()
   lastName: string;
 
+  @ValidateIf((o) => o.gender !== null && o.gender !== undefined && o.gender !== '')
   @IsEnum(Gender)
-  @IsNotEmpty()
-  gender: Gender;
+  gender?: Gender;
 
-  @IsOptional()
-  @IsString()
+  @ValidateNested()
+  @Type(() => CreatePhoneDto)
   @IsNotEmpty()
-  phoneNumber: Phone;
-
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  countryCode: string;
-
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  note: string;
+  phoneNumber: CreatePhoneDto;
 
   @IsNotEmpty()
   @ValidateNested({ each: true })

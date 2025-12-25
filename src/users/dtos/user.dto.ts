@@ -68,7 +68,7 @@ export class UserDto {
     example: 'Male',
     description: 'Users gender',
   })
-  gender: Gender;
+  gender?: Gender | null;
 
   @ApiProperty({
     description: 'When user was created',

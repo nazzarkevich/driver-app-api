@@ -15,7 +15,6 @@ export class JourneyDto {
   driverProfiles: DriverProfileWithUserDto[];
   businessId: number;
   vehicle: Vehicle;
-  notes: string;
   isCompleted: boolean;
   hasTrailer: boolean;
   departureDate: Date;

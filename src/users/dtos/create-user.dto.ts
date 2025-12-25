@@ -8,6 +8,8 @@ import {
   IsNotEmpty,
   MinLength,
   IsDate,
+  IsOptional,
+  ValidateIf,
 } from 'class-validator';
 
 // TODO: add password confirmation
@@ -74,8 +76,9 @@ export class CreateUserDto {
     example: 'Male',
     description: 'Users gender',
   })
+  @ValidateIf((o) => o.gender !== null && o.gender !== undefined && o.gender !== '')
   @IsEnum(Gender)
-  gender: Gender;
+  gender?: Gender;
 
   @ApiProperty({
     example: 'Manager',

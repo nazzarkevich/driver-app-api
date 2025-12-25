@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { JourneyDto } from './dtos/journey.dto';
+import { JourneyNoteDto } from './dtos/journey-note.dto';
 import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateJourneyDto } from './dtos/create-journey.dto';
@@ -36,7 +37,6 @@ export class JourneysService extends BaseTenantService {
       endCountryId,
       vehicleId,
       departureDate,
-      notes,
       parcels,
       driverProfiles,
       hasTrailer,
@@ -157,7 +157,6 @@ export class JourneysService extends BaseTenantService {
           endCountryId,
           vehicleId,
           departureDate,
-          notes,
           hasTrailer: hasTrailer || false,
           businessId,
           parcels: {
@@ -586,5 +585,95 @@ export class JourneysService extends BaseTenantService {
     return activeVehicles.filter(
       (vehicle) => !assignedIds.includes(vehicle.id),
     );
+  }
+
+  async addNote(
+    journeyId: number,
+    content: string,
+    userId: number,
+    businessId: number,
+  ): Promise<JourneyNoteDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const journey = await this.prismaService.journey.findUnique({
+      where: { id: journeyId },
+      select: { businessId: true },
+    });
+
+    if (!journey || journey.businessId !== businessId) {
+      throw new NotFoundException('Journey not found');
+    }
+
+    const note = await this.prismaService.journeyNote.create({
+      data: {
+        content,
+        journeyId,
+        userId,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    return new JourneyNoteDto(note);
+  }
+
+  async getNotes(
+    journeyId: number,
+    businessId: number,
+  ): Promise<JourneyNoteDto[]> {
+    await this.validateBusinessAccess(businessId);
+
+    const journey = await this.prismaService.journey.findUnique({
+      where: { id: journeyId },
+      select: { businessId: true },
+    });
+
+    if (!journey || journey.businessId !== businessId) {
+      throw new NotFoundException('Journey not found');
+    }
+
+    const notes = await this.prismaService.journeyNote.findMany({
+      where: { journeyId },
+      include: {
+        user: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return notes.map((note) => new JourneyNoteDto(note));
+  }
+
+  async deleteNote(
+    noteId: number,
+    userId: number,
+    businessId: number,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    const note = await this.prismaService.journeyNote.findUnique({
+      where: { id: noteId },
+      include: {
+        journey: {
+          select: { businessId: true },
+        },
+      },
+    });
+
+    if (!note || note.journey.businessId !== businessId) {
+      throw new NotFoundException('Note not found');
+    }
+
+    if (note.userId !== userId) {
+      throw new NotFoundException(
+        'You can only delete notes that you created',
+      );
+    }
+
+    await this.prismaService.journeyNote.delete({
+      where: { id: noteId },
+    });
   }
 }

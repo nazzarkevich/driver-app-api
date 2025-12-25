@@ -4,7 +4,8 @@ import { Exclude, Expose } from 'class-transformer';
 export class AddressDto {
   id: number;
   street: string;
-  city: string;
+  city?: string;
+  village?: string;
   state: string;
   postcode: string;
   apartment: string;

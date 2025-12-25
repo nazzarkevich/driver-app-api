@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { ParcelDto } from './dtos/parcel.dto';
+import { ParcelNoteDto } from './dtos/parcel-note.dto';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { UsersService } from 'src/users/users.service';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -58,7 +59,6 @@ export class ParcelsService extends BaseTenantService {
       recipientPhoneNumber,
       senderPhoneNumber,
       journeyId,
-      notes,
       originAddressId,
       destinationAddressId,
       tariffId,
@@ -90,7 +90,6 @@ export class ParcelsService extends BaseTenantService {
         recipientPhoneNumber,
         senderPhoneNumber,
         journeyId,
-        notes,
         originAddressId,
         destinationAddressId,
         tariffId,
@@ -221,6 +220,7 @@ export class ParcelsService extends BaseTenantService {
               OR: [
                 { street: { contains: search, mode: 'insensitive' } },
                 { city: { contains: search, mode: 'insensitive' } },
+                { village: { contains: search, mode: 'insensitive' } },
                 { postcode: { contains: search, mode: 'insensitive' } },
               ],
             },
@@ -230,6 +230,7 @@ export class ParcelsService extends BaseTenantService {
               OR: [
                 { street: { contains: search, mode: 'insensitive' } },
                 { city: { contains: search, mode: 'insensitive' } },
+                { village: { contains: search, mode: 'insensitive' } },
                 { postcode: { contains: search, mode: 'insensitive' } },
               ],
             },
@@ -532,7 +533,6 @@ export class ParcelsService extends BaseTenantService {
             paymentStatus: parcelItem.paymentStatus,
             paidBy: parcelItem.paidBy,
             tariffId: parcelItem.tariffId,
-            notes: parcelItem.notes,
             parcelMoneyAmount: parcelItem.parcelMoneyAmount,
             discount: parcelItem.discount,
             discountType: parcelItem.discountType,
@@ -613,5 +613,95 @@ export class ParcelsService extends BaseTenantService {
       .padStart(13, '0');
 
     return currentDate + randomSuffix;
+  }
+
+  async addNote(
+    parcelId: number,
+    content: string,
+    userId: number,
+    businessId: number,
+  ): Promise<ParcelNoteDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const parcel = await this.prismaService.parcel.findUnique({
+      where: { id: parcelId },
+      select: { businessId: true },
+    });
+
+    if (!parcel || parcel.businessId !== businessId) {
+      throw new NotFoundException('Parcel not found');
+    }
+
+    const note = await this.prismaService.parcelNote.create({
+      data: {
+        content,
+        parcelId,
+        userId,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    return new ParcelNoteDto(note);
+  }
+
+  async getNotes(
+    parcelId: number,
+    businessId: number,
+  ): Promise<ParcelNoteDto[]> {
+    await this.validateBusinessAccess(businessId);
+
+    const parcel = await this.prismaService.parcel.findUnique({
+      where: { id: parcelId },
+      select: { businessId: true },
+    });
+
+    if (!parcel || parcel.businessId !== businessId) {
+      throw new NotFoundException('Parcel not found');
+    }
+
+    const notes = await this.prismaService.parcelNote.findMany({
+      where: { parcelId },
+      include: {
+        user: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return notes.map((note) => new ParcelNoteDto(note));
+  }
+
+  async deleteNote(
+    noteId: number,
+    userId: number,
+    businessId: number,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    const note = await this.prismaService.parcelNote.findUnique({
+      where: { id: noteId },
+      include: {
+        parcel: {
+          select: { businessId: true },
+        },
+      },
+    });
+
+    if (!note || note.parcel.businessId !== businessId) {
+      throw new NotFoundException('Note not found');
+    }
+
+    if (note.userId !== userId) {
+      throw new NotFoundException(
+        'You can only delete notes that you created',
+      );
+    }
+
+    await this.prismaService.parcelNote.delete({
+      where: { id: noteId },
+    });
   }
 }

@@ -4,7 +4,10 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
 import { CustomerProfileDto } from './dtos/customer-profile.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
+import { CustomerNoteDto } from './dtos/customer-note.dto';
 import { BaseTenantService } from 'src/common/base-tenant.service';
+import { Pagination } from 'src/dtos/pagination.dto';
+import prismaWithPagination from 'src/prisma/prisma-client';
 
 @Injectable()
 export class CustomersService extends BaseTenantService {
@@ -18,72 +21,168 @@ export class CustomersService extends BaseTenantService {
       lastName,
       gender,
       phoneNumber,
-      note,
       address,
     }: CreateCustomerProfileDto,
     businessId: number,
   ): Promise<void> {
     await this.validateBusinessAccess(businessId);
 
-    // Create phone first if provided
-    let phoneId: number | undefined;
-    if (phoneNumber) {
-      const phone = await this.prismaService.phone.create({
+    const country = await this.prismaService.country.findUnique({
+      where: { isoCode: address.countryIsoCode },
+    });
+
+    if (!country) {
+      throw new NotFoundException(
+        `Country with ISO code ${address.countryIsoCode} not found`,
+      );
+    }
+
+    await this.prismaService.$transaction(async (prisma) => {
+      const phone = await prisma.phone.create({
         data: {
           number: phoneNumber.number,
           countryCode: phoneNumber.countryCode,
         },
       });
-      phoneId = phone.id;
-    }
 
-    // Create customer profile with unchecked approach
-    const customerProfile = await this.prismaService.customerProfile.create({
-      data: {
-        firstName,
-        lastName,
-        gender,
-        note,
-        businessId,
-        phoneId,
-      },
-    });
-
-    // Create address separately with business context
-    if (address) {
-      const country = await this.prismaService.country.findUnique({
-        where: { isoCode: address.countryIsoCode },
+      const customerProfile = await prisma.customerProfile.create({
+        data: {
+          firstName,
+          lastName,
+          gender,
+          businessId,
+          phoneId: phone.id,
+        },
       });
 
-      if (!country) {
-        throw new Error(
-          `Country with ISO code ${address.countryIsoCode} not found`,
-        );
-      }
-
-      await this.prismaService.address.create({
+      await prisma.address.create({
         data: {
-          ...address,
+          street: address.street,
+          city: address.city,
+          village: address.village,
+          postcode: address.postcode,
+          region: address.region,
+          flat: address.flat,
           businessId,
           profileId: customerProfile.id,
           countryId: country.id,
         },
       });
-    }
+    });
   }
 
-  async findAll(businessId: number): Promise<CustomerProfileDto[]> {
+  async findAll(
+    businessId: number,
+    page?: number,
+    search?: string,
+    isBlocked?: boolean,
+    originCountryId?: number,
+  ): Promise<Pagination<CustomerProfileDto> | CustomerProfileDto[]> {
     await this.validateBusinessAccess(businessId);
 
-    const customerProfiles = await this.prismaService.customerProfile.findMany({
-      where: this.getBusinessFilter(businessId),
-      include: {
-        phoneNumber: true,
-        primaryAddress: true,
-      },
-    });
+    const baseWhere = this.getBusinessFilter(businessId);
+    const conditions: any[] = [];
 
-    return customerProfiles.map((profile) => new CustomerProfileDto(profile));
+    // Search filter: firstName, lastName, or phone number
+    if (search) {
+      conditions.push({
+        OR: [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          {
+            phoneNumber: {
+              number: { contains: search, mode: 'insensitive' },
+            },
+          },
+        ],
+      });
+    }
+
+    if (originCountryId) {
+      conditions.push({
+        primaryAddress: {
+          countryId: originCountryId,
+        },
+      });
+    }
+
+    // Blocked status filter
+    if (isBlocked !== undefined) {
+      conditions.push({ user: { isBlocked } });
+    }
+
+    const whereClause =
+      conditions.length > 0
+        ? {
+            ...baseWhere,
+            AND: conditions,
+          }
+        : baseWhere;
+
+    if (page) {
+      // Return paginated results
+      const [customersWithPagination, metadata] =
+        await prismaWithPagination.customerProfile
+          .paginate({
+            orderBy: {
+              createdAt: 'desc',
+            },
+            where: whereClause,
+            include: {
+              phoneNumber: true,
+              primaryAddress: {
+                include: {
+                  country: true,
+                },
+              },
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  isBlocked: true,
+                },
+              },
+            },
+          })
+          .withPages({ page });
+
+      const customers = customersWithPagination.map(
+        (profile) => new CustomerProfileDto(profile),
+      );
+
+      return {
+        items: customers,
+        ...metadata,
+      };
+    } else {
+      // Return all results (no pagination)
+      const customerProfiles =
+        await this.prismaService.customerProfile.findMany({
+          where: whereClause,
+          orderBy: {
+            createdAt: 'desc',
+          },
+          include: {
+            phoneNumber: true,
+            primaryAddress: {
+              include: {
+                country: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                isBlocked: true,
+              },
+            },
+          },
+        });
+
+      return customerProfiles.map((profile) => new CustomerProfileDto(profile));
+    }
   }
 
   async findOne(id: number, businessId: number): Promise<CustomerProfileDto> {
@@ -97,6 +196,14 @@ export class CustomersService extends BaseTenantService {
         include: {
           phoneNumber: true,
           primaryAddress: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              isBlocked: true,
+            },
+          },
         },
       },
     );
@@ -152,6 +259,96 @@ export class CustomersService extends BaseTenantService {
       where: {
         id,
       },
+    });
+  }
+
+  async addNote(
+    customerProfileId: number,
+    content: string,
+    userId: number,
+    businessId: number,
+  ): Promise<CustomerNoteDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const profile = await this.prismaService.customerProfile.findUnique({
+      where: { id: customerProfileId },
+      select: { businessId: true },
+    });
+
+    if (!profile || profile.businessId !== businessId) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
+    const note = await this.prismaService.customerNote.create({
+      data: {
+        content,
+        customerProfileId,
+        userId,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    return new CustomerNoteDto(note);
+  }
+
+  async getNotes(
+    customerProfileId: number,
+    businessId: number,
+  ): Promise<CustomerNoteDto[]> {
+    await this.validateBusinessAccess(businessId);
+
+    const profile = await this.prismaService.customerProfile.findUnique({
+      where: { id: customerProfileId },
+      select: { businessId: true },
+    });
+
+    if (!profile || profile.businessId !== businessId) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
+    const notes = await this.prismaService.customerNote.findMany({
+      where: { customerProfileId },
+      include: {
+        user: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return notes.map((note) => new CustomerNoteDto(note));
+  }
+
+  async deleteNote(
+    noteId: number,
+    userId: number,
+    businessId: number,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    const note = await this.prismaService.customerNote.findUnique({
+      where: { id: noteId },
+      include: {
+        customerProfile: {
+          select: { businessId: true },
+        },
+      },
+    });
+
+    if (!note || note.customerProfile.businessId !== businessId) {
+      throw new NotFoundException('Note not found');
+    }
+
+    if (note.userId !== userId) {
+      throw new NotFoundException(
+        'You can only delete notes that you created',
+      );
+    }
+
+    await this.prismaService.customerNote.delete({
+      where: { id: noteId },
     });
   }
 }

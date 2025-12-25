@@ -18,10 +18,6 @@ export class UpdateCourierJourneyDto {
   @IsOptional()
   vehicleId: number;
 
-  @IsString()
-  @IsOptional()
-  notes: string;
-
   @IsBoolean()
   @IsOptional()
   isCompleted: boolean;

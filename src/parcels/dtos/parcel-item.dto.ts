@@ -34,10 +34,6 @@ export class ParcelItemDto {
   @IsOptional()
   tariffId?: number;
 
-  @IsString()
-  @IsOptional()
-  notes?: string;
-
   @IsNumber()
   @IsOptional()
   parcelMoneyAmount?: number;

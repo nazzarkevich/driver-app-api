@@ -60,8 +60,4 @@ export class UpdateParcelDto {
   @IsNumber()
   @IsOptional()
   journeyId: number;
-
-  @IsString()
-  @IsOptional()
-  notes: string;
 }

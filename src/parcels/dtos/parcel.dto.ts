@@ -35,7 +35,6 @@ export class ParcelDto {
   discount: number;
   cargoType: ParcelType; // Fixed: was 'type', should match schema
   discountType: DiscountType;
-  notes: string;
   trackingNumber: string;
   novaPostTrackingNumber: string;
   parcelMoneyAmount: number; // TODO: should be visible only to admins

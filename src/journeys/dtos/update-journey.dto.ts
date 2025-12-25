@@ -34,10 +34,6 @@ export class UpdateJourneyDto {
   @IsOptional()
   vehicleId: number;
 
-  @IsString()
-  @IsOptional()
-  notes: string;
-
   @IsDate()
   @IsOptional()
   departureDate: Date;

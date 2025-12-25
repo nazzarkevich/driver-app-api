@@ -3,53 +3,66 @@ import { PrismaClient, Gender } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export const seedCustomers = async (businessId: number) => {
-  // Create customers with complete phone and address
-  await prisma.customerProfile.createMany({
-    data: [
-      {
-        firstName: 'Alice',
-        lastName: 'Johnson',
-        gender: Gender.Female,
-        businessId,
-        phoneId: 1, // Assuming phone with ID 1 exists
-        note: 'Regular customer',
-      },
-      {
-        firstName: 'Bob',
-        lastName: 'Smith',
-        gender: Gender.Male,
-        businessId,
-        phoneId: 2, // Assuming phone with ID 2 exists
-        note: 'VIP customer',
-      },
-    ],
+  const ukraine = await prisma.country.findUnique({
+    where: { isoCode: 'UA' },
   });
 
-  // Create addresses separately with business context
-  const customers = await prisma.customerProfile.findMany({
-    where: { businessId },
-    take: 2,
-  });
-
-  if (customers.length >= 2) {
-    await prisma.address.create({
-      data: {
-        street: '123 Main St',
-        city: 'Kyiv',
-        businessId,
-        profileId: customers[0].id,
-        countryId: 1, // Assuming country with ID 1 exists
-      },
-    });
-
-    await prisma.address.create({
-      data: {
-        street: '456 Oak Ave',
-        city: 'Lviv',
-        businessId,
-        profileId: customers[1].id,
-        countryId: 1, // Assuming country with ID 1 exists
-      },
-    });
+  if (!ukraine) {
+    console.log('⚠️  Ukraine country not found, skipping customer seed');
+    return;
   }
+
+  const phone1 = await prisma.phone.create({
+    data: {
+      countryCode: '+380',
+      number: '0677771111',
+    },
+  });
+
+  const alice = await prisma.customerProfile.create({
+    data: {
+      firstName: 'Alice',
+      lastName: 'Johnson',
+      gender: Gender.Female,
+      businessId,
+      phoneId: phone1.id,
+    },
+  });
+
+  await prisma.address.create({
+    data: {
+      street: '123 Main St',
+      city: 'Kyiv',
+      businessId,
+      profileId: alice.id,
+      countryId: ukraine.id,
+    },
+  });
+
+  const phone2 = await prisma.phone.create({
+    data: {
+      countryCode: '+380',
+      number: '0677772222',
+    },
+  });
+
+  const bob = await prisma.customerProfile.create({
+    data: {
+      firstName: 'Bob',
+      lastName: 'Smith',
+      gender: Gender.Male,
+      businessId,
+      phoneId: phone2.id,
+    },
+  });
+
+  await prisma.address.create({
+    data: {
+      street: '456 Oak Ave',
+      village: 'Yaremche',
+      businessId,
+      profileId: bob.id,
+      countryId: ukraine.id,
+    },
+  });
 };

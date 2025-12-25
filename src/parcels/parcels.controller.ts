@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiQuery, ApiOperation, ApiBody } from '@nestjs/swagger';
 
 import {
   CurrentUser,
@@ -19,6 +19,7 @@ import {
 import { ParcelsService } from './parcels.service';
 
 import { CreateParcelDto } from './dtos/create-parcel.dto';
+import { CreateParcelNoteDto } from './dtos/create-parcel-note.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
 import {
   ConnectedParcelsService,
@@ -292,5 +293,47 @@ export class ParcelsController {
   @Get('/groups/list')
   async getParcelGroups(@CurrentUser() currentUser: UserRequestType) {
     return this.connectedParcelsService.getParcelGroups(currentUser.businessId);
+  }
+
+  @Post('/:id/notes')
+  @ApiOperation({ summary: 'Add a note to parcel' })
+  @ApiBody({ type: CreateParcelNoteDto })
+  addNote(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+    @Body() body: CreateParcelNoteDto,
+  ) {
+    return this.parcelsService.addNote(
+      parcelId,
+      body.content,
+      currentUser.id,
+      currentUser.businessId,
+    );
+  }
+
+  @Get('/:id/notes')
+  @ApiOperation({ summary: 'Get all notes for a parcel' })
+  getNotes(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+  ) {
+    return this.parcelsService.getNotes(
+      parcelId,
+      currentUser.businessId,
+    );
+  }
+
+  @Delete('/:id/notes/:noteId')
+  @ApiOperation({ summary: 'Delete a note from parcel' })
+  deleteNote(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+    @Param('noteId', ParseIntPipe) noteId: number,
+  ) {
+    return this.parcelsService.deleteNote(
+      noteId,
+      currentUser.id,
+      currentUser.businessId,
+    );
   }
 }

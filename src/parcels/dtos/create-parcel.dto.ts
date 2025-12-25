@@ -72,10 +72,6 @@ export class CreateParcelDto {
   @IsOptional()
   journeyId: number;
 
-  @IsString()
-  @IsOptional()
-  notes: string;
-
   @IsNumber()
   @IsNotEmpty()
   originAddressId: number;

@@ -31,9 +31,13 @@ model User {
   courierProfile    CourierProfile?
   driverProfile     DriverProfile?
   business          Business         @relation(fields: [businessId], references: [id])
-  customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
-  imageUrl          Image?           @relation(fields: [imageId], references: [id])
-  phoneNumber       Phone?           @relation(fields: [phoneId], references: [id])
+  customerProfile     CustomerProfile? @relation(fields: [customerProfileId], references: [id])
+  imageUrl            Image?           @relation(fields: [imageId], references: [id])
+  phoneNumber         Phone?           @relation(fields: [phoneId], references: [id])
+  customerNotes       CustomerNote[]
+  parcelNotes         ParcelNote[]
+  journeyNotes        JourneyNote[]
+  courierJourneyNotes CourierJourneyNote[]
 
   @@index([businessId])
 }
@@ -97,9 +101,8 @@ model CustomerProfile {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   firstName         String
-  gender            Gender
+  gender            Gender?
   lastName          String
-  note              String?
   isDeleted         Boolean          @default(false)
   novaPostAddressId Int?
   phoneId           Int              @unique
@@ -110,12 +113,72 @@ model CustomerProfile {
   parcelsReceived   Parcel[]         @relation("receivedParcels")
   parcelsSent       Parcel[]         @relation("sentParcels")
   user              User?
+  notes             CustomerNote[]
+}
+
+model CustomerNote {
+  id                Int             @id @default(autoincrement())
+  content           String
+  customerProfileId Int
+  userId            Int
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  customerProfile   CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id])
+
+  @@index([customerProfileId])
+  @@index([userId])
+}
+
+model ParcelNote {
+  id        Int      @id @default(autoincrement())
+  content   String
+  parcelId  Int
+  userId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parcel    Parcel   @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([parcelId])
+  @@index([userId])
+}
+
+model JourneyNote {
+  id        Int      @id @default(autoincrement())
+  content   String
+  journeyId Int
+  userId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  journey   Journey  @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([journeyId])
+  @@index([userId])
+}
+
+model CourierJourneyNote {
+  id               Int            @id @default(autoincrement())
+  content          String
+  courierJourneyId Int
+  userId           Int
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  courierJourney   CourierJourney @relation(fields: [courierJourneyId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id])
+
+  @@index([courierJourneyId])
+  @@index([userId])
 }
 
 model Parcel {
   id                     Int               @id @default(autoincrement())
   weight                 Float
-  notes                  String?
   trackingNumber         String
   parcelMoneyAmount      Float?
   isLost                 Boolean           @default(false)
@@ -159,12 +222,14 @@ model Parcel {
   recipient              CustomerProfile   @relation("receivedParcels", fields: [recipientId], references: [id])
   sender                 CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
   tariff                 Tariff?           @relation(fields: [tariffId], references: [id])
+  parcelNotes            ParcelNote[]
 }
 
 model Address {
   id                 Int             @id @default(autoincrement())
   street             String
-  city               String
+  city               String?
+  village            String?
   postcode           String?
   profileId          Int             @unique
   block              String?
@@ -226,17 +291,17 @@ model CourierJourney {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   isArchived      Boolean          @default(false)
-  notes           String?
   departureDate   DateTime
   isCompleted     Boolean          @default(false)
   isDeleted       Boolean          @default(false)
   businessId      Int
   vehicleId       Int
   destination     String
-  business        Business         @relation(fields: [businessId], references: [id])
-  vehicle         Vehicle          @relation(fields: [vehicleId], references: [id])
-  courierProfiles CourierProfile[]
-  parcels         Parcel[]
+  business            Business             @relation(fields: [businessId], references: [id])
+  vehicle             Vehicle              @relation(fields: [vehicleId], references: [id])
+  courierProfiles     CourierProfile[]
+  parcels             Parcel[]
+  courierJourneyNotes CourierJourneyNote[]
 }
 
 model Journey {
@@ -244,7 +309,6 @@ model Journey {
   journeyNumber  String          @unique
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
-  notes          String?
   departureDate  DateTime
   isCompleted    Boolean         @default(false)
   arrivalDate    DateTime?
@@ -261,6 +325,7 @@ model Journey {
   endCountry     Country         @relation("JourneyEndCountry", fields: [endCountryId], references: [id])
   parcels        Parcel[]
   driverProfiles DriverProfile[] @relation("DriverProfileToJourney")
+  journeyNotes   JourneyNote[]
 
   @@index([journeyNumber])
   @@index([businessId, departureDate])

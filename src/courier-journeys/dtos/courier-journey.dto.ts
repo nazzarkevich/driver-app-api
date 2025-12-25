@@ -7,7 +7,6 @@ export class CourierJourneyDto {
   parcels: Parcel[];
   courierProfiles: CourierProfile[];
   vehicle: Vehicle;
-  notes: string;
   isCompleted: boolean;
   departureDate: Date;
   createdAt: Date;

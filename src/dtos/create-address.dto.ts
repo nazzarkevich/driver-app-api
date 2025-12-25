@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsCityOrVillage } from 'src/validators/is-city-or-village.validator';
 
 export class CreateAddressDto {
   @IsOptional()
@@ -10,13 +11,14 @@ export class CreateAddressDto {
   @IsNotEmpty({ message: "Street can't be empty" })
   street: string;
 
-  @IsString({ message: 'Profile should be a string' })
-  @IsNotEmpty({ message: "Profile can't be empty" })
-  profileId: string;
-
+  @IsCityOrVillage()
   @IsString({ message: 'City should be a string' })
   @IsNotEmpty({ message: "City can't be empty" })
-  city: string;
+  city?: string;
+
+  @IsString({ message: 'Village should be a string' })
+  @IsNotEmpty({ message: "Village can't be empty" })
+  village?: string;
 
   @IsOptional()
   @IsString()
@@ -27,8 +29,10 @@ export class CreateAddressDto {
   @IsNotEmpty({ message: "Country can't be empty" })
   countryIsoCode: string;
 
+  @ValidateIf((o) => o.countryIsoCode !== 'GB')
   @IsOptional()
+  @ValidateIf((o) => o.countryIsoCode === 'GB')
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Postcode is required for Great Britain addresses' })
   postcode?: string;
 }

@@ -5,7 +5,8 @@ import { CountryDto } from '../../countries/dtos/country.dto';
 export class AddressWithCountryDto {
   id: number;
   street: string;
-  city: string;
+  city: string | null;
+  village: string | null;
   postcode: string | null;
   block: string | null;
   building: string | null;

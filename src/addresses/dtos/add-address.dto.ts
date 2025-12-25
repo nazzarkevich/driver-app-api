@@ -1,5 +1,12 @@
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateIf,
+} from 'class-validator';
+import { IsCityOrVillage } from 'src/validators/is-city-or-village.validator';
 
 export class AddAddressDto {
   @IsString()
@@ -32,19 +39,26 @@ export class AddAddressDto {
   @IsOptional()
   state?: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @ValidateIf((o) => o.countryIsoCode !== 'GB')
   @IsOptional()
-  @Transform((param) => param.value.toLowerCase().replace(/\s+/g, ''))
+  @ValidateIf((o) => o.countryIsoCode === 'GB')
+  @IsString()
+  @IsNotEmpty({ message: 'Postcode is required for Great Britain addresses' })
+  @Transform((param) => param.value?.toLowerCase().replace(/\s+/g, ''))
   postcode?: string;
 
   @IsString()
   @IsNotEmpty()
   street: string;
 
+  @IsCityOrVillage()
   @IsString()
   @IsNotEmpty()
-  city: string;
+  city?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  village?: string;
 
   @IsString()
   @IsNotEmpty()

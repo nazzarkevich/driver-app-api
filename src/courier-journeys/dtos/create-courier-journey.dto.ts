@@ -21,10 +21,6 @@ export class CreateCourierJourneyDto {
   @IsNotEmpty()
   vehicleId: number;
 
-  @IsString()
-  @IsOptional()
-  notes: string;
-
   @IsDate()
   @IsNotEmpty()
   departureDate: Date;

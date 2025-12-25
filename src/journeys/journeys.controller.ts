@@ -10,13 +10,14 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiQuery, ApiOperation, ApiBody } from '@nestjs/swagger';
 
 import { JourneyDto } from './dtos/journey.dto';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { JourneysService } from './journeys.service';
 import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
 import { CreateJourneyDto } from './dtos/create-journey.dto';
+import { CreateJourneyNoteDto } from './dtos/create-journey-note.dto';
 import { UpdateJourneyDto } from './dtos/update-journey.dto';
 import { VehicleDto } from 'src/vehicles/dtos/vehicle.dto';
 import {
@@ -161,6 +162,48 @@ export class JourneysController {
     return this.journeysService.findParcelsByJourneyId(
       page,
       journeyId,
+      currentUser.businessId,
+    );
+  }
+
+  @Post('/:id/notes')
+  @ApiOperation({ summary: 'Add a note to journey' })
+  @ApiBody({ type: CreateJourneyNoteDto })
+  addNote(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) journeyId: number,
+    @Body() body: CreateJourneyNoteDto,
+  ) {
+    return this.journeysService.addNote(
+      journeyId,
+      body.content,
+      currentUser.id,
+      currentUser.businessId,
+    );
+  }
+
+  @Get('/:id/notes')
+  @ApiOperation({ summary: 'Get all notes for a journey' })
+  getNotes(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) journeyId: number,
+  ) {
+    return this.journeysService.getNotes(
+      journeyId,
+      currentUser.businessId,
+    );
+  }
+
+  @Delete('/:id/notes/:noteId')
+  @ApiOperation({ summary: 'Delete a note from journey' })
+  deleteNote(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) journeyId: number,
+    @Param('noteId', ParseIntPipe) noteId: number,
+  ) {
+    return this.journeysService.deleteNote(
+      noteId,
+      currentUser.id,
       currentUser.businessId,
     );
   }

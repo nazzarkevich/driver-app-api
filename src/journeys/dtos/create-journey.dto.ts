@@ -28,10 +28,6 @@ export class CreateJourneyDto {
   @IsNotEmpty()
   vehicleId: number;
 
-  @IsString()
-  @IsOptional()
-  notes: string;
-
   @IsDate()
   @IsNotEmpty()
   departureDate: Date;

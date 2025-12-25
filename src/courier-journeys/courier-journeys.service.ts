@@ -6,6 +6,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import prismaWithPagination from 'src/prisma/prisma-client';
 import { ParcelsService } from 'src/parcels/parcels.service';
 import { CourierJourneyDto } from './dtos/courier-journey.dto';
+import { CourierJourneyNoteDto } from './dtos/courier-journey-note.dto';
 import { VehiclesService } from 'src/vehicles/vehicles.service';
 import { CouriersService } from 'src/profiles/couriers/couriers.service';
 import { UpdateCourierJourneyDto } from './dtos/update-courier-journey.dto';
@@ -24,13 +25,7 @@ export class CourierJourneysService extends BaseTenantService {
   }
 
   async createCourierJourney(
-    {
-      destination,
-      vehicleId,
-      departureDate,
-      notes,
-      parcels,
-    }: CreateCourierJourneyDto,
+    { destination, vehicleId, departureDate, parcels }: CreateCourierJourneyDto,
     businessId: number,
   ): Promise<void> {
     await this.validateBusinessAccess(businessId);
@@ -47,7 +42,6 @@ export class CourierJourneysService extends BaseTenantService {
         destination,
         vehicleId,
         departureDate,
-        notes,
         businessId,
         parcels: {
           connect: foundParcels.map((parcel) => ({ id: parcel.id })),
@@ -155,6 +149,94 @@ export class CourierJourneysService extends BaseTenantService {
       where: {
         id,
       },
+    });
+  }
+
+  async addNote(
+    courierJourneyId: number,
+    content: string,
+    userId: number,
+    businessId: number,
+  ): Promise<CourierJourneyNoteDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const courierJourney = await this.prismaService.courierJourney.findUnique({
+      where: { id: courierJourneyId },
+      select: { businessId: true },
+    });
+
+    if (!courierJourney || courierJourney.businessId !== businessId) {
+      throw new NotFoundException('Courier journey not found');
+    }
+
+    const note = await this.prismaService.courierJourneyNote.create({
+      data: {
+        content,
+        courierJourneyId,
+        userId,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    return new CourierJourneyNoteDto(note);
+  }
+
+  async getNotes(
+    courierJourneyId: number,
+    businessId: number,
+  ): Promise<CourierJourneyNoteDto[]> {
+    await this.validateBusinessAccess(businessId);
+
+    const courierJourney = await this.prismaService.courierJourney.findUnique({
+      where: { id: courierJourneyId },
+      select: { businessId: true },
+    });
+
+    if (!courierJourney || courierJourney.businessId !== businessId) {
+      throw new NotFoundException('Courier journey not found');
+    }
+
+    const notes = await this.prismaService.courierJourneyNote.findMany({
+      where: { courierJourneyId },
+      include: {
+        user: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return notes.map((note) => new CourierJourneyNoteDto(note));
+  }
+
+  async deleteNote(
+    noteId: number,
+    userId: number,
+    businessId: number,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    const note = await this.prismaService.courierJourneyNote.findUnique({
+      where: { id: noteId },
+      include: {
+        courierJourney: {
+          select: { businessId: true },
+        },
+      },
+    });
+
+    if (!note || note.courierJourney.businessId !== businessId) {
+      throw new NotFoundException('Note not found');
+    }
+
+    if (note.userId !== userId) {
+      throw new NotFoundException('You can only delete notes that you created');
+    }
+
+    await this.prismaService.courierJourneyNote.delete({
+      where: { id: noteId },
     });
   }
 }
