@@ -52,13 +52,15 @@ model AuthProfile {
 }
 
 model DriverProfile {
-  id        Int       @id @default(autoincrement())
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  userId    Int       @unique
-  isDeleted Boolean   @default(false)
-  user      User      @relation(fields: [userId], references: [id])
-  journeys  Journey[] @relation("DriverProfileToJourney")
+  id               Int       @id @default(autoincrement())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  userId           Int       @unique
+  isDeleted        Boolean   @default(false)
+  user             User      @relation(fields: [userId], references: [id])
+  journeys         Journey[] @relation("DriverProfileToJourney")
+  parcelsPickedUp  Parcel[]  @relation("PickedUpByDriver")
+  parcelsDelivered Parcel[]  @relation("DeliveredByDriver")
 }
 
 model CourierProfile {
@@ -70,6 +72,8 @@ model CourierProfile {
   isDeleted        Boolean         @default(false)
   courierJourney   CourierJourney? @relation(fields: [courierJourneyId], references: [id])
   user             User            @relation(fields: [userId], references: [id])
+  parcelsPickedUp  Parcel[]        @relation("PickedUpByCourier")
+  parcelsDelivered Parcel[]        @relation("DeliveredByCourier")
 }
 
 model Business {
@@ -104,6 +108,7 @@ model CustomerProfile {
   gender            Gender?
   lastName          String
   isDeleted         Boolean          @default(false)
+  isActive          Boolean          @default(true)
   novaPostAddressId Int?
   phoneId           Int              @unique
   primaryAddress    Address?
@@ -193,6 +198,12 @@ model Parcel {
   deliveryStatus         DeliveryStatus    @default(Initial)
   paymentStatus          PaymentStatus     @default(NotPaid)
   paidBy                 PaymentParty      @default(Sender)
+  pickedUpByCourierId    Int?
+  pickedUpByDriverId     Int?
+  pickedUpAt             DateTime?
+  deliveredByCourierId   Int?
+  deliveredByDriverId    Int?
+  deliveredAt            DateTime?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
   senderId               Int
@@ -222,7 +233,16 @@ model Parcel {
   recipient              CustomerProfile   @relation("receivedParcels", fields: [recipientId], references: [id])
   sender                 CustomerProfile   @relation("sentParcels", fields: [senderId], references: [id])
   tariff                 Tariff?           @relation(fields: [tariffId], references: [id])
+  pickedUpByCourier      CourierProfile?   @relation("PickedUpByCourier", fields: [pickedUpByCourierId], references: [id])
+  pickedUpByDriver       DriverProfile?    @relation("PickedUpByDriver", fields: [pickedUpByDriverId], references: [id])
+  deliveredByCourier     CourierProfile?   @relation("DeliveredByCourier", fields: [deliveredByCourierId], references: [id])
+  deliveredByDriver      DriverProfile?    @relation("DeliveredByDriver", fields: [deliveredByDriverId], references: [id])
   parcelNotes            ParcelNote[]
+
+  @@index([pickedUpByCourierId])
+  @@index([pickedUpByDriverId])
+  @@index([deliveredByCourierId])
+  @@index([deliveredByDriverId])
 }
 
 model Address {

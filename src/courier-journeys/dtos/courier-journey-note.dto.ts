@@ -5,14 +5,26 @@ type CourierJourneyNoteWithUser = CourierJourneyNote & {
   user: User;
 };
 
-@Expose()
 export class CourierJourneyNoteDto {
+  @Expose()
   id: number;
+
+  @Expose()
   content: string;
+
+  @Expose()
   courierJourneyId: number;
+
+  @Expose()
   userId: number;
+
+  @Expose()
   userName: string;
+
+  @Expose()
   createdAt: Date;
+
+  @Expose()
   updatedAt: Date;
 
   constructor(partial: CourierJourneyNoteWithUser) {

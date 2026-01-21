@@ -76,7 +76,9 @@ export class CreateUserDto {
     example: 'Male',
     description: 'Users gender',
   })
-  @ValidateIf((o) => o.gender !== null && o.gender !== undefined && o.gender !== '')
+  @ValidateIf(
+    (o) => o.gender !== null && o.gender !== undefined && o.gender !== '',
+  )
   @IsEnum(Gender)
   gender?: Gender;
 

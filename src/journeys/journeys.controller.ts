@@ -188,10 +188,7 @@ export class JourneysController {
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) journeyId: number,
   ) {
-    return this.journeysService.getNotes(
-      journeyId,
-      currentUser.businessId,
-    );
+    return this.journeysService.getNotes(journeyId, currentUser.businessId);
   }
 
   @Delete('/:id/notes/:noteId')

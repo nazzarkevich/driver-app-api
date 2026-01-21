@@ -37,6 +37,16 @@ export class CourierProfileDto {
   parcels: Parcel[];
 
   @ApiProperty({
+    description: 'Parcels picked up by this courier',
+  })
+  parcelsPickedUp: Parcel[];
+
+  @ApiProperty({
+    description: 'Parcels delivered by this courier',
+  })
+  parcelsDelivered: Parcel[];
+
+  @ApiProperty({
     description: 'When the courier profile was created',
   })
   createdAt: Date;

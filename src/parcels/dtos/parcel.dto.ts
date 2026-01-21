@@ -49,6 +49,22 @@ export class ParcelDto {
   deliveryStatus: DeliveryStatus;
   paymentStatus: PaymentStatus;
   paidBy: PaymentParty;
+  pickedUpByCourierId?: number | null;
+  pickedUpByDriverId?: number | null;
+  pickedUpAt?: Date | null;
+  deliveredByCourierId?: number | null;
+  deliveredByDriverId?: number | null;
+  deliveredAt?: Date | null;
+  pickedUpBy?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+  } | null;
+  deliveredBy?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+  } | null;
 
   // Connection information
   connectedParcels: ConnectedParcelInfo[];
@@ -65,14 +81,12 @@ export class ParcelDto {
   originAddress: AddressWithCountryDto;
   destinationAddress: AddressWithCountryDto;
 
-  constructor(partial: Partial<ParcelDto>) {
+  constructor(partial: Partial<ParcelDto> & Record<string, any>) {
     Object.assign(this, partial);
 
-    // Calculate connection stats
     this.connectionCount = this.connectedParcels?.length || 0;
     this.hasConnections = this.connectionCount > 0;
 
-    // Map address objects with country details
     if (partial?.originAddress) {
       this.originAddress = new AddressWithCountryDto(
         partial.originAddress as any,
@@ -82,6 +96,38 @@ export class ParcelDto {
       this.destinationAddress = new AddressWithCountryDto(
         partial.destinationAddress as any,
       );
+    }
+
+    const pickedUpByCourier = partial?.pickedUpByCourier as any;
+    const pickedUpByDriver = partial?.pickedUpByDriver as any;
+    if (pickedUpByCourier?.user) {
+      this.pickedUpBy = {
+        id: pickedUpByCourier.user.id,
+        firstName: pickedUpByCourier.user.firstName,
+        lastName: pickedUpByCourier.user.lastName,
+      };
+    } else if (pickedUpByDriver?.user) {
+      this.pickedUpBy = {
+        id: pickedUpByDriver.user.id,
+        firstName: pickedUpByDriver.user.firstName,
+        lastName: pickedUpByDriver.user.lastName,
+      };
+    }
+
+    const deliveredByCourier = partial?.deliveredByCourier as any;
+    const deliveredByDriver = partial?.deliveredByDriver as any;
+    if (deliveredByCourier?.user) {
+      this.deliveredBy = {
+        id: deliveredByCourier.user.id,
+        firstName: deliveredByCourier.user.firstName,
+        lastName: deliveredByCourier.user.lastName,
+      };
+    } else if (deliveredByDriver?.user) {
+      this.deliveredBy = {
+        id: deliveredByDriver.user.id,
+        firstName: deliveredByDriver.user.firstName,
+        lastName: deliveredByDriver.user.lastName,
+      };
     }
   }
 }

@@ -1,13 +1,7 @@
-import { Gender, Parcel, Address, Phone } from '@prisma/client';
+import { Gender, Parcel, Phone } from '@prisma/client';
 import { Expose } from 'class-transformer';
 import { CustomerNoteDto } from './customer-note.dto';
-
-interface UserData {
-  id: number;
-  firstName: string;
-  lastName: string;
-  isBlocked: boolean;
-}
+import { AddressWithCountryDto } from 'src/parcels/dtos/address-with-country.dto';
 
 @Expose()
 export class CustomerProfileDto {
@@ -19,13 +13,17 @@ export class CustomerProfileDto {
   parcelsReceived: Parcel[];
   phoneNumber: Phone;
   notes?: CustomerNoteDto[];
-  address?: Address;
-  user?: UserData;
+  address?: AddressWithCountryDto;
   gender?: Gender | null;
+  isActive?: boolean;
   createdAt: Date;
   updatedAt: Date;
 
-  constructor(partial: Partial<CustomerProfileDto>) {
+  constructor(partial: any) {
     Object.assign(this, partial);
+
+    if (partial?.primaryAddress) {
+      this.address = new AddressWithCountryDto(partial.primaryAddress);
+    }
   }
 }

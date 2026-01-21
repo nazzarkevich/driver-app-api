@@ -667,9 +667,7 @@ export class JourneysService extends BaseTenantService {
     }
 
     if (note.userId !== userId) {
-      throw new NotFoundException(
-        'You can only delete notes that you created',
-      );
+      throw new NotFoundException('You can only delete notes that you created');
     }
 
     await this.prismaService.journeyNote.delete({

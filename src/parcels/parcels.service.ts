@@ -17,7 +17,7 @@ import { BaseTenantService } from 'src/common/base-tenant.service';
 import { TariffsService } from 'src/tariffs/tariffs.service';
 import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
 import { AuditService } from 'src/audit/audit.service';
-import { AuditAction } from '@prisma/client';
+import { AuditAction, DeliveryStatus } from '@prisma/client';
 
 @Injectable()
 export class ParcelsService extends BaseTenantService {
@@ -43,7 +43,6 @@ export class ParcelsService extends BaseTenantService {
   ): Promise<{ id: number; trackingNumber: string }> {
     await this.validateBusinessAccess(user.businessId);
 
-    // Extract only valid CreateParcelDto properties
     const {
       weight,
       price,
@@ -73,6 +72,8 @@ export class ParcelsService extends BaseTenantService {
       );
     }
 
+    const profile = await this.resolveUserProfile(user.id);
+
     const newParcel = await this.prismaService.parcel.create({
       data: {
         weight,
@@ -95,6 +96,9 @@ export class ParcelsService extends BaseTenantService {
         tariffId,
         businessId: user.businessId,
         trackingNumber: this.generateTrackingNumber(),
+        pickedUpByCourierId: profile.courierId,
+        pickedUpByDriverId: profile.driverId,
+        pickedUpAt: new Date(),
       },
     });
 
@@ -350,7 +354,51 @@ export class ParcelsService extends BaseTenantService {
             country: true,
           },
         },
-        business: currentUser?.isSuperAdmin ? true : false, // Include business info for SuperAdmin
+        pickedUpByCourier: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        pickedUpByDriver: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        deliveredByCourier: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        deliveredByDriver: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        business: currentUser?.isSuperAdmin ? true : false,
       },
     });
 
@@ -391,6 +439,50 @@ export class ParcelsService extends BaseTenantService {
         destinationAddress: {
           include: {
             country: true,
+          },
+        },
+        pickedUpByCourier: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        pickedUpByDriver: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        deliveredByCourier: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        deliveredByDriver: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
         business: currentUser?.isSuperAdmin ? true : false,
@@ -604,7 +696,7 @@ export class ParcelsService extends BaseTenantService {
   private generateTrackingNumber() {
     const today = new Date();
     const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0'); // January is 0!
+    const month = String(today.getMonth() + 1).padStart(2, '0');
     const year = today.getFullYear();
     const currentDate = day + month + year;
 
@@ -613,6 +705,24 @@ export class ParcelsService extends BaseTenantService {
       .padStart(13, '0');
 
     return currentDate + randomSuffix;
+  }
+
+  private async resolveUserProfile(
+    userId: number,
+  ): Promise<{ courierId?: number; driverId?: number }> {
+    const courier = await this.prismaService.courierProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (courier) return { courierId: courier.id };
+
+    const driver = await this.prismaService.driverProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (driver) return { driverId: driver.id };
+
+    throw new NotFoundException('User has no courier or driver profile');
   }
 
   async addNote(
@@ -695,13 +805,99 @@ export class ParcelsService extends BaseTenantService {
     }
 
     if (note.userId !== userId) {
-      throw new NotFoundException(
-        'You can only delete notes that you created',
-      );
+      throw new NotFoundException('You can only delete notes that you created');
     }
 
     await this.prismaService.parcelNote.delete({
       where: { id: noteId },
     });
+  }
+
+  async markAsDelivered(
+    parcelId: number,
+    businessId: number,
+    userId: number,
+  ): Promise<ParcelDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const parcel = await this.prismaService.parcel.findUnique({
+      where: { id: parcelId },
+      select: { businessId: true },
+    });
+
+    if (!parcel || parcel.businessId !== businessId) {
+      throw new NotFoundException('Parcel not found');
+    }
+
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+
+    if (!user || user.businessId !== businessId) {
+      throw new NotFoundException('User not found');
+    }
+
+    const profile = await this.resolveUserProfile(userId);
+
+    const updatedParcel = await this.prismaService.parcel.update({
+      where: { id: parcelId },
+      data: {
+        deliveredByCourierId: profile.courierId,
+        deliveredByDriverId: profile.driverId,
+        deliveredAt: new Date(),
+        deliveryStatus: DeliveryStatus.Delivered,
+      },
+      include: {
+        sender: true,
+        recipient: true,
+        pickedUpByCourier: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        pickedUpByDriver: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        deliveredByCourier: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        deliveredByDriver: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return new ParcelDto(updatedParcel);
   }
 }

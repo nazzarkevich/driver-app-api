@@ -5,14 +5,26 @@ type CustomerNoteWithUser = CustomerNote & {
   user: User;
 };
 
-@Expose()
 export class CustomerNoteDto {
+  @Expose()
   id: number;
+
+  @Expose()
   content: string;
+
+  @Expose()
   customerProfileId: number;
+
+  @Expose()
   userId: number;
+
+  @Expose()
   userName: string;
+
+  @Expose()
   createdAt: Date;
+
+  @Expose()
   updatedAt: Date;
 
   constructor(partial: CustomerNoteWithUser) {

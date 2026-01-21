@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
@@ -77,6 +78,7 @@ export class CustomersService extends BaseTenantService {
     search?: string,
     isBlocked?: boolean,
     originCountryId?: number,
+    isActive?: boolean,
   ): Promise<Pagination<CustomerProfileDto> | CustomerProfileDto[]> {
     await this.validateBusinessAccess(businessId);
 
@@ -111,6 +113,11 @@ export class CustomersService extends BaseTenantService {
       conditions.push({ user: { isBlocked } });
     }
 
+    // Active status filter
+    if (isActive !== undefined) {
+      conditions.push({ isActive });
+    }
+
     const whereClause =
       conditions.length > 0
         ? {
@@ -143,6 +150,14 @@ export class CustomersService extends BaseTenantService {
                   isBlocked: true,
                 },
               },
+              notes: {
+                include: {
+                  user: true,
+                },
+                orderBy: {
+                  createdAt: 'desc',
+                },
+              },
             },
           })
           .withPages({ page });
@@ -170,12 +185,12 @@ export class CustomersService extends BaseTenantService {
                 country: true,
               },
             },
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                isBlocked: true,
+            notes: {
+              include: {
+                user: true,
+              },
+              orderBy: {
+                createdAt: 'desc',
               },
             },
           },
@@ -195,13 +210,17 @@ export class CustomersService extends BaseTenantService {
         },
         include: {
           phoneNumber: true,
-          primaryAddress: true,
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              isBlocked: true,
+          primaryAddress: {
+            include: {
+              country: true,
+            },
+          },
+          notes: {
+            include: {
+              user: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
             },
           },
         },
@@ -223,23 +242,94 @@ export class CustomersService extends BaseTenantService {
     const profile = await this.findOne(id, businessId);
 
     if (!profile) {
-      throw new Error('Customer profile not found');
+      throw new NotFoundException('Customer profile not found');
     }
 
-    Object.assign(profile, attrs);
+    const existingProfile = await this.prismaService.customerProfile.findUnique(
+      {
+        where: { id },
+        select: { phoneId: true },
+      },
+    );
 
-    const updatedProfile = await this.prismaService.customerProfile.update({
-      where: {
-        id,
-      },
-      data: attrs,
-      include: {
-        phoneNumber: true,
-        primaryAddress: true,
-      },
+    await this.prismaService.$transaction(async (prisma) => {
+      if (attrs.phoneNumber && existingProfile?.phoneId) {
+        const phoneUpdateData: Prisma.PhoneUpdateInput = {};
+        if (attrs.phoneNumber.number !== undefined) {
+          phoneUpdateData.number = attrs.phoneNumber.number;
+        }
+        if (attrs.phoneNumber.countryCode !== undefined) {
+          phoneUpdateData.countryCode = attrs.phoneNumber.countryCode;
+        }
+        if (Object.keys(phoneUpdateData).length > 0) {
+          await prisma.phone.update({
+            where: { id: existingProfile.phoneId },
+            data: phoneUpdateData,
+          });
+        }
+      }
+
+      if (attrs.address) {
+        const addressUpdateData: Prisma.AddressUpdateInput = {};
+
+        if (attrs.address.countryIsoCode) {
+          const country = await prisma.country.findUnique({
+            where: { isoCode: attrs.address.countryIsoCode },
+          });
+          if (!country) {
+            throw new NotFoundException(
+              `Country with ISO code ${attrs.address.countryIsoCode} not found`,
+            );
+          }
+          addressUpdateData.country = { connect: { id: country.id } };
+        }
+
+        if (attrs.address.street !== undefined) {
+          addressUpdateData.street = attrs.address.street;
+        }
+        if (attrs.address.city !== undefined) {
+          addressUpdateData.city = attrs.address.city;
+        }
+        if (attrs.address.region !== undefined) {
+          addressUpdateData.region = attrs.address.region;
+        }
+        if (attrs.address.postcode !== undefined) {
+          addressUpdateData.postcode = attrs.address.postcode;
+        }
+        if (attrs.address.building !== undefined) {
+          addressUpdateData.building = attrs.address.building;
+        }
+        if (attrs.address.flat !== undefined) {
+          addressUpdateData.flat = attrs.address.flat;
+        }
+        if (attrs.address.village !== undefined) {
+          addressUpdateData.village = attrs.address.village;
+        }
+
+        if (Object.keys(addressUpdateData).length > 0) {
+          await prisma.address.update({
+            where: { profileId: id },
+            data: addressUpdateData,
+          });
+        }
+      }
+
+      const profileData: Prisma.CustomerProfileUpdateInput = {};
+      if (attrs.firstName !== undefined)
+        profileData.firstName = attrs.firstName;
+      if (attrs.lastName !== undefined) profileData.lastName = attrs.lastName;
+      if (attrs.gender !== undefined) profileData.gender = attrs.gender;
+      if (attrs.isActive !== undefined) profileData.isActive = attrs.isActive;
+
+      if (Object.keys(profileData).length > 0) {
+        await prisma.customerProfile.update({
+          where: { id },
+          data: profileData,
+        });
+      }
     });
 
-    return new CustomerProfileDto(updatedProfile);
+    return this.findOne(id, businessId);
   }
 
   async remove(id: number, businessId: number): Promise<void> {
@@ -342,9 +432,7 @@ export class CustomersService extends BaseTenantService {
     }
 
     if (note.userId !== userId) {
-      throw new NotFoundException(
-        'You can only delete notes that you created',
-      );
+      throw new NotFoundException('You can only delete notes that you created');
     }
 
     await this.prismaService.customerNote.delete({

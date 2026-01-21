@@ -84,12 +84,19 @@ export class CustomersController {
     type: Number,
     description: 'Filter by origin country ID (1: Ukraine, 2: United Kingdom)',
   })
+  @ApiQuery({
+    name: 'isActive',
+    required: false,
+    type: Boolean,
+    description: 'Filter by active status',
+  })
   async findAllCustomers(
     @CurrentUser() currentUser: UserRequestType,
     @Query('page') page?: string,
     @Query('search') search?: string,
     @Query('isBlocked') isBlocked?: string,
     @Query('originCountryId') originCountryId?: string,
+    @Query('isActive') isActive?: string,
   ): Promise<Pagination<CustomerProfileDto> | CustomerProfileDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const isBlockedBoolean =
@@ -97,6 +104,8 @@ export class CustomersController {
     const originCountryIdNumber = originCountryId
       ? parseInt(originCountryId, 10)
       : undefined;
+    const isActiveBoolean =
+      isActive !== undefined ? isActive === 'true' : undefined;
 
     return this.customersService.findAll(
       currentUser.businessId,
@@ -104,6 +113,7 @@ export class CustomersController {
       search,
       isBlockedBoolean,
       originCountryIdNumber,
+      isActiveBoolean,
     );
   }
 

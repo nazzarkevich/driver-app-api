@@ -1,4 +1,4 @@
-import { Journey } from '@prisma/client';
+import { Journey, Parcel } from '@prisma/client';
 import { Expose } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -35,6 +35,16 @@ export class DriverProfileDto {
     description: 'Journeys assigned to this driver',
   })
   journeys: Journey[];
+
+  @ApiProperty({
+    description: 'Parcels picked up by this driver',
+  })
+  parcelsPickedUp: Parcel[];
+
+  @ApiProperty({
+    description: 'Parcels delivered by this driver',
+  })
+  parcelsDelivered: Parcel[];
 
   @ApiProperty({
     description: 'When the driver profile was created',

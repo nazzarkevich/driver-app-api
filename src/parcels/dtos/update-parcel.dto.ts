@@ -10,6 +10,8 @@ import {
   IsOptional,
   IsNumber,
   IsDate,
+  IsInt,
+  IsDateString,
 } from 'class-validator';
 
 export class UpdateParcelDto {
@@ -44,6 +46,30 @@ export class UpdateParcelDto {
   @IsEnum(PaymentParty)
   @IsOptional()
   paidBy: PaymentParty;
+
+  @IsInt()
+  @IsOptional()
+  pickedUpByCourierId?: number;
+
+  @IsInt()
+  @IsOptional()
+  pickedUpByDriverId?: number;
+
+  @IsOptional()
+  @IsDateString()
+  pickedUpAt?: Date;
+
+  @IsInt()
+  @IsOptional()
+  deliveredByCourierId?: number;
+
+  @IsInt()
+  @IsOptional()
+  deliveredByDriverId?: number;
+
+  @IsOptional()
+  @IsDateString()
+  deliveredAt?: Date;
 
   @IsDate()
   @IsOptional()

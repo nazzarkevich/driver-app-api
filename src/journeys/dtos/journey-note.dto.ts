@@ -5,14 +5,26 @@ type JourneyNoteWithUser = JourneyNote & {
   user: User;
 };
 
-@Expose()
 export class JourneyNoteDto {
+  @Expose()
   id: number;
+
+  @Expose()
   content: string;
+
+  @Expose()
   journeyId: number;
+
+  @Expose()
   userId: number;
+
+  @Expose()
   userName: string;
+
+  @Expose()
   createdAt: Date;
+
+  @Expose()
   updatedAt: Date;
 
   constructor(partial: JourneyNoteWithUser) {

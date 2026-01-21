@@ -5,14 +5,26 @@ type ParcelNoteWithUser = ParcelNote & {
   user: User;
 };
 
-@Expose()
 export class ParcelNoteDto {
+  @Expose()
   id: number;
+
+  @Expose()
   content: string;
+
+  @Expose()
   parcelId: number;
+
+  @Expose()
   userId: number;
+
+  @Expose()
   userName: string;
+
+  @Expose()
   createdAt: Date;
+
+  @Expose()
   updatedAt: Date;
 
   constructor(partial: ParcelNoteWithUser) {

@@ -22,7 +22,9 @@ export class CreateCustomerProfileDto {
   @IsNotEmpty()
   lastName: string;
 
-  @ValidateIf((o) => o.gender !== null && o.gender !== undefined && o.gender !== '')
+  @ValidateIf(
+    (o) => o.gender !== null && o.gender !== undefined && o.gender !== '',
+  )
   @IsEnum(Gender)
   gender?: Gender;
 

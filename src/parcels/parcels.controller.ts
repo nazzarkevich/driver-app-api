@@ -317,10 +317,7 @@ export class ParcelsController {
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) parcelId: number,
   ) {
-    return this.parcelsService.getNotes(
-      parcelId,
-      currentUser.businessId,
-    );
+    return this.parcelsService.getNotes(parcelId, currentUser.businessId);
   }
 
   @Delete('/:id/notes/:noteId')
@@ -334,6 +331,19 @@ export class ParcelsController {
       noteId,
       currentUser.id,
       currentUser.businessId,
+    );
+  }
+
+  @Put('/:id/mark-delivered')
+  @ApiOperation({ summary: 'Mark parcel as delivered' })
+  markAsDelivered(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+  ) {
+    return this.parcelsService.markAsDelivered(
+      parcelId,
+      currentUser.businessId,
+      currentUser.id,
     );
   }
 }
