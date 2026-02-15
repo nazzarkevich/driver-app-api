@@ -1,18 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { AuditAction, Prisma } from '@prisma/client';
 
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
 import { CustomerProfileDto } from './dtos/customer-profile.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
 import { CustomerNoteDto } from './dtos/customer-note.dto';
+import { AuditService } from 'src/audit/audit.service';
+import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 import { BaseTenantService } from 'src/common/base-tenant.service';
 import { Pagination } from 'src/dtos/pagination.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
 
 @Injectable()
 export class CustomersService extends BaseTenantService {
-  constructor(prismaService: PrismaService) {
+  constructor(
+    prismaService: PrismaService,
+    private readonly auditService: AuditService,
+  ) {
     super(prismaService);
   }
 
@@ -330,6 +335,44 @@ export class CustomersService extends BaseTenantService {
     });
 
     return this.findOne(id, businessId);
+  }
+
+  async toggleBlock(
+    id: number,
+    currentUser: UserRequestType,
+  ): Promise<CustomerProfileDto> {
+    const profile = await this.prismaService.customerProfile.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        isActive: true,
+        firstName: true,
+        lastName: true,
+        businessId: true,
+      },
+    });
+
+    if (!profile || profile.businessId !== currentUser.businessId) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
+    const newIsActive = !profile.isActive;
+
+    await this.prismaService.customerProfile.update({
+      where: { id },
+      data: { isActive: newIsActive },
+    });
+
+    const action = newIsActive ? AuditAction.UNBLOCK : AuditAction.BLOCK;
+    await this.auditService.logUserAction(
+      currentUser,
+      action,
+      'CustomerProfile',
+      String(id),
+      `${action} customer ${profile.firstName} ${profile.lastName}`,
+    );
+
+    return this.findOne(id, currentUser.businessId);
   }
 
   async remove(id: number, businessId: number): Promise<void> {

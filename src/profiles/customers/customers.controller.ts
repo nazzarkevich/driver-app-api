@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -17,7 +18,7 @@ import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
 import { CustomerProfileDto } from './dtos/customer-profile.dto';
 import { CreateCustomerNoteDto } from './dtos/create-customer-note.dto';
-import { AdminGuard } from 'src/guards/admin.guard';
+import { BusinessAdminGuard } from 'src/guards/business-admin.guard';
 import {
   CurrentUser,
   UserRequestType,
@@ -143,8 +144,17 @@ export class CustomersController {
     return this.customersService.update(id, body, currentUser.businessId);
   }
 
+  @Patch('/:id/block')
+  @UseGuards(BusinessAdminGuard)
+  async toggleBlockCustomer(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser: UserRequestType,
+  ): Promise<CustomerProfileDto> {
+    return this.customersService.toggleBlock(id, currentUser);
+  }
+
   @Delete('/:id')
-  @UseGuards(AdminGuard)
+  @UseGuards(BusinessAdminGuard)
   removeCustomer(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,

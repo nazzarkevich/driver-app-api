@@ -25,6 +25,7 @@ import { AuditInterceptor } from './audit/audit.interceptor';
 import { AuthModule } from './auth/auth.module';
 import { TokenRefreshInterceptor } from './interceptors/token-refresh.interceptor';
 import { TariffsModule } from './tariffs/tariffs.module';
+import { CarriersModule } from './carriers/carriers.module';
 
 /*
   - Extend courier service and controller ✅
@@ -86,6 +87,7 @@ import { TariffsModule } from './tariffs/tariffs.module';
     SupabaseModule,
     AuditModule,
     TariffsModule,
+    CarriersModule,
   ],
   controllers: [AppController],
   providers: [

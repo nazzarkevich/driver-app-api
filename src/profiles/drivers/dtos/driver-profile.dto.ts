@@ -6,6 +6,12 @@ interface UserData {
   id: number;
   firstName: string;
   lastName: string;
+  email?: string;
+  isBlocked?: boolean;
+  phoneNumber?: {
+    number: string;
+    countryCode: string;
+  } | null;
   imageUrl?: {
     id: number;
     url: string;
