@@ -141,6 +141,8 @@ export class ParcelsService extends BaseTenantService {
     search?: string,
     cargoType?: string,
     paymentStatus?: string,
+    courierId?: number,
+    driverId?: number,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     await this.validateBusinessAccess(businessId, currentUser);
 
@@ -255,6 +257,24 @@ export class ParcelsService extends BaseTenantService {
               ],
             },
           },
+        ],
+      });
+    }
+
+    if (courierId) {
+      conditions.push({
+        OR: [
+          { pickedUpByCourierId: courierId },
+          { deliveredByCourierId: courierId },
+        ],
+      });
+    }
+
+    if (driverId) {
+      conditions.push({
+        OR: [
+          { pickedUpByDriverId: driverId },
+          { deliveredByDriverId: driverId },
         ],
       });
     }

@@ -125,6 +125,18 @@ export class ParcelsController {
     description:
       'Filter parcels by payment status (comma-separated): NotPaid, PartiallyPaid, Paid',
   })
+  @ApiQuery({
+    name: 'courierId',
+    required: false,
+    type: Number,
+    description: 'Filter parcels by courier (pickedUpByCourierId or deliveredByCourierId)',
+  })
+  @ApiQuery({
+    name: 'driverId',
+    required: false,
+    type: Number,
+    description: 'Filter parcels by driver (pickedUpByDriverId or deliveredByDriverId)',
+  })
   async findAllParcels(
     @CurrentUser() currentUser: UserRequestType,
     @Query('page') page?: string,
@@ -140,6 +152,8 @@ export class ParcelsController {
     @Query('search') search?: string,
     @Query('cargoType') cargoType?: string,
     @Query('paymentStatus') paymentStatus?: string,
+    @Query('courierId') courierId?: string,
+    @Query('driverId') driverId?: string,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const senderIdNumber = senderId ? parseInt(senderId, 10) : undefined;
@@ -155,6 +169,8 @@ export class ParcelsController {
     const destinationCountryIdNumber = destinationCountryId
       ? parseInt(destinationCountryId, 10)
       : undefined;
+    const courierIdNumber = courierId ? parseInt(courierId, 10) : undefined;
+    const driverIdNumber = driverId ? parseInt(driverId, 10) : undefined;
 
     // SuperAdmin can specify different businessId, regular users use their own
     const targetBusinessId =
@@ -177,6 +193,8 @@ export class ParcelsController {
       search,
       cargoType,
       paymentStatus,
+      courierIdNumber,
+      driverIdNumber,
     );
   }
 

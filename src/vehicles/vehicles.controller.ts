@@ -5,11 +5,13 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { VehiclesService } from './vehicles.service';
 import { CreateVehicleDto } from './dtos/create-vehicle.dto';
+import { UpdateVehicleDto } from './dtos/update-vehicle.dto';
 import {
   CurrentUser,
   UserRequestType,
@@ -39,5 +41,14 @@ export class VehiclesController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.vehiclesService.findOne(id, currentUser.businessId);
+  }
+
+  @Put('/:id')
+  updateVehicle(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateVehicleDto,
+  ) {
+    return this.vehiclesService.updateVehicle(id, body, currentUser.businessId);
   }
 }

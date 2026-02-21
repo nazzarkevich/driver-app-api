@@ -3,6 +3,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { VehicleDto } from './dtos/vehicle.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateVehicleDto } from './dtos/create-vehicle.dto';
+import { UpdateVehicleDto } from './dtos/update-vehicle.dto';
 import { BaseTenantService } from 'src/common/base-tenant.service';
 
 @Injectable()
@@ -52,6 +53,29 @@ export class VehiclesService extends BaseTenantService {
     }
 
     return new VehicleDto(vehicle);
+  }
+
+  async updateVehicle(
+    id: number,
+    updateDto: UpdateVehicleDto,
+    businessId: number,
+  ): Promise<VehicleDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const vehicle = await this.prismaService.vehicle.findUnique({
+      where: { id },
+    });
+
+    if (!vehicle || vehicle.businessId !== businessId) {
+      throw new NotFoundException('Vehicle not found');
+    }
+
+    const updated = await this.prismaService.vehicle.update({
+      where: { id },
+      data: updateDto,
+    });
+
+    return new VehicleDto(updated);
   }
 
   async remove(id: number, businessId: number): Promise<void> {
