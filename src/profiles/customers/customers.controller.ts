@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -24,6 +26,8 @@ import {
   UserRequestType,
 } from 'src/users/decorators/current-user.decorator';
 import { Pagination } from 'src/dtos/pagination.dto';
+import { AddAddressDto } from 'src/addresses/dtos/add-address.dto';
+import { UpdateAddressDto } from 'src/addresses/dtos/update-address.dto';
 
 @ApiTags('Customer Profile')
 @Controller('customers')
@@ -200,6 +204,66 @@ export class CustomersController {
     return this.customersService.deleteNote(
       noteId,
       currentUser.id,
+      currentUser.businessId,
+    );
+  }
+
+  @Post('/:id/addresses')
+  @ApiOperation({ summary: 'Add an address to a customer profile' })
+  @ApiBody({ type: AddAddressDto })
+  addAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Body() body: AddAddressDto,
+  ): Promise<CustomerProfileDto> {
+    return this.customersService.addAddress(
+      customerId,
+      body,
+      currentUser.businessId,
+    );
+  }
+
+  @Patch('/:id/addresses/:addressId')
+  @ApiOperation({ summary: 'Update an address of a customer profile' })
+  updateAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Param('addressId', ParseIntPipe) addressId: number,
+    @Body() body: UpdateAddressDto,
+  ): Promise<CustomerProfileDto> {
+    return this.customersService.updateAddress(
+      customerId,
+      addressId,
+      body,
+      currentUser.businessId,
+    );
+  }
+
+  @Patch('/:id/addresses/:addressId/primary')
+  @ApiOperation({ summary: 'Set an address as primary for a customer profile' })
+  setPrimaryAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Param('addressId', ParseIntPipe) addressId: number,
+  ): Promise<CustomerProfileDto> {
+    return this.customersService.setPrimaryAddress(
+      customerId,
+      addressId,
+      currentUser.businessId,
+    );
+  }
+
+  @Delete('/:id/addresses/:addressId')
+  @ApiOperation({ summary: 'Remove an address from a customer profile' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Param('addressId', ParseIntPipe) addressId: number,
+  ): Promise<void> {
+    return this.customersService.removeAddress(
+      customerId,
+      addressId,
       currentUser.businessId,
     );
   }

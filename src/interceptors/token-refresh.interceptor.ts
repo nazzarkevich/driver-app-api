@@ -35,7 +35,9 @@ export class TokenRefreshInterceptor implements NestInterceptor {
       }
     }
 
-    this.logger.debug(`[TokenRefreshInterceptor] Request: ${request.method} ${request.url}`);
+    this.logger.debug(
+      `[TokenRefreshInterceptor] Request: ${request.method} ${request.url}`,
+    );
     this.logger.debug(
       `[TokenRefreshInterceptor] Auth state: accessToken=${!!request.accessToken}, refreshToken=${!!request.refreshToken}, alreadyRefreshed=${!!request.tokenWasRefreshed}`,
     );

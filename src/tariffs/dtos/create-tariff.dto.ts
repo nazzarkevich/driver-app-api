@@ -1,15 +1,10 @@
-import { ParcelType } from '@prisma/client';
 import {
   IsString,
   IsOptional,
-  IsNumber,
   IsNotEmpty,
   IsBoolean,
-  IsEnum,
-  IsArray,
-  Min,
-  ValidateIf,
-  ArrayMinSize,
+  IsInt,
+  IsNumber,
 } from 'class-validator';
 
 export class CreateTariffDto {
@@ -21,36 +16,35 @@ export class CreateTariffDto {
   @IsOptional()
   description?: string;
 
-  @IsNumber()
-  @Min(0)
-  minimumPrice: number;
-
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  @ValidateIf((o) => o.isWeightBased === true)
-  pricePerKg?: number;
-
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  @ValidateIf((o) => o.isWeightBased === true)
-  weightThreshold?: number;
-
   @IsString()
   @IsNotEmpty()
   currency: string;
 
   @IsBoolean()
-  @IsNotEmpty()
-  isWeightBased: boolean;
+  @IsOptional()
+  isActive?: boolean;
 
-  @IsArray()
-  @ArrayMinSize(1)
-  @IsEnum(ParcelType, { each: true })
-  parcelTypes: ParcelType[];
+  @IsInt()
+  @IsOptional()
+  parcelTypeId?: number | null;
+
+  @IsInt()
+  @IsOptional()
+  originCountryId?: number | null;
+
+  @IsNumber()
+  @IsNotEmpty()
+  minimumPrice: number;
+
+  @IsNumber()
+  @IsOptional()
+  pricePerKg?: number;
+
+  @IsNumber()
+  @IsOptional()
+  weightThreshold?: number;
 
   @IsBoolean()
   @IsOptional()
-  isActive?: boolean;
+  isWeightBased?: boolean;
 }

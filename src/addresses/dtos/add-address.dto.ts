@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -39,8 +40,6 @@ export class AddAddressDto {
   @IsOptional()
   state?: string;
 
-  @ValidateIf((o) => o.countryIsoCode !== 'GB')
-  @IsOptional()
   @ValidateIf((o) => o.countryIsoCode === 'GB')
   @IsString()
   @IsNotEmpty({ message: 'Postcode is required for Great Britain addresses' })
@@ -54,10 +53,12 @@ export class AddAddressDto {
   @IsCityOrVillage()
   @IsString()
   @IsNotEmpty()
+  @IsOptional()
   city?: string;
 
   @IsString()
   @IsNotEmpty()
+  @IsOptional()
   village?: string;
 
   @IsString()
@@ -65,6 +66,10 @@ export class AddAddressDto {
   countryIsoCode: string;
 
   @IsNumber()
-  @IsNotEmpty()
-  profileId: number;
+  @IsOptional()
+  profileId?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  isPrimary?: boolean;
 }

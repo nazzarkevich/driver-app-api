@@ -150,6 +150,8 @@ export class AuthService {
         include: {
           phoneNumber: true,
           business: true,
+          driverProfile: true,
+          courierProfile: true,
         },
       });
 
@@ -379,6 +381,8 @@ export class AuthService {
       where: { supabaseId: session.user.id },
       include: {
         phoneNumber: true,
+        driverProfile: true,
+        courierProfile: true,
       },
     });
 
@@ -387,7 +391,7 @@ export class AuthService {
       // Let's also check if a user exists with this email
       const userByEmail = await this.prismaService.user.findUnique({
         where: { email: session.user.email },
-        include: { phoneNumber: true },
+        include: { phoneNumber: true, driverProfile: true, courierProfile: true },
       });
 
       if (userByEmail) {
@@ -399,7 +403,7 @@ export class AuthService {
         const updatedUser = await this.prismaService.user.update({
           where: { email: session.user.email },
           data: { supabaseId: session.user.id },
-          include: { phoneNumber: true },
+          include: { phoneNumber: true, driverProfile: true, courierProfile: true },
         });
         console.log(`Updated user supabaseId successfully`);
         return {
@@ -465,7 +469,7 @@ export class AuthService {
     // Check if the user already exists in our database
     let user = await this.prismaService.user.findUnique({
       where: { supabaseId: supabaseUser.id },
-      include: { phoneNumber: true },
+      include: { phoneNumber: true, driverProfile: true, courierProfile: true },
     });
 
     this.authProfilesService
@@ -507,6 +511,8 @@ export class AuthService {
         },
         include: {
           phoneNumber: true,
+          driverProfile: true,
+          courierProfile: true,
         },
       });
     }

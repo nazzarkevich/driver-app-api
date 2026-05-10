@@ -6,7 +6,7 @@ export const seedJourneys = async (businessId: number) => {
   const journeys = [];
   const vehicles = await prisma.vehicle.findMany();
   const countries = await prisma.country.findMany();
-  const countryUK = countries.find((country) => country.isoCode === 'UK');
+  const countryUK = countries.find((country) => country.isoCode === 'GB');
   const countryUA = countries.find((country) => country.isoCode === 'UA');
 
   for (let i = 0; i < 5; i++) {

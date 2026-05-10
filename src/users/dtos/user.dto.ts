@@ -105,7 +105,13 @@ export class UserDto {
   businessId: number;
   imageId: number;
 
-  constructor(partial: Partial<UserDto>) {
+  constructor(partial: any) {
     Object.assign(this, partial);
+    if (partial?.driverProfile?.id) {
+      this.driverProfileId = partial.driverProfile.id;
+    }
+    if (partial?.courierProfile?.id) {
+      this.courierProfileId = partial.courierProfile.id;
+    }
   }
 }

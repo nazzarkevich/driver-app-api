@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuditAction, Prisma } from '@prisma/client';
 
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -11,6 +15,15 @@ import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 import { BaseTenantService } from 'src/common/base-tenant.service';
 import { Pagination } from 'src/dtos/pagination.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
+import { AddAddressDto } from 'src/addresses/dtos/add-address.dto';
+import { UpdateAddressDto } from 'src/addresses/dtos/update-address.dto';
+
+const addressInclude = {
+  addresses: {
+    include: { country: true },
+    orderBy: [{ isPrimary: 'desc' as const }, { id: 'asc' as const }],
+  },
+};
 
 @Injectable()
 export class CustomersService extends BaseTenantService {
@@ -27,23 +40,27 @@ export class CustomersService extends BaseTenantService {
       lastName,
       gender,
       phoneNumber,
-      address,
+      addresses,
     }: CreateCustomerProfileDto,
     businessId: number,
-  ): Promise<void> {
+  ): Promise<CustomerProfileDto> {
     await this.validateBusinessAccess(businessId);
 
-    const country = await this.prismaService.country.findUnique({
-      where: { isoCode: address.countryIsoCode },
+    const isoCodes = [...new Set(addresses.map((a) => a.countryIsoCode))];
+    const countries = await this.prismaService.country.findMany({
+      where: { isoCode: { in: isoCodes } },
     });
 
-    if (!country) {
-      throw new NotFoundException(
-        `Country with ISO code ${address.countryIsoCode} not found`,
+    if (countries.length !== isoCodes.length) {
+      const missing = isoCodes.filter(
+        (c) => !countries.find((co) => co.isoCode === c),
       );
+      throw new NotFoundException(`Country not found: ${missing.join(', ')}`);
     }
 
-    await this.prismaService.$transaction(async (prisma) => {
+    const countryMap = Object.fromEntries(countries.map((c) => [c.isoCode, c.id]));
+
+    const createdId = await this.prismaService.$transaction(async (prisma) => {
       const phone = await prisma.phone.create({
         data: {
           number: phoneNumber.number,
@@ -61,20 +78,25 @@ export class CustomersService extends BaseTenantService {
         },
       });
 
-      await prisma.address.create({
-        data: {
-          street: address.street,
-          city: address.city,
-          village: address.village,
-          postcode: address.postcode,
-          region: address.region,
-          flat: address.flat,
+      await prisma.address.createMany({
+        data: addresses.map((addr, i) => ({
+          street: addr.street,
+          city: addr.city,
+          village: addr.village,
+          postcode: addr.postcode,
+          region: addr.region,
+          flat: addr.flat,
+          isPrimary: i === 0,
           businessId,
           profileId: customerProfile.id,
-          countryId: country.id,
-        },
+          countryId: countryMap[addr.countryIsoCode],
+        })),
       });
+
+      return customerProfile.id;
     });
+
+    return this.findOne(createdId, businessId);
   }
 
   async findAll(
@@ -90,7 +112,6 @@ export class CustomersService extends BaseTenantService {
     const baseWhere = this.getBusinessFilter(businessId);
     const conditions: any[] = [];
 
-    // Search filter: firstName, lastName, or phone number
     if (search) {
       conditions.push({
         OR: [
@@ -107,18 +128,14 @@ export class CustomersService extends BaseTenantService {
 
     if (originCountryId) {
       conditions.push({
-        primaryAddress: {
-          countryId: originCountryId,
-        },
+        addresses: { some: { isPrimary: true, countryId: originCountryId } },
       });
     }
 
-    // Blocked status filter
     if (isBlocked !== undefined) {
       conditions.push({ user: { isBlocked } });
     }
 
-    // Active status filter
     if (isActive !== undefined) {
       conditions.push({ isActive });
     }
@@ -132,7 +149,6 @@ export class CustomersService extends BaseTenantService {
         : baseWhere;
 
     if (page) {
-      // Return paginated results
       const [customersWithPagination, metadata] =
         await prismaWithPagination.customerProfile
           .paginate({
@@ -142,11 +158,7 @@ export class CustomersService extends BaseTenantService {
             where: whereClause,
             include: {
               phoneNumber: true,
-              primaryAddress: {
-                include: {
-                  country: true,
-                },
-              },
+              ...addressInclude,
               user: {
                 select: {
                   id: true,
@@ -176,7 +188,6 @@ export class CustomersService extends BaseTenantService {
         ...metadata,
       };
     } else {
-      // Return all results (no pagination)
       const customerProfiles =
         await this.prismaService.customerProfile.findMany({
           where: whereClause,
@@ -185,11 +196,7 @@ export class CustomersService extends BaseTenantService {
           },
           include: {
             phoneNumber: true,
-            primaryAddress: {
-              include: {
-                country: true,
-              },
-            },
+            ...addressInclude,
             notes: {
               include: {
                 user: true,
@@ -215,11 +222,7 @@ export class CustomersService extends BaseTenantService {
         },
         include: {
           phoneNumber: true,
-          primaryAddress: {
-            include: {
-              country: true,
-            },
-          },
+          ...addressInclude,
           notes: {
             include: {
               user: true,
@@ -275,7 +278,7 @@ export class CustomersService extends BaseTenantService {
       }
 
       if (attrs.address) {
-        const addressUpdateData: Prisma.AddressUpdateInput = {};
+        const addressUpdateData: Prisma.AddressUncheckedUpdateManyInput = {};
 
         if (attrs.address.countryIsoCode) {
           const country = await prisma.country.findUnique({
@@ -286,7 +289,7 @@ export class CustomersService extends BaseTenantService {
               `Country with ISO code ${attrs.address.countryIsoCode} not found`,
             );
           }
-          addressUpdateData.country = { connect: { id: country.id } };
+          addressUpdateData.countryId = country.id;
         }
 
         if (attrs.address.street !== undefined) {
@@ -312,8 +315,24 @@ export class CustomersService extends BaseTenantService {
         }
 
         if (Object.keys(addressUpdateData).length > 0) {
+          const primaryAddress = await prisma.address.findFirst({
+            where: { profileId: id, isPrimary: true },
+          });
+          const addressId = primaryAddress
+            ? primaryAddress.id
+            : (
+                await prisma.address.findFirst({
+                  where: { profileId: id },
+                  orderBy: { id: 'asc' },
+                })
+              )?.id;
+
+          if (!addressId) {
+            throw new NotFoundException('No address found for this customer profile');
+          }
+
           await prisma.address.update({
-            where: { profileId: id },
+            where: { id: addressId },
             data: addressUpdateData,
           });
         }
@@ -378,7 +397,6 @@ export class CustomersService extends BaseTenantService {
   async remove(id: number, businessId: number): Promise<void> {
     await this.validateBusinessAccess(businessId);
 
-    // First check if customer profile belongs to the business
     const profile = await this.prismaService.customerProfile.findUnique({
       where: { id },
       select: { businessId: true },
@@ -392,6 +410,176 @@ export class CustomersService extends BaseTenantService {
       where: {
         id,
       },
+    });
+  }
+
+  async addAddress(
+    customerId: number,
+    dto: AddAddressDto,
+    businessId: number,
+  ): Promise<CustomerProfileDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const profile = await this.prismaService.customerProfile.findUnique({
+      where: { id: customerId },
+      select: { businessId: true, _count: { select: { addresses: true } } },
+    });
+
+    if (!profile || profile.businessId !== businessId) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
+    const country = await this.prismaService.country.findUnique({
+      where: { isoCode: dto.countryIsoCode },
+    });
+
+    if (!country) {
+      throw new NotFoundException(
+        `Country with ISO code ${dto.countryIsoCode} not found`,
+      );
+    }
+
+    const isFirstAddress = profile._count.addresses === 0;
+
+    await this.prismaService.address.create({
+      data: {
+        street: dto.street,
+        city: dto.city,
+        village: dto.village,
+        postcode: dto.postcode,
+        region: dto.region,
+        flat: dto.flat,
+        building: dto.building,
+        block: dto.block,
+        note: dto.note,
+        isPrimary: isFirstAddress ? true : (dto.isPrimary ?? false),
+        businessId,
+        profileId: customerId,
+        countryId: country.id,
+      },
+    });
+
+    return this.findOne(customerId, businessId);
+  }
+
+  async updateAddress(
+    customerId: number,
+    addressId: number,
+    dto: UpdateAddressDto,
+    businessId: number,
+  ): Promise<CustomerProfileDto> {
+    const address = await this.prismaService.address.findFirst({
+      where: { id: addressId, profileId: customerId, businessId },
+    });
+
+    if (!address) {
+      throw new NotFoundException('Address not found');
+    }
+
+    await this.prismaService.$transaction(async (prisma) => {
+      const updateData: Prisma.AddressUncheckedUpdateInput = {};
+
+      if (dto.countryIsoCode) {
+        const country = await prisma.country.findUnique({
+          where: { isoCode: dto.countryIsoCode },
+        });
+        if (!country) {
+          throw new NotFoundException(`Country ${dto.countryIsoCode} not found`);
+        }
+        updateData.countryId = country.id;
+      }
+
+      if (dto.street !== undefined) updateData.street = dto.street;
+      if (dto.city !== undefined) updateData.city = dto.city;
+      if (dto.village !== undefined) updateData.village = dto.village;
+      if (dto.region !== undefined) updateData.region = dto.region;
+      if (dto.postcode !== undefined) updateData.postcode = dto.postcode;
+      if (dto.building !== undefined) updateData.building = dto.building;
+      if (dto.flat !== undefined) updateData.flat = dto.flat;
+
+      if (Object.keys(updateData).length > 0) {
+        await prisma.address.update({ where: { id: addressId }, data: updateData });
+      }
+    });
+
+    return this.findOne(customerId, businessId);
+  }
+
+  async setPrimaryAddress(
+    customerId: number,
+    addressId: number,
+    businessId: number,
+  ): Promise<CustomerProfileDto> {
+    await this.validateBusinessAccess(businessId);
+
+    const profile = await this.prismaService.customerProfile.findUnique({
+      where: { id: customerId },
+      select: { businessId: true },
+    });
+
+    if (!profile || profile.businessId !== businessId) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
+    const address = await this.prismaService.address.findUnique({
+      where: { id: addressId },
+      select: { profileId: true },
+    });
+
+    if (!address || address.profileId !== customerId) {
+      throw new NotFoundException('Address not found for this customer');
+    }
+
+    await this.prismaService.$transaction(async (prisma) => {
+      await prisma.address.updateMany({
+        where: { profileId: customerId },
+        data: { isPrimary: false },
+      });
+      await prisma.address.update({
+        where: { id: addressId },
+        data: { isPrimary: true },
+      });
+    });
+
+    return this.findOne(customerId, businessId);
+  }
+
+  async removeAddress(
+    customerId: number,
+    addressId: number,
+    businessId: number,
+  ): Promise<void> {
+    await this.validateBusinessAccess(businessId);
+
+    const profile = await this.prismaService.customerProfile.findUnique({
+      where: { id: customerId },
+      select: {
+        businessId: true,
+        _count: { select: { addresses: true } },
+      },
+    });
+
+    if (!profile || profile.businessId !== businessId) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
+    const address = await this.prismaService.address.findUnique({
+      where: { id: addressId },
+      select: { profileId: true, isPrimary: true },
+    });
+
+    if (!address || address.profileId !== customerId) {
+      throw new NotFoundException('Address not found for this customer');
+    }
+
+    if (address.isPrimary && profile._count.addresses > 1) {
+      throw new BadRequestException(
+        'Set another address as primary before deleting this one',
+      );
+    }
+
+    await this.prismaService.address.delete({
+      where: { id: addressId },
     });
   }
 

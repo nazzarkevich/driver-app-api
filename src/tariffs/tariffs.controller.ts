@@ -105,8 +105,7 @@ export class TariffsController {
 
   @Get(':id/calculate-price')
   @ApiOperation({
-    summary:
-      'Calculate price for a given weight and parcel type using a tariff',
+    summary: 'Calculate price for a given weight using a tariff',
   })
   @ApiQuery({
     name: 'weight',
@@ -114,22 +113,11 @@ export class TariffsController {
     type: Number,
     description: 'Weight in kilograms',
   })
-  @ApiQuery({
-    name: 'parcelType',
-    required: true,
-    enum: ['Regular', 'Passport', 'Document', 'Money'],
-    description: 'Type of parcel',
-  })
   async calculatePrice(
     @Param('id', ParseIntPipe) id: number,
     @Query('weight', ParseIntPipe) weight: number,
-    @Query('parcelType') parcelType: string,
   ): Promise<{ price: number }> {
-    const price = await this.tariffsService.calculatePrice(
-      weight,
-      id,
-      parcelType,
-    );
+    const price = await this.tariffsService.calculatePrice(id, weight);
     return { price };
   }
 }

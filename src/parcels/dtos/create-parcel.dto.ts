@@ -1,6 +1,5 @@
 import {
   DiscountType,
-  ParcelType,
   PaymentParty,
   PaymentStatus,
 } from '@prisma/client';
@@ -13,8 +12,6 @@ import {
   IsNotEmpty,
 } from 'class-validator';
 
-// TODO: extend parcel details with UA and UK addresses
-// TODO: split tables for UA and UK addresses
 export class CreateParcelDto {
   @IsNumber()
   weight: number;
@@ -37,8 +34,9 @@ export class CreateParcelDto {
   @IsOptional()
   discountType: DiscountType;
 
-  @IsEnum(ParcelType)
-  cargoType: ParcelType;
+  @IsNumber()
+  @IsNotEmpty()
+  parcelTypeId: number;
 
   @IsEnum(PaymentStatus)
   @IsNotEmpty()

@@ -1,4 +1,3 @@
-import { ParcelType } from '@prisma/client';
 import { Exclude, Expose } from 'class-transformer';
 
 @Exclude()
@@ -13,28 +12,37 @@ export class TariffDto {
   description?: string;
 
   @Expose()
-  minimumPrice: number;
-
-  @Expose()
-  pricePerKg?: number;
-
-  @Expose()
-  weightThreshold?: number;
-
-  @Expose()
   currency: string;
-
-  @Expose()
-  isWeightBased: boolean;
-
-  @Expose()
-  parcelTypes: ParcelType[];
 
   @Expose()
   isActive: boolean;
 
   @Expose()
   businessId: number;
+
+  @Expose()
+  parcelTypeId: number | null;
+
+  @Expose()
+  parcelType: { id: number; name: string } | null;
+
+  @Expose()
+  originCountryId: number | null;
+
+  @Expose()
+  originCountry: { id: number; name: string } | null;
+
+  @Expose()
+  minimumPrice: number;
+
+  @Expose()
+  pricePerKg: number | null;
+
+  @Expose()
+  weightThreshold: number | null;
+
+  @Expose()
+  isWeightBased: boolean;
 
   @Expose()
   createdAt: Date;

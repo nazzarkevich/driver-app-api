@@ -14,13 +14,13 @@ export function IsCityOrVillage(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any, args: ValidationArguments) {
           const obj = args.object as any;
+          if (obj.countryIsoCode === 'GB') return true;
           const hasCity = !!obj.city;
           const hasVillage = !!obj.village;
-
-          return hasCity !== hasVillage;
+          return hasCity || hasVillage;
         },
         defaultMessage(args: ValidationArguments) {
-          return 'Either city or village must be provided, but not both';
+          return 'Either city or village must be provided';
         },
       },
     });

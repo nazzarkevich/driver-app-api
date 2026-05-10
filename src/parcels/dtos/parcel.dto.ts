@@ -1,5 +1,4 @@
 import {
-  ParcelType,
   DiscountType,
   DeliveryStatus,
   PaymentStatus,
@@ -31,9 +30,10 @@ export class ParcelDto {
   businessId: number;
   weight: number;
   price: number;
+  calculatedPrice?: number;
   cost: number;
   discount: number;
-  cargoType: ParcelType; // Fixed: was 'type', should match schema
+  parcelTypeId: number;
   discountType: DiscountType;
   trackingNumber: string;
   novaPostTrackingNumber: string;

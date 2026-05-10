@@ -14,6 +14,7 @@ export class CustomerProfileDto {
   phoneNumber: Phone;
   notes?: CustomerNoteDto[];
   address?: AddressWithCountryDto;
+  addresses: AddressWithCountryDto[];
   gender?: Gender | null;
   isActive?: boolean;
   createdAt: Date;
@@ -22,8 +23,16 @@ export class CustomerProfileDto {
   constructor(partial: any) {
     Object.assign(this, partial);
 
-    if (partial?.primaryAddress) {
-      this.address = new AddressWithCountryDto(partial.primaryAddress);
+    if (partial?.addresses) {
+      this.addresses = partial.addresses.map(
+        (a: any) => new AddressWithCountryDto(a),
+      );
+      const primary = partial.addresses.find((a: any) => a.isPrimary);
+      if (primary) this.address = new AddressWithCountryDto(primary);
+    }
+
+    if (partial?.notes) {
+      this.notes = partial.notes.map((n: any) => new CustomerNoteDto(n));
     }
   }
 }

@@ -9,10 +9,9 @@ export class AddressesService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async createAddress(
-    { profileId, countryIsoCode, ...address }: AddAddressDto,
+    { profileId, countryIsoCode, isPrimary, ...address }: AddAddressDto,
     businessId: number,
   ): Promise<void> {
-    // Look up the country by ISO code
     const country = await this.prismaService.country.findUnique({
       where: { isoCode: countryIsoCode },
     });
@@ -21,10 +20,10 @@ export class AddressesService {
       throw new Error(`Country with ISO code ${countryIsoCode} not found`);
     }
 
-    // Use unchecked approach to include businessId
     await this.prismaService.address.create({
       data: {
         ...address,
+        isPrimary: isPrimary ?? false,
         businessId,
         profileId,
         countryId: country.id,

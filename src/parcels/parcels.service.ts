@@ -17,7 +17,7 @@ import { BaseTenantService } from 'src/common/base-tenant.service';
 import { TariffsService } from 'src/tariffs/tariffs.service';
 import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
 import { AuditService } from 'src/audit/audit.service';
-import { AuditAction, DeliveryStatus } from '@prisma/client';
+import { AuditAction, DeliveryStatus, DiscountType } from '@prisma/client';
 
 @Injectable()
 export class ParcelsService extends BaseTenantService {
@@ -50,7 +50,7 @@ export class ParcelsService extends BaseTenantService {
       parcelMoneyAmount,
       discount,
       discountType,
-      cargoType,
+      parcelTypeId,
       paymentStatus,
       paidBy,
       senderId,
@@ -63,13 +63,18 @@ export class ParcelsService extends BaseTenantService {
       tariffId,
     } = body;
 
-    let calculatedPrice = price;
+    let basePrice = price;
     if (tariffId) {
-      calculatedPrice = await this.tariffsService.calculatePrice(
-        weight,
-        tariffId,
-        cargoType,
-      );
+      basePrice = await this.tariffsService.calculatePrice(weight, tariffId);
+    }
+
+    let finalPrice = basePrice;
+    if (discount && discountType && discountType !== DiscountType.None) {
+      if (discountType === DiscountType.Percentage) {
+        finalPrice = parseFloat((basePrice * (1 - discount / 100)).toFixed(2));
+      } else if (discountType === DiscountType.FixedAmount) {
+        finalPrice = parseFloat(Math.max(0, basePrice - discount).toFixed(2));
+      }
     }
 
     const profile = await this.resolveUserProfile(user.id);
@@ -77,12 +82,13 @@ export class ParcelsService extends BaseTenantService {
     const newParcel = await this.prismaService.parcel.create({
       data: {
         weight,
-        price: calculatedPrice,
+        price: finalPrice,
+        calculatedPrice: basePrice,
         cost,
         parcelMoneyAmount,
         discount,
         discountType,
-        cargoType,
+        parcelTypeId,
         paymentStatus,
         paidBy,
         pickupDate: new Date(),
@@ -193,15 +199,6 @@ export class ParcelsService extends BaseTenantService {
       conditions.push({
         destinationAddress: {
           countryId: destinationCountryId,
-        },
-      });
-    }
-
-    if (cargoType && cargoType.trim() !== '') {
-      const cargoTypes = cargoType.split(',').map((type) => type.trim());
-      conditions.push({
-        cargoType: {
-          in: cargoTypes,
         },
       });
     }
@@ -441,13 +438,40 @@ export class ParcelsService extends BaseTenantService {
       throw new Error('Parcel not found');
     }
 
-    Object.assign(parcel, attrs);
+    const updateData: Partial<UpdateParcelDto> & {
+      price?: number;
+      calculatedPrice?: number;
+    } = { ...attrs };
+
+    if (attrs.discount !== undefined || attrs.discountType !== undefined) {
+      const current = await this.prismaService.parcel.findUnique({
+        where: { id },
+        select: {
+          calculatedPrice: true,
+          price: true,
+          discount: true,
+          discountType: true,
+        },
+      });
+      const base = current.calculatedPrice ?? current.price;
+      const discount = attrs.discount ?? current.discount;
+      const discountType = attrs.discountType ?? current.discountType;
+
+      if (discountType === DiscountType.Percentage) {
+        updateData.price = parseFloat((base * (1 - discount / 100)).toFixed(2));
+      } else if (discountType === DiscountType.FixedAmount) {
+        updateData.price = parseFloat(Math.max(0, base - discount).toFixed(2));
+      } else {
+        updateData.price = base;
+      }
+      updateData.calculatedPrice = base;
+    }
 
     const updatedParcel = await this.prismaService.parcel.update({
       where: {
         id,
       },
-      data: attrs,
+      data: updateData,
       include: {
         sender: true,
         recipient: true,
@@ -636,12 +660,31 @@ export class ParcelsService extends BaseTenantService {
       const createdParcels = [];
 
       for (const parcelItem of parcels) {
+        const basePrice = parcelItem.price;
+        let finalPrice = basePrice;
+        if (
+          parcelItem.discount &&
+          parcelItem.discountType &&
+          parcelItem.discountType !== DiscountType.None
+        ) {
+          if (parcelItem.discountType === DiscountType.Percentage) {
+            finalPrice = parseFloat(
+              (basePrice * (1 - parcelItem.discount / 100)).toFixed(2),
+            );
+          } else if (parcelItem.discountType === DiscountType.FixedAmount) {
+            finalPrice = parseFloat(
+              Math.max(0, basePrice - parcelItem.discount).toFixed(2),
+            );
+          }
+        }
+
         const parcel = await tx.parcel.create({
           data: {
             weight: parcelItem.weight,
-            price: parcelItem.price,
+            price: finalPrice,
+            calculatedPrice: basePrice,
             cost: parcelItem.cost,
-            cargoType: parcelItem.cargoType,
+            parcelTypeId: parcelItem.parcelTypeId,
             paymentStatus: parcelItem.paymentStatus,
             paidBy: parcelItem.paidBy,
             tariffId: parcelItem.tariffId,

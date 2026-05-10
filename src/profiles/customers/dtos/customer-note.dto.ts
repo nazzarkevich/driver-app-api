@@ -32,7 +32,9 @@ export class CustomerNoteDto {
     this.content = partial.content;
     this.customerProfileId = partial.customerProfileId;
     this.userId = partial.userId;
-    this.userName = `${partial.user.firstName} ${partial.user.lastName}`;
+    this.userName = partial.user
+      ? `${partial.user.firstName} ${partial.user.lastName}`
+      : '';
     this.createdAt = partial.createdAt;
     this.updatedAt = partial.updatedAt;
   }

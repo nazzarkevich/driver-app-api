@@ -6,10 +6,19 @@ import { CreateTariffDto } from './dtos/create-tariff.dto';
 import { UpdateTariffDto } from './dtos/update-tariff.dto';
 import { TariffDto } from './dtos/tariff.dto';
 
+const tariffInclude = {
+  parcelType: true,
+  originCountry: true,
+};
+
 @Injectable()
 export class TariffsService extends BaseTenantService {
   constructor(prismaService: PrismaService) {
     super(prismaService);
+  }
+
+  private buildTariffDto(tariff: any): TariffDto {
+    return new TariffDto(tariff);
   }
 
   async create(
@@ -23,9 +32,10 @@ export class TariffsService extends BaseTenantService {
         ...createTariffDto,
         businessId: user.businessId,
       },
+      include: tariffInclude,
     });
 
-    return new TariffDto(tariff);
+    return this.buildTariffDto(tariff);
   }
 
   async findAll(
@@ -46,12 +56,13 @@ export class TariffsService extends BaseTenantService {
 
     const tariffs = await this.prismaService.tariff.findMany({
       where: whereClause,
+      include: tariffInclude,
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return tariffs.map((tariff) => new TariffDto(tariff));
+    return tariffs.map((tariff) => this.buildTariffDto(tariff));
   }
 
   async findOne(
@@ -63,13 +74,14 @@ export class TariffsService extends BaseTenantService {
 
     const tariff = await this.prismaService.tariff.findUnique({
       where: { id },
+      include: tariffInclude,
     });
 
     if (!tariff || !this.canAccessBusiness(tariff.businessId, currentUser)) {
       throw new NotFoundException('Tariff not found');
     }
 
-    return new TariffDto(tariff);
+    return this.buildTariffDto(tariff);
   }
 
   async update(
@@ -94,9 +106,10 @@ export class TariffsService extends BaseTenantService {
     const updatedTariff = await this.prismaService.tariff.update({
       where: { id },
       data: updateTariffDto,
+      include: tariffInclude,
     });
 
-    return new TariffDto(updatedTariff);
+    return this.buildTariffDto(updatedTariff);
   }
 
   async remove(
@@ -120,11 +133,7 @@ export class TariffsService extends BaseTenantService {
     });
   }
 
-  async calculatePrice(
-    weight: number,
-    tariffId: number,
-    parcelType: string,
-  ): Promise<number> {
+  async calculatePrice(tariffId: number, weight: number): Promise<number> {
     const tariff = await this.prismaService.tariff.findUnique({
       where: { id: tariffId },
     });
@@ -133,20 +142,14 @@ export class TariffsService extends BaseTenantService {
       throw new NotFoundException('Tariff not found or inactive');
     }
 
-    if (!tariff.parcelTypes.includes(parcelType as any)) {
-      throw new NotFoundException(
-        `Tariff does not support parcel type: ${parcelType}`,
-      );
-    }
-
     if (!tariff.isWeightBased) {
       return tariff.minimumPrice;
     }
 
-    if (weight < tariff.weightThreshold) {
+    if (tariff.weightThreshold && weight <= tariff.weightThreshold) {
       return tariff.minimumPrice;
     }
 
-    return weight * tariff.pricePerKg;
+    return parseFloat((weight * tariff.pricePerKg).toFixed(2));
   }
 }

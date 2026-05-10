@@ -97,6 +97,9 @@ model Business {
   tariffs          Tariff[]
   users            User[]
   vehicles         Vehicle[]
+  parcelTypes      ParcelType[]
+  discountRules    DiscountRule[]
+  pickupRequests   PickupRequest[]
 }
 
 model CustomerProfile {
@@ -111,7 +114,7 @@ model CustomerProfile {
   isActive          Boolean          @default(true)
   novaPostAddressId Int?
   phoneId           Int              @unique
-  primaryAddress    Address?
+  addresses         Address[]
   business          Business         @relation(fields: [businessId], references: [id])
   novaPostAddress   NovaPostAddress? @relation(fields: [novaPostAddressId], references: [id])
   phoneNumber       Phone            @relation(fields: [phoneId], references: [id])
@@ -212,7 +215,9 @@ model Parcel {
   recipientId            Int
   courierJourneyId       Int?
   isDeleted              Boolean           @default(false)
-  cargoType              ParcelType        @default(Regular)
+  parcelTypeId           Int
+  isPriceOverridden      Boolean           @default(false)
+  calculatedPrice        Float?
   cost                   Float
   destinationAddressId   Int
   novaPostAddressId      Int?
@@ -238,11 +243,14 @@ model Parcel {
   deliveredByCourier     CourierProfile?   @relation("DeliveredByCourier", fields: [deliveredByCourierId], references: [id])
   deliveredByDriver      DriverProfile?    @relation("DeliveredByDriver", fields: [deliveredByDriverId], references: [id])
   parcelNotes            ParcelNote[]
+  parcelType             ParcelType        @relation(fields: [parcelTypeId], references: [id])
+  parcelDiscounts        ParcelDiscount[]
 
   @@index([pickedUpByCourierId])
   @@index([pickedUpByDriverId])
   @@index([deliveredByCourierId])
   @@index([deliveredByDriverId])
+  @@index([parcelTypeId])
 }
 
 model Address {
@@ -251,7 +259,8 @@ model Address {
   city               String?
   village            String?
   postcode           String?
-  profileId          Int             @unique
+  profileId          Int
+  isPrimary          Boolean         @default(false)
   block              String?
   building           String?
   countryId          Int
@@ -266,6 +275,7 @@ model Address {
   originParcels      Parcel[]        @relation("originParcels")
 
   @@index([businessId])
+  @@index([profileId])
 }
 
 model Phone {
@@ -367,14 +377,15 @@ model Image {
 }
 
 model Country {
-  id           Int       @id @default(autoincrement())
-  name         String    @unique
-  isoCode      String    @unique
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id           Int          @id @default(autoincrement())
+  name         String       @unique
+  isoCode      String       @unique
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
   address      Address[]
-  journeysFrom Journey[] @relation("JourneyStartCountry")
-  journeysTo   Journey[] @relation("JourneyEndCountry")
+  journeysFrom Journey[]    @relation("JourneyStartCountry")
+  journeysTo   Journey[]    @relation("JourneyEndCountry")
+  tariffs      Tariff[]
 }
 
 model Vehicle {
@@ -422,26 +433,108 @@ model AuditLog {
   @@index([businessId])
 }
 
+model ParcelType {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  description String?
+  icon        String?
+  businessId  Int?
+  isActive    Boolean      @default(true)
+  isDeleted   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  business    Business?    @relation(fields: [businessId], references: [id])
+  tariffs     Tariff[]
+  parcels     Parcel[]
+
+  @@index([businessId])
+}
+
 model Tariff {
   id              Int          @id @default(autoincrement())
   name            String
   description     String?
-  minimumPrice    Float
-  pricePerKg      Float?
-  weightThreshold Float?
   currency        String
-  isWeightBased   Boolean      @default(false)
-  parcelTypes     ParcelType[]
   isActive        Boolean      @default(true)
   businessId      Int
+  isDeleted       Boolean      @default(false)
+
+  parcelTypeId    Int?
+  originCountryId Int?
+  minimumPrice    Float        @default(0)
+  pricePerKg      Float?
+  weightThreshold Float?
+  isWeightBased   Boolean      @default(false)
+
+  business        Business     @relation(fields: [businessId], references: [id])
+  parcelType      ParcelType?  @relation(fields: [parcelTypeId], references: [id])
+  originCountry   Country?     @relation(fields: [originCountryId], references: [id])
+  parcels         Parcel[]
+
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
-  isDeleted       Boolean      @default(false)
-  business        Business     @relation(fields: [businessId], references: [id])
-  parcels         Parcel[]
 
   @@index([businessId])
   @@index([isActive])
+}
+
+model DiscountRule {
+  id               Int              @id @default(autoincrement())
+  name             String
+  businessId       Int
+  discountType     DiscountType
+  value            Float
+  minParcelCount   Int?
+  isForSubscribers Boolean          @default(false)
+  isActive         Boolean          @default(true)
+  startsAt         DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  business         Business         @relation(fields: [businessId], references: [id])
+  parcelDiscounts  ParcelDiscount[]
+
+  @@index([businessId])
+}
+
+model ParcelDiscount {
+  id             Int          @id @default(autoincrement())
+  parcelId       Int
+  discountRuleId Int
+  appliedValue   Float
+  createdAt      DateTime     @default(now())
+  parcel         Parcel       @relation(fields: [parcelId], references: [id])
+  discountRule   DiscountRule @relation(fields: [discountRuleId], references: [id])
+
+  @@index([parcelId])
+  @@index([discountRuleId])
+}
+
+model PickupRequest {
+  id            Int                 @id @default(autoincrement())
+  businessId    Int
+  clientName    String
+  phoneNumber   String
+  postcode      String
+  parcelCount   Int                 @default(1)
+  scheduledDate DateTime
+  status        PickupRequestStatus @default(Pending)
+  notes         String?
+  isDeleted     Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  business      Business            @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, scheduledDate])
+}
+
+enum PickupRequestStatus {
+  Pending
+  Collected
+  Converted
+  Cancelled
 }
 
 enum UserType {
@@ -457,13 +550,6 @@ enum UserType {
 enum Gender {
   Male
   Female
-}
-
-enum ParcelType {
-  Regular
-  Passport
-  Document
-  Money
 }
 
 enum DiscountType {
