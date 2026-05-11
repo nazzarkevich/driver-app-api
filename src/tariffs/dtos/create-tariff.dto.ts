@@ -3,9 +3,11 @@ import {
   IsOptional,
   IsNotEmpty,
   IsBoolean,
-  IsInt,
+  IsEnum,
   IsNumber,
+  IsInt,
 } from 'class-validator';
+import { ParcelType } from '@prisma/client';
 
 export class CreateTariffDto {
   @IsString()
@@ -24,9 +26,9 @@ export class CreateTariffDto {
   @IsOptional()
   isActive?: boolean;
 
-  @IsInt()
+  @IsEnum(ParcelType)
   @IsOptional()
-  parcelTypeId?: number | null;
+  parcelType?: ParcelType | null;
 
   @IsInt()
   @IsOptional()

@@ -1,4 +1,5 @@
 import { Exclude, Expose } from 'class-transformer';
+import { ParcelType } from '@prisma/client';
 
 @Exclude()
 export class TariffDto {
@@ -21,10 +22,7 @@ export class TariffDto {
   businessId: number;
 
   @Expose()
-  parcelTypeId: number | null;
-
-  @Expose()
-  parcelType: { id: number; name: string } | null;
+  parcelType: ParcelType | null;
 
   @Expose()
   originCountryId: number | null;

@@ -1,6 +1,7 @@
 import {
   DiscountType,
   DeliveryStatus,
+  ParcelType,
   PaymentStatus,
   PaymentParty,
 } from '@prisma/client';
@@ -16,7 +17,7 @@ export class ParcelDto {
   calculatedPrice?: number;
   cost: number;
   discount: number;
-  parcelTypeId: number;
+  parcelType: ParcelType;
   discountType: DiscountType;
   trackingNumber: string;
   novaPostTrackingNumber: string;

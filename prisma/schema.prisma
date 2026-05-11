@@ -97,7 +97,6 @@ model Business {
   tariffs          Tariff[]
   users            User[]
   vehicles         Vehicle[]
-  parcelTypes      ParcelType[]
   discountRules    DiscountRule[]
   pickupRequests   PickupRequest[]
 }
@@ -215,7 +214,7 @@ model Parcel {
   recipientId            Int
   courierJourneyId       Int?
   isDeleted              Boolean           @default(false)
-  parcelTypeId           Int
+  parcelType             ParcelType
   isPriceOverridden      Boolean           @default(false)
   calculatedPrice        Float?
   cost                   Float
@@ -242,7 +241,6 @@ model Parcel {
   deliveredByCourier     CourierProfile?   @relation("DeliveredByCourier", fields: [deliveredByCourierId], references: [id])
   deliveredByDriver      DriverProfile?    @relation("DeliveredByDriver", fields: [deliveredByDriverId], references: [id])
   parcelNotes            ParcelNote[]
-  parcelType             ParcelType        @relation(fields: [parcelTypeId], references: [id])
   parcelDiscounts        ParcelDiscount[]
 
   @@index([groupId])
@@ -250,7 +248,6 @@ model Parcel {
   @@index([pickedUpByDriverId])
   @@index([deliveredByCourierId])
   @@index([deliveredByDriverId])
-  @@index([parcelTypeId])
 }
 
 model Address {
@@ -418,22 +415,6 @@ model AuditLog {
   @@index([businessId])
 }
 
-model ParcelType {
-  id          Int          @id @default(autoincrement())
-  name        String       @unique
-  description String?
-  icon        String?
-  businessId  Int?
-  isActive    Boolean      @default(true)
-  isDeleted   Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  business    Business?    @relation(fields: [businessId], references: [id])
-  tariffs     Tariff[]
-  parcels     Parcel[]
-
-  @@index([businessId])
-}
 
 model Tariff {
   id              Int          @id @default(autoincrement())
@@ -444,7 +425,7 @@ model Tariff {
   businessId      Int
   isDeleted       Boolean      @default(false)
 
-  parcelTypeId    Int?
+  parcelType      ParcelType?
   originCountryId Int?
   minimumPrice    Float        @default(0)
   pricePerKg      Float?
@@ -452,7 +433,6 @@ model Tariff {
   isWeightBased   Boolean      @default(false)
 
   business        Business     @relation(fields: [businessId], references: [id])
-  parcelType      ParcelType?  @relation(fields: [parcelTypeId], references: [id])
   originCountry   Country?     @relation(fields: [originCountryId], references: [id])
   parcels         Parcel[]
 
@@ -535,6 +515,13 @@ enum UserType {
 enum Gender {
   Male
   Female
+}
+
+enum ParcelType {
+  Regular
+  Passport
+  Document
+  Money
 }
 
 enum DiscountType {

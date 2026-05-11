@@ -7,7 +7,6 @@ import { UpdateTariffDto } from './dtos/update-tariff.dto';
 import { TariffDto } from './dtos/tariff.dto';
 
 const tariffInclude = {
-  parcelType: true,
   originCountry: true,
 };
 

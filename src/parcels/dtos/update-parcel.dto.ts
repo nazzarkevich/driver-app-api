@@ -1,5 +1,6 @@
 import {
   DiscountType,
+  ParcelType,
   PaymentParty,
   PaymentStatus,
 } from '@prisma/client';
@@ -34,9 +35,9 @@ export class UpdateParcelDto {
   @IsOptional()
   discountType: DiscountType;
 
-  @IsNumber()
+  @IsEnum(ParcelType)
   @IsOptional()
-  parcelTypeId?: number;
+  parcelType?: ParcelType;
 
   @IsEnum(PaymentStatus)
   @IsOptional()

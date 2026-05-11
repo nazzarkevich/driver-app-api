@@ -26,7 +26,6 @@ import { AuthModule } from './auth/auth.module';
 import { TokenRefreshInterceptor } from './interceptors/token-refresh.interceptor';
 import { TariffsModule } from './tariffs/tariffs.module';
 import { CarriersModule } from './carriers/carriers.module';
-import { ParcelTypesModule } from './parcel-types/parcel-types.module';
 import { PickupRequestsModule } from './pickup-requests/pickup-requests.module';
 
 /*
@@ -90,7 +89,6 @@ import { PickupRequestsModule } from './pickup-requests/pickup-requests.module';
     AuditModule,
     TariffsModule,
     CarriersModule,
-    ParcelTypesModule,
     PickupRequestsModule,
   ],
   controllers: [AppController],

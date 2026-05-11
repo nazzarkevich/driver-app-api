@@ -1,12 +1,13 @@
-import { DeliveryStatus, PaymentStatus, PrismaClient } from '@prisma/client';
+import { DeliveryStatus, ParcelType, PaymentStatus, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+const parcelTypes = [ParcelType.Regular, ParcelType.Passport, ParcelType.Document, ParcelType.Money];
 
 export const seedParcels = async (businessId: number) => {
   const addresses = await prisma.address.findMany();
   const customers = await prisma.customerProfile.findMany();
   const journeys = await prisma.journey.findMany();
-  const allParcelTypes = await prisma.parcelType.findMany({ where: { isDeleted: false } });
 
   if (addresses.length < 2) {
     console.log('⚠️  Not enough addresses found, skipping parcel seeding');
@@ -20,11 +21,6 @@ export const seedParcels = async (businessId: number) => {
 
   if (journeys.length === 0) {
     console.log('⚠️  No journeys found, skipping parcel seeding');
-    return;
-  }
-
-  if (allParcelTypes.length === 0) {
-    console.log('⚠️  No parcel types found, skipping parcel seeding');
     return;
   }
 
@@ -48,7 +44,7 @@ export const seedParcels = async (businessId: number) => {
     const parcel = await prisma.parcel.create({
       data: {
         weight: 1.5,
-        parcelType: { connect: { id: allParcelTypes[i % allParcelTypes.length].id } },
+        parcelType: parcelTypes[i % parcelTypes.length],
         trackingNumber,
         price: 10,
         cost: 5,
