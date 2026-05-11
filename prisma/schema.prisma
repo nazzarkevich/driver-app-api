@@ -478,7 +478,7 @@ model ParcelDiscount {
 model PickupRequest {
   id            Int                 @id @default(autoincrement())
   businessId    Int
-  clientName    String
+  customerName  String
   phoneNumber   String
   postcode      String
   parcelCount   Int                 @default(1)

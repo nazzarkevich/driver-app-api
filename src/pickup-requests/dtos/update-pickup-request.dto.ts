@@ -12,7 +12,7 @@ import {
 export class UpdatePickupRequestDto {
   @IsString()
   @IsOptional()
-  clientName?: string;
+  customerName?: string;
 
   @IsString()
   @IsOptional()

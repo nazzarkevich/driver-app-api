@@ -42,7 +42,7 @@ export class PickupRequestsService extends BaseTenantService {
 
     return this.prismaService.pickupRequest.create({
       data: {
-        clientName: dto.clientName,
+        customerName: dto.customerName,
         phoneNumber: dto.phoneNumber,
         postcode: dto.postcode.toUpperCase(),
         parcelCount: dto.parcelCount ?? 1,
@@ -66,7 +66,7 @@ export class PickupRequestsService extends BaseTenantService {
     }
 
     const data: any = {};
-    if (dto.clientName !== undefined) data.clientName = dto.clientName;
+    if (dto.customerName !== undefined) data.customerName = dto.customerName;
     if (dto.phoneNumber !== undefined) data.phoneNumber = dto.phoneNumber;
     if (dto.postcode !== undefined) data.postcode = dto.postcode.toUpperCase();
     if (dto.parcelCount !== undefined) data.parcelCount = dto.parcelCount;

@@ -11,7 +11,7 @@ import {
 export class CreatePickupRequestDto {
   @IsString()
   @IsNotEmpty()
-  clientName: string;
+  customerName: string;
 
   @IsString()
   @IsNotEmpty()
