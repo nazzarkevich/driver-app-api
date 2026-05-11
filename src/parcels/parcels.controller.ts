@@ -21,10 +21,6 @@ import { ParcelsService } from './parcels.service';
 import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { CreateParcelNoteDto } from './dtos/create-parcel-note.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
-import {
-  ConnectedParcelsService,
-  ConnectionType,
-} from './connected-parcels.service';
 import { ParcelDto } from './dtos/parcel.dto';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { SuperAdminGuard } from 'src/guards/super-admin.guard';
@@ -34,10 +30,7 @@ import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
 @ApiTags('Parcel')
 @Controller('parcels')
 export class ParcelsController {
-  constructor(
-    private readonly parcelsService: ParcelsService,
-    private readonly connectedParcelsService: ConnectedParcelsService,
-  ) {}
+  constructor(private readonly parcelsService: ParcelsService) {}
 
   @Post()
   async createParcel(
@@ -275,42 +268,25 @@ export class ParcelsController {
     return this.parcelsService.remove(id, targetBusinessId, currentUser);
   }
 
-  // ========== PARCEL CONNECTIONS ENDPOINTS ==========
-
-  @Get('/:id/connections')
-  async getParcelConnections(
+  @Get('/:id/group')
+  @ApiOperation({ summary: 'Get all parcels in the same group' })
+  @ApiQuery({
+    name: 'businessId',
+    required: false,
+    type: Number,
+    description: 'SuperAdmin only: specify business context',
+  })
+  async getParcelGroup(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
-  ) {
-    return this.connectedParcelsService.getConnectedParcels(id);
-  }
+    @Query() query?: SuperAdminQueryDto,
+  ): Promise<ParcelDto[]> {
+    const targetBusinessId =
+      currentUser.isSuperAdmin && query?.businessId
+        ? query.businessId
+        : currentUser.businessId;
 
-  @Post('/:id/connect/:targetId')
-  async connectParcels(
-    @CurrentUser() currentUser: UserRequestType,
-    @Param('id', ParseIntPipe) id: number,
-    @Param('targetId', ParseIntPipe) targetId: number,
-    @Body() body: { connectionType: ConnectionType },
-  ) {
-    return this.connectedParcelsService.connectParcels(
-      id,
-      targetId,
-      body.connectionType,
-    );
-  }
-
-  @Delete('/:id/disconnect/:targetId')
-  async disconnectParcels(
-    @CurrentUser() currentUser: UserRequestType,
-    @Param('id', ParseIntPipe) id: number,
-    @Param('targetId', ParseIntPipe) targetId: number,
-  ) {
-    return this.connectedParcelsService.disconnectParcels(id, targetId);
-  }
-
-  @Get('/groups/list')
-  async getParcelGroups(@CurrentUser() currentUser: UserRequestType) {
-    return this.connectedParcelsService.getParcelGroups(currentUser.businessId);
+    return this.parcelsService.findGroup(id, targetBusinessId, currentUser);
   }
 
   @Post('/:id/notes')

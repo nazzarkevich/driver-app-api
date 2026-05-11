@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 
 import { ParcelDto } from './dtos/parcel.dto';
 import { ParcelNoteDto } from './dtos/parcel-note.dto';
@@ -9,10 +10,6 @@ import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
 import { UserRequestType } from 'src/users/decorators/current-user.decorator';
-import {
-  ConnectedParcelsService,
-  ConnectionCriteria,
-} from './connected-parcels.service';
 import { BaseTenantService } from 'src/common/base-tenant.service';
 import { TariffsService } from 'src/tariffs/tariffs.service';
 import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
@@ -24,18 +21,11 @@ export class ParcelsService extends BaseTenantService {
   constructor(
     prismaService: PrismaService,
     private readonly usersService: UsersService,
-    private readonly connectedParcelsService: ConnectedParcelsService,
     private readonly tariffsService: TariffsService,
     private readonly auditService: AuditService,
   ) {
     super(prismaService);
   }
-
-  /* 
-    TODO: Question:
-      multiple createParcel requests will create duplicate parcels each with uniq tracking number
-      Not sure what to do with it.
-  */
 
   async createParcel(
     user: UserRequestType,
@@ -65,7 +55,7 @@ export class ParcelsService extends BaseTenantService {
 
     let basePrice = price;
     if (tariffId) {
-      basePrice = await this.tariffsService.calculatePrice(weight, tariffId);
+      basePrice = await this.tariffsService.calculatePrice(tariffId, weight);
     }
 
     let finalPrice = basePrice;
@@ -107,24 +97,6 @@ export class ParcelsService extends BaseTenantService {
         pickedUpAt: new Date(),
       },
     });
-
-    // Auto-connect with similar parcels
-    const connectionCriteria: ConnectionCriteria = {
-      senderId: body.senderId,
-      destinationAddressId: body.destinationAddressId,
-      timeWindow: 24, // Connect parcels created within 24 hours
-      businessId: user.businessId,
-    };
-
-    try {
-      await this.connectedParcelsService.autoConnectParcels(
-        newParcel.id,
-        connectionCriteria,
-      );
-    } catch (error) {
-      // Log error but don't fail parcel creation
-      console.warn('Failed to auto-connect parcel:', error);
-    }
 
     return {
       id: newParcel.id,
@@ -306,14 +278,19 @@ export class ParcelsService extends BaseTenantService {
                   country: true,
                 },
               },
-              business: currentUser?.isSuperAdmin ? true : false, // Include business info for SuperAdmin
+              business: currentUser?.isSuperAdmin ? true : false,
+              _count: {
+                select: { parcelNotes: true },
+              },
             },
           })
           .withPages({ page });
 
-      const parcels = parcelsWithPagination.map(
-        (parcel) => new ParcelDto(parcel),
+      const parcelsWithGroupSize = await this.attachGroupSize(
+        parcelsWithPagination,
       );
+
+      const parcels = parcelsWithGroupSize.map((parcel) => new ParcelDto(parcel));
 
       return {
         items: parcels,
@@ -339,11 +316,12 @@ export class ParcelsService extends BaseTenantService {
               country: true,
             },
           },
-          business: currentUser?.isSuperAdmin ? true : false, // Include business info for SuperAdmin
+          business: currentUser?.isSuperAdmin ? true : false,
         },
       });
 
-      return allParcels.map((parcel) => new ParcelDto(parcel));
+      const parcelsWithGroupSize = await this.attachGroupSize(allParcels);
+      return parcelsWithGroupSize.map((parcel) => new ParcelDto(parcel));
     }
   }
 
@@ -423,7 +401,52 @@ export class ParcelsService extends BaseTenantService {
       throw new NotFoundException('Parcel not found');
     }
 
-    return new ParcelDto(parcel);
+    const groupSize = parcel.groupId
+      ? await this.prismaService.parcel.count({
+          where: { groupId: parcel.groupId, isDeleted: false },
+        })
+      : 1;
+
+    return new ParcelDto({ ...parcel, groupSize });
+  }
+
+  async findGroup(
+    id: number,
+    businessId: number,
+    currentUser?: UserRequestType,
+  ): Promise<ParcelDto[]> {
+    await this.validateBusinessAccess(businessId, currentUser);
+
+    const parcel = await this.prismaService.parcel.findUnique({
+      where: { id },
+      select: { groupId: true, businessId: true },
+    });
+
+    if (!parcel || !this.canAccessBusiness(parcel.businessId, currentUser)) {
+      throw new NotFoundException('Parcel not found');
+    }
+
+    if (!parcel.groupId) {
+      return [];
+    }
+
+    const siblings = await this.prismaService.parcel.findMany({
+      where: {
+        groupId: parcel.groupId,
+        isDeleted: false,
+        NOT: { id },
+      },
+      include: {
+        sender: true,
+        recipient: true,
+        originAddress: { include: { country: true } },
+        destinationAddress: { include: { country: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const groupSize = siblings.length + 1;
+    return siblings.map((p) => new ParcelDto({ ...p, groupSize }));
   }
 
   async update(
@@ -656,6 +679,8 @@ export class ParcelsService extends BaseTenantService {
       parcels,
     } = body;
 
+    const groupId = parcels.length > 1 ? randomUUID() : null;
+
     return await this.prismaService.$transaction(async (tx) => {
       const createdParcels = [];
 
@@ -702,6 +727,7 @@ export class ParcelsService extends BaseTenantService {
             pickupDate,
             businessId: user.businessId,
             trackingNumber: this.generateTrackingNumber(),
+            groupId,
           },
           include: {
             sender: true,
@@ -722,20 +748,6 @@ export class ParcelsService extends BaseTenantService {
         createdParcels.push(parcel);
       }
 
-      if (createdParcels.length > 1) {
-        for (let i = 0; i < createdParcels.length; i++) {
-          for (let j = i + 1; j < createdParcels.length; j++) {
-            await tx.connectedParcel.create({
-              data: {
-                parcelId: createdParcels[i].id,
-                connectedToId: createdParcels[j].id,
-                connectionType: 'batch',
-              },
-            });
-          }
-        }
-      }
-
       await this.auditService.log({
         userId: user.id,
         action: AuditAction.CREATE,
@@ -747,13 +759,40 @@ export class ParcelsService extends BaseTenantService {
           trackingNumbers: createdParcels.map((p) => p.trackingNumber),
           senderId,
           recipientId,
-          linked: createdParcels.length > 1,
+          groupId,
         },
         businessId: user.businessId,
       });
 
-      return createdParcels.map((parcel) => new ParcelDto(parcel));
+      return createdParcels.map((parcel) =>
+        new ParcelDto({ ...parcel, groupSize: createdParcels.length }),
+      );
     });
+  }
+
+  private async attachGroupSize<T extends { groupId?: string | null; id: number }>(
+    parcels: T[],
+  ): Promise<(T & { groupSize: number })[]> {
+    const groupIds = [
+      ...new Set(parcels.map((p) => p.groupId).filter(Boolean)),
+    ] as string[];
+
+    if (groupIds.length === 0) {
+      return parcels.map((p) => ({ ...p, groupSize: 1 }));
+    }
+
+    const counts = await this.prismaService.parcel.groupBy({
+      by: ['groupId'],
+      where: { groupId: { in: groupIds }, isDeleted: false },
+      _count: { id: true },
+    });
+
+    const countMap = new Map(counts.map((c) => [c.groupId, c._count.id]));
+
+    return parcels.map((p) => ({
+      ...p,
+      groupSize: p.groupId ? (countMap.get(p.groupId) ?? 1) : 1,
+    }));
   }
 
   private generateTrackingNumber() {

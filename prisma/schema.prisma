@@ -226,8 +226,7 @@ model Parcel {
   recipientPhoneNumber   String?
   senderPhoneNumber      String?
   tariffId               Int?
-  connectedFrom          ConnectedParcel[] @relation("ConnectedToParcels")
-  connections            ConnectedParcel[] @relation("ParcelConnections")
+  groupId                String?           @db.Uuid
   images                 Image[]
   business               Business          @relation(fields: [businessId], references: [id])
   courierJourney         CourierJourney?   @relation(fields: [courierJourneyId], references: [id])
@@ -246,6 +245,7 @@ model Parcel {
   parcelType             ParcelType        @relation(fields: [parcelTypeId], references: [id])
   parcelDiscounts        ParcelDiscount[]
 
+  @@index([groupId])
   @@index([pickedUpByCourierId])
   @@index([pickedUpByDriverId])
   @@index([deliveredByCourierId])
@@ -300,21 +300,6 @@ model NovaPostAddress {
   parcel             Parcel[]
 }
 
-model ConnectedParcel {
-  id             Int      @id @default(autoincrement())
-  parcelId       Int
-  connectedToId  Int
-  connectionType String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  connectedTo    Parcel   @relation("ConnectedToParcels", fields: [connectedToId], references: [id], onDelete: Cascade, map: "ConnectedParcel_connectedTo_fkey")
-  parcel         Parcel   @relation("ParcelConnections", fields: [parcelId], references: [id], map: "ConnectedParcel_parcel_fkey")
-
-  @@unique([parcelId, connectedToId])
-  @@index([parcelId])
-  @@index([connectedToId])
-  @@index([connectionType])
-}
 
 model CourierJourney {
   id              Int              @id @default(autoincrement())
