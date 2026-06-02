@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
+import { AppName } from 'src/permissions/permissions';
 
 export class SignInDto {
   @ApiProperty({
@@ -15,4 +16,13 @@ export class SignInDto {
   })
   @IsString()
   password: string;
+
+  @ApiPropertyOptional({
+    enum: AppName,
+    description:
+      'App to authenticate for. Returns 403 if the user lacks access.',
+  })
+  @IsOptional()
+  @IsEnum(AppName)
+  app?: AppName;
 }

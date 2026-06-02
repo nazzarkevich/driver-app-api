@@ -3,6 +3,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthProvider, UserType } from '@prisma/client';
 
@@ -15,6 +16,12 @@ import { UserDto } from '../dtos/user.dto';
 import { AuthProfilesService } from '../auth-profiles/auth-profiles.service';
 import { BusinessesService } from 'src/businesses/businesses.service';
 import { TokenStorageService } from 'src/auth/token-storage.service';
+import {
+  ADMIN_EXTRA_PERMISSIONS,
+  AppName,
+  getAllowedApps,
+  ROLE_PERMISSIONS,
+} from 'src/permissions/permissions';
 
 @Injectable()
 export class AuthService {
@@ -42,6 +49,7 @@ export class AuthService {
             phoneNumber: true,
             driverProfile: true,
             courierProfile: true,
+            business: true,
           },
         },
       },
@@ -271,9 +279,10 @@ export class AuthService {
     };
   }
 
-  async signIn({ email, password }: SignInDto): Promise<{
+  async signIn({ email, password, app }: SignInDto): Promise<{
     token: string;
     refreshToken: string;
+    allowedApps: AppName[];
     user: UserDto;
   }> {
     const {
@@ -303,6 +312,7 @@ export class AuthService {
           phoneNumber: true,
           driverProfile: true,
           courierProfile: true,
+          business: true,
         },
       });
 
@@ -326,6 +336,18 @@ export class AuthService {
       throw new UnauthorizedException('User is blocked');
     }
 
+    const rolePermissions = ROLE_PERMISSIONS[user.type] ?? [];
+    const effectivePermissions = user.isAdmin
+      ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
+      : rolePermissions;
+    const allowedApps = user.isSuperAdmin
+      ? Object.values(AppName)
+      : getAllowedApps(effectivePermissions);
+
+    if (app && !allowedApps.includes(app)) {
+      throw new ForbiddenException(`Access to '${app}' is not allowed`);
+    }
+
     const refreshTokenExpiresAt = new Date();
     refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30);
 
@@ -339,6 +361,7 @@ export class AuthService {
     return {
       token: session.access_token,
       refreshToken: session.refresh_token,
+      allowedApps,
       user: new UserDto(user),
     };
   }
@@ -346,7 +369,13 @@ export class AuthService {
   async handleOAuthSignIn(
     provider: string,
     token: string,
-  ): Promise<{ token: string; refreshToken: string; user: UserDto }> {
+    app?: AppName,
+  ): Promise<{
+    token: string;
+    refreshToken: string;
+    allowedApps: AppName[];
+    user: UserDto;
+  }> {
     const { data, error } =
       await this.supabaseService.client.auth.signInWithIdToken({
         provider: provider as any,
@@ -392,6 +421,7 @@ export class AuthService {
           phoneNumber: true,
           driverProfile: true,
           courierProfile: true,
+          business: true,
         },
       });
 
@@ -408,6 +438,18 @@ export class AuthService {
       throw new UnauthorizedException('User is blocked');
     }
 
+    const rolePermissions = ROLE_PERMISSIONS[user.type] ?? [];
+    const effectivePermissions = user.isAdmin
+      ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
+      : rolePermissions;
+    const allowedApps = user.isSuperAdmin
+      ? Object.values(AppName)
+      : getAllowedApps(effectivePermissions);
+
+    if (app && !allowedApps.includes(app)) {
+      throw new ForbiddenException(`Access to '${app}' is not allowed`);
+    }
+
     const refreshTokenExpiresAt = new Date();
     refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30);
 
@@ -421,6 +463,7 @@ export class AuthService {
     return {
       token: data.session.access_token,
       refreshToken: data.session.refresh_token,
+      allowedApps,
       user: new UserDto(user),
     };
   }

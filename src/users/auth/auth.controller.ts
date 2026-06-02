@@ -32,6 +32,12 @@ import { OAuthSignInDto } from '../dtos/oauth-sign-in.dto';
 import { UserType } from '@prisma/client';
 import { RefreshTokenDto } from '../dtos/refresh-token.dto';
 import { SupabaseVerifyGuard } from 'src/guards/supabase-verify.guard';
+import {
+  ADMIN_EXTRA_PERMISSIONS,
+  AppName,
+  getAllowedApps,
+  ROLE_PERMISSIONS,
+} from 'src/permissions/permissions';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -71,7 +77,11 @@ export class AuthController {
   @Public()
   @Post('/oauth')
   async oauthSignIn(@Body() body: OAuthSignInDto) {
-    return this.authService.handleOAuthSignIn(body.provider, body.token);
+    return this.authService.handleOAuthSignIn(
+      body.provider,
+      body.token,
+      body.app,
+    );
   }
 
   @ApiCreatedResponse({
@@ -153,18 +163,25 @@ export class AuthController {
 
   @Get('me')
   async me(@CurrentUser() user: UserRequestType) {
-    const include: any = {
-      phoneNumber: true,
-      business: true,
-    };
+    const include: any = { phoneNumber: true, business: true };
 
-    // Add profile based on user type
     if (user.type === UserType.InternationalDriver) {
       include.driverProfile = true;
     } else if (user.type === UserType.ParcelCourier) {
       include.courierProfile = true;
     }
 
-    return this.usersService.findOne(user.id, include);
+    const userData = await this.usersService.findOne(user.id, include);
+
+    const rolePermissions = ROLE_PERMISSIONS[user.type] ?? [];
+    const effectivePermissions = user.isAdmin
+      ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
+      : rolePermissions;
+
+    const allowedApps = user.isSuperAdmin
+      ? Object.values(AppName)
+      : getAllowedApps(effectivePermissions);
+
+    return { ...userData, allowedApps };
   }
 }

@@ -4,8 +4,6 @@ import { Reflector } from '@nestjs/core';
 import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 import {
   ADMIN_EXTRA_PERMISSIONS,
-  APP_PERMISSION_MAP,
-  AppName,
   Permission,
   ROLE_PERMISSIONS,
 } from 'src/permissions/permissions';
@@ -16,6 +14,15 @@ export class PermissionsGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride('isPublic', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
     const user: UserRequestType = request.currentUser;
 
@@ -31,14 +38,6 @@ export class PermissionsGuard implements CanActivate {
     const effectivePermissions = user.isAdmin
       ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
       : rolePermissions;
-
-    const appName = request.headers['x-app-name'] as AppName | undefined;
-    if (appName && APP_PERMISSION_MAP[appName]) {
-      const appPermission = APP_PERMISSION_MAP[appName];
-      if (!effectivePermissions.includes(appPermission)) {
-        return false;
-      }
-    }
 
     const required = this.reflector.getAllAndOverride<Permission[]>(
       PERMISSIONS_KEY,

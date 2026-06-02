@@ -1,5 +1,6 @@
-import { IsNotEmpty, IsString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { AppName } from 'src/permissions/permissions';
 
 export class OAuthSignInDto {
   @ApiProperty({
@@ -17,4 +18,13 @@ export class OAuthSignInDto {
   @IsNotEmpty()
   @IsString()
   token: string;
+
+  @ApiPropertyOptional({
+    enum: AppName,
+    description:
+      'App to authenticate for. Returns 403 if the user lacks access.',
+  })
+  @IsOptional()
+  @IsEnum(AppName)
+  app?: AppName;
 }

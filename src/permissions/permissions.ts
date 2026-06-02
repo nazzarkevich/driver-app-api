@@ -226,6 +226,12 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   ],
 };
 
+export function getAllowedApps(permissions: Permission[]): AppName[] {
+  return (Object.entries(APP_PERMISSION_MAP) as [AppName, Permission][])
+    .filter(([, permission]) => permissions.includes(permission))
+    .map(([appName]) => appName);
+}
+
 export const ADMIN_EXTRA_PERMISSIONS: Permission[] = [
   Permission.PARCEL_DELETE,
   Permission.JOURNEY_DELETE,
