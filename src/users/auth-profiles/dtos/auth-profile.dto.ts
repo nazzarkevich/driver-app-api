@@ -1,50 +1,46 @@
-import { AuthProfile } from '@prisma/client';
+import { AuthProfile, AuthProvider } from '@prisma/client';
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose } from 'class-transformer';
 
 @Expose()
 export class AuthProfileDto {
-  @ApiProperty({
-    example: 1,
-    description: 'AuthProfile ID',
-  })
+  @ApiProperty({ example: 1, description: 'AuthProfile ID' })
   id: number;
+
+  @ApiProperty({ example: 1, description: 'Linked user ID' })
+  userId: number;
+
+  @ApiProperty({ example: 'Supabase', description: 'Authentication provider' })
+  provider: AuthProvider;
 
   @ApiProperty({
     example: 'abc123-def456-ghi789',
-    description: 'Supabase user ID',
+    description: 'Provider user ID',
   })
-  supabaseId: string;
+  providerId: string;
 
-  @ApiProperty({
-    example: 'email',
-    description: 'Authentication provider (email, google, facebook, etc.)',
-  })
-  provider: string;
+  @ApiProperty({ example: 'user@example.com', nullable: true })
+  email: string | null;
 
-  @ApiProperty({
-    example: '2025-05-15T10:30:00Z',
-    description: 'Last sign-in date and time',
-    nullable: true,
-  })
+  @ApiProperty({ example: '+447950999888', nullable: true })
+  phone: string | null;
+
+  @ApiProperty({ example: '2025-05-15T10:30:00Z', nullable: true })
   lastSignIn: Date | null;
 
-  @ApiProperty({
-    example: '2025-05-01T08:00:00Z',
-    description: 'When the auth profile was created',
-  })
+  @ApiProperty({ example: '2025-05-01T08:00:00Z' })
   createdAt: Date;
 
-  @ApiProperty({
-    example: '2025-05-15T10:30:00Z',
-    description: 'When the auth profile was last updated',
-  })
+  @ApiProperty({ example: '2025-05-15T10:30:00Z' })
   updatedAt: Date;
 
   constructor(authProfile: AuthProfile) {
     this.id = authProfile.id;
-    this.supabaseId = authProfile.supabaseId;
+    this.userId = authProfile.userId;
     this.provider = authProfile.provider;
+    this.providerId = authProfile.providerId;
+    this.email = authProfile.email;
+    this.phone = authProfile.phone;
     this.lastSignIn = authProfile.lastSignIn;
     this.createdAt = authProfile.createdAt;
     this.updatedAt = authProfile.updatedAt;

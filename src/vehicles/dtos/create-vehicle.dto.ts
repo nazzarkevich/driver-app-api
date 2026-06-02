@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength, IsDate } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, IsInt } from 'class-validator';
 
 export class CreateVehicleDto {
   @IsString()
@@ -16,6 +16,6 @@ export class CreateVehicleDto {
   @MinLength(2)
   make: string;
 
-  @IsDate()
-  year: Date;
+  @IsInt()
+  year: number;
 }

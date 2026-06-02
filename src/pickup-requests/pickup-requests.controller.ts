@@ -57,11 +57,7 @@ export class PickupRequestsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdatePickupRequestDto,
   ) {
-    return this.pickupRequestsService.update(
-      id,
-      body,
-      currentUser.businessId,
-    );
+    return this.pickupRequestsService.update(id, body, currentUser.businessId);
   }
 
   @Delete('/:id')

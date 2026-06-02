@@ -22,37 +22,32 @@ export const seedSuperAdmin = async () => {
     },
   });
 
-  // Create SuperAdmin user
-  const superAdmin = await prisma.user.upsert({
-    where: { email: 'superadmin@platform.com' },
-    update: {
-      isSuperAdmin: true,
-      isAdmin: true,
-      businessId: systemBusiness.id,
-    },
-    create: {
-      firstName: 'Super',
-      lastName: 'Admin',
-      email: 'superadmin@platform.com',
-      type: UserType.Moderator,
-      isAdmin: true,
-      isSuperAdmin: true,
-      businessId: systemBusiness.id,
-      dateOfBirth: new Date('1990-01-01'),
-      gender: 'Male',
-      // Note: You'll need to create this user in Supabase separately
-      // and update the supabaseId field
-      supabaseId: null, // Will be updated when Supabase user is created
-    },
+  const existingSuperAdmin = await prisma.user.findFirst({
+    where: { email: 'superadmin@platform.com', businessId: systemBusiness.id },
   });
 
+  const superAdmin = existingSuperAdmin
+    ? await prisma.user.update({
+        where: { id: existingSuperAdmin.id },
+        data: { isSuperAdmin: true, isAdmin: true },
+      })
+    : await prisma.user.create({
+        data: {
+          firstName: 'Super',
+          lastName: 'Admin',
+          email: 'superadmin@platform.com',
+          type: UserType.Moderator,
+          isAdmin: true,
+          isSuperAdmin: true,
+          businessId: systemBusiness.id,
+          dateOfBirth: new Date('1990-01-01'),
+          gender: 'Male',
+        },
+      });
+
   console.log(`✅ System Business created: ID ${systemBusiness.id}`);
-  console.log(
-    `✅ SuperAdmin created: ${superAdmin.email} (ID: ${superAdmin.id})`,
-  );
-  console.log(
-    '⚠️  Remember to create the SuperAdmin user in Supabase and update the supabaseId!',
-  );
+  console.log(`✅ SuperAdmin created: ${superAdmin.email} (ID: ${superAdmin.id})`);
+  console.log('⚠️  Remember to create the SuperAdmin user in Supabase and create an AuthProfile for them!');
 
   return { systemBusiness, superAdmin };
 };

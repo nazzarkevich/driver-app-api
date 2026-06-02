@@ -1,15 +1,17 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuditAction, Prisma } from '@prisma/client';
+import { AuditAction, AuthProvider, Prisma, UserType } from '@prisma/client';
 
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
 import { CustomerProfileDto } from './dtos/customer-profile.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
 import { CustomerNoteDto } from './dtos/customer-note.dto';
+import { GrantAccessDto } from './dtos/grant-access.dto';
 import { AuditService } from 'src/audit/audit.service';
 import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 import { BaseTenantService } from 'src/common/base-tenant.service';
@@ -17,6 +19,7 @@ import { Pagination } from 'src/dtos/pagination.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
 import { AddAddressDto } from 'src/addresses/dtos/add-address.dto';
 import { UpdateAddressDto } from 'src/addresses/dtos/update-address.dto';
+import { SupabaseService } from 'src/supabase/supabase.service';
 
 const addressInclude = {
   addresses: {
@@ -30,6 +33,7 @@ export class CustomersService extends BaseTenantService {
   constructor(
     prismaService: PrismaService,
     private readonly auditService: AuditService,
+    private readonly supabaseService: SupabaseService,
   ) {
     super(prismaService);
   }
@@ -58,7 +62,9 @@ export class CustomersService extends BaseTenantService {
       throw new NotFoundException(`Country not found: ${missing.join(', ')}`);
     }
 
-    const countryMap = Object.fromEntries(countries.map((c) => [c.isoCode, c.id]));
+    const countryMap = Object.fromEntries(
+      countries.map((c) => [c.isoCode, c.id]),
+    );
 
     const createdId = await this.prismaService.$transaction(async (prisma) => {
       const phone = await prisma.phone.create({
@@ -328,7 +334,9 @@ export class CustomersService extends BaseTenantService {
               )?.id;
 
           if (!addressId) {
-            throw new NotFoundException('No address found for this customer profile');
+            throw new NotFoundException(
+              'No address found for this customer profile',
+            );
           }
 
           await prisma.address.update({
@@ -452,7 +460,7 @@ export class CustomersService extends BaseTenantService {
         building: dto.building,
         block: dto.block,
         note: dto.note,
-        isPrimary: isFirstAddress ? true : (dto.isPrimary ?? false),
+        isPrimary: isFirstAddress ? true : dto.isPrimary ?? false,
         businessId,
         profileId: customerId,
         countryId: country.id,
@@ -484,7 +492,9 @@ export class CustomersService extends BaseTenantService {
           where: { isoCode: dto.countryIsoCode },
         });
         if (!country) {
-          throw new NotFoundException(`Country ${dto.countryIsoCode} not found`);
+          throw new NotFoundException(
+            `Country ${dto.countryIsoCode} not found`,
+          );
         }
         updateData.countryId = country.id;
       }
@@ -498,7 +508,10 @@ export class CustomersService extends BaseTenantService {
       if (dto.flat !== undefined) updateData.flat = dto.flat;
 
       if (Object.keys(updateData).length > 0) {
-        await prisma.address.update({ where: { id: addressId }, data: updateData });
+        await prisma.address.update({
+          where: { id: addressId },
+          data: updateData,
+        });
       }
     });
 
@@ -669,5 +682,69 @@ export class CustomersService extends BaseTenantService {
     await this.prismaService.customerNote.delete({
       where: { id: noteId },
     });
+  }
+
+  async grantAccess(
+    customerProfileId: number,
+    dto: GrantAccessDto,
+    currentUser: UserRequestType,
+  ): Promise<CustomerProfileDto> {
+    const profile = await this.prismaService.customerProfile.findUnique({
+      where: { id: customerProfileId },
+      include: { user: true },
+    });
+
+    if (!profile || profile.businessId !== currentUser.businessId) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
+    if (profile.user) {
+      throw new ConflictException(
+        'This customer profile already has an account',
+      );
+    }
+
+    const { data: authData, error } =
+      await this.supabaseService.client.auth.admin.createUser({
+        email: dto.email,
+        password: dto.temporaryPassword,
+        email_confirm: true,
+      });
+
+    if (error || !authData.user) {
+      throw new BadRequestException(
+        error?.message || 'Failed to create Supabase user',
+      );
+    }
+
+    await this.prismaService.$transaction(async (prisma) => {
+      const user = await prisma.user.create({
+        data: {
+          email: dto.email,
+          firstName: profile.firstName ?? null,
+          lastName: profile.lastName ?? null,
+          type: UserType.Customer,
+          businessId: currentUser.businessId,
+          customerProfileId: profile.id,
+        },
+      });
+
+      await prisma.authProfile.create({
+        data: {
+          userId: user.id,
+          provider: AuthProvider.Supabase,
+          providerId: authData.user.id,
+          email: dto.email,
+          lastSignIn: new Date(),
+        },
+      });
+
+      await prisma.customerProfile.update({
+        where: { id: profile.id },
+        data: { email: dto.email },
+      });
+    });
+
+    return this.findOne(customerProfileId, currentUser.businessId);
   }
 }

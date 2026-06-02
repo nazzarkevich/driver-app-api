@@ -4,6 +4,7 @@ import {
   NestInterceptor,
   Injectable,
 } from '@nestjs/common';
+import { AuthProvider } from '@prisma/client';
 import { TokenUtils } from 'src/utils/token.utils';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SupabaseService } from 'src/supabase/supabase.service';
@@ -34,11 +35,16 @@ export class UserInterceptor implements NestInterceptor {
         } = await this.supabaseService.client.auth.getUser(token);
 
         if (!error && user) {
-          // Load user with business context from database
-          const dbUser = await this.prismaService.user.findUnique({
-            where: { supabaseId: user.id },
-            include: { business: true },
+          const authProfile = await this.prismaService.authProfile.findUnique({
+            where: {
+              provider_providerId: {
+                provider: AuthProvider.Supabase,
+                providerId: user.id,
+              },
+            },
+            include: { user: { include: { business: true } } },
           });
+          const dbUser = authProfile?.user ?? null;
 
           if (dbUser && dbUser.business?.isActive) {
             currentUser = {

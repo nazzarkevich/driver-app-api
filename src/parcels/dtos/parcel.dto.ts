@@ -1,5 +1,4 @@
 import {
-  DiscountType,
   DeliveryStatus,
   ParcelType,
   PaymentStatus,
@@ -16,9 +15,7 @@ export class ParcelDto {
   price: number;
   calculatedPrice?: number;
   cost: number;
-  discount: number;
   parcelType: ParcelType;
-  discountType: DiscountType;
   trackingNumber: string;
   novaPostTrackingNumber: string;
   parcelMoneyAmount: number;
@@ -63,8 +60,16 @@ export class ParcelDto {
   originAddress: AddressWithCountryDto;
   destinationAddress: AddressWithCountryDto;
 
-  constructor(partial: Partial<ParcelDto> & Record<string, any>) {
+  constructor(partial: Record<string, any>) {
     Object.assign(this, partial);
+
+    if (partial.weight != null) this.weight = Number(partial.weight);
+    if (partial.price != null) this.price = Number(partial.price);
+    if (partial.calculatedPrice != null)
+      this.calculatedPrice = Number(partial.calculatedPrice);
+    if (partial.cost != null) this.cost = Number(partial.cost);
+    if (partial.parcelMoneyAmount != null)
+      this.parcelMoneyAmount = Number(partial.parcelMoneyAmount);
 
     this.groupId = partial.groupId ?? null;
     this.groupSize = partial.groupSize ?? 1;

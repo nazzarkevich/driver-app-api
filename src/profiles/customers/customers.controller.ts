@@ -20,6 +20,7 @@ import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
 import { CustomerProfileDto } from './dtos/customer-profile.dto';
 import { CreateCustomerNoteDto } from './dtos/create-customer-note.dto';
+import { GrantAccessDto } from './dtos/grant-access.dto';
 import { BusinessAdminGuard } from 'src/guards/business-admin.guard';
 import {
   CurrentUser,
@@ -164,6 +165,21 @@ export class CustomersController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.customersService.remove(id, currentUser.businessId);
+  }
+
+  @Post('/:id/grant-access')
+  @ApiOperation({
+    summary:
+      'Grant account access to a customer (admin creates User + AuthProfile with temporary password)',
+  })
+  @ApiBody({ type: GrantAccessDto })
+  @UseGuards(BusinessAdminGuard)
+  async grantAccess(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: GrantAccessDto,
+  ): Promise<CustomerProfileDto> {
+    return this.customersService.grantAccess(id, body, currentUser);
   }
 
   @Post('/:id/notes')

@@ -141,14 +141,16 @@ export class TariffsService extends BaseTenantService {
       throw new NotFoundException('Tariff not found or inactive');
     }
 
-    if (!tariff.isWeightBased) {
-      return tariff.minimumPrice;
+    if (tariff.pricingType === 'Fixed') {
+      return tariff.fixedPrice
+        ? tariff.fixedPrice.toNumber()
+        : tariff.minimumPrice.toNumber();
     }
 
-    if (tariff.weightThreshold && weight <= tariff.weightThreshold) {
-      return tariff.minimumPrice;
+    if (tariff.weightThreshold && weight <= tariff.weightThreshold.toNumber()) {
+      return tariff.minimumPrice.toNumber();
     }
 
-    return parseFloat((weight * tariff.pricePerKg).toFixed(2));
+    return parseFloat((weight * tariff.pricePerKg.toNumber()).toFixed(2));
   }
 }

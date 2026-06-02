@@ -64,9 +64,7 @@ export class CouriersService {
     });
 
     if (existingUser) {
-      throw new BadRequestException(
-        'User with this email already exists',
-      );
+      throw new BadRequestException('User with this email already exists');
     }
 
     const { data: authData, error: authError } =
@@ -103,11 +101,20 @@ export class CouriersService {
             firstName: dto.firstName,
             lastName: dto.lastName,
             email: dto.email,
-            supabaseId: supabaseUserId,
             type: UserType.ParcelCourier,
             businessId,
             phoneId: phone.id,
             imageId: dto.imageId,
+          },
+        });
+
+        await tx.authProfile.create({
+          data: {
+            userId: user.id,
+            provider: 'Supabase' as any,
+            providerId: supabaseUserId,
+            email: dto.email,
+            lastSignIn: new Date(),
           },
         });
 
@@ -147,10 +154,6 @@ export class CouriersService {
         .catch(() => {});
       throw error;
     }
-
-    this.authProfilesService
-      .createOrUpdate(supabaseUserId, 'email')
-      .catch(() => {});
 
     return new CourierProfileDto(result);
   }
@@ -285,7 +288,6 @@ export class CouriersService {
         user: {
           select: {
             id: true,
-            supabaseId: true,
             phoneId: true,
           },
         },
@@ -335,16 +337,22 @@ export class CouriersService {
     }
 
     if (dto.password) {
-      const { error } =
-        await this.supabaseService.client.auth.admin.updateUserById(
-          profile.user.supabaseId,
-          { password: dto.password },
-        );
+      const authProfile = await this.prismaService.authProfile.findFirst({
+        where: { userId: profile.user.id },
+      });
 
-      if (error) {
-        throw new BadRequestException(
-          error.message || 'Failed to update password',
-        );
+      if (authProfile) {
+        const { error } =
+          await this.supabaseService.client.auth.admin.updateUserById(
+            authProfile.providerId,
+            { password: dto.password },
+          );
+
+        if (error) {
+          throw new BadRequestException(
+            error.message || 'Failed to update password',
+          );
+        }
       }
     }
 

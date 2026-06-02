@@ -5,6 +5,7 @@ import {
   Post,
   Req,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import {
@@ -13,6 +14,7 @@ import {
   ApiCreatedResponse,
   ApiTags,
   ApiOkResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
 import {
@@ -23,11 +25,13 @@ import { AuthService } from './auth.service';
 import { SignInDto } from '../dtos/sign-in.dto';
 import { UsersService } from '../users.service';
 import { CreateUserDto } from '../dtos/create-user.dto';
+import { RegisterCustomerDto } from '../dtos/register-customer.dto';
 import { Public } from 'src/decorators/public.decorator';
 import { UserDto } from '../dtos/user.dto';
 import { OAuthSignInDto } from '../dtos/oauth-sign-in.dto';
 import { UserType } from '@prisma/client';
 import { RefreshTokenDto } from '../dtos/refresh-token.dto';
+import { SupabaseVerifyGuard } from 'src/guards/supabase-verify.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -67,11 +71,7 @@ export class AuthController {
   @Public()
   @Post('/oauth')
   async oauthSignIn(@Body() body: OAuthSignInDto) {
-    return this.authService.handleOAuthSignIn(
-      body.provider,
-      body.token,
-      body.businessId,
-    );
+    return this.authService.handleOAuthSignIn(body.provider, body.token);
   }
 
   @ApiCreatedResponse({
@@ -120,6 +120,24 @@ export class AuthController {
       refreshToken as string,
       accessToken as string,
     );
+  }
+
+  @ApiCreatedResponse({
+    description: 'Customer registered successfully',
+    type: UserDto,
+  })
+  @ApiConflictResponse({
+    description: 'Account already registered or profile already linked',
+  })
+  @ApiBearerAuth()
+  @Public()
+  @UseGuards(SupabaseVerifyGuard)
+  @Post('/register/customer')
+  async registerCustomer(
+    @Body() body: RegisterCustomerDto,
+    @Req() request: Request,
+  ) {
+    return this.authService.registerCustomer(body, request.supabaseUserId);
   }
 
   @ApiOkResponse({

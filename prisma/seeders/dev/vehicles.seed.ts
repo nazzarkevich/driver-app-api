@@ -26,7 +26,7 @@ export const seedVehicles = async (businessId: number) => {
         plateNumber,
         model: 'Mercedes',
         make: 'Sprinter',
-        year: new Date('2020'),
+        year: 2020,
         isActive: true,
         business: { connect: { id: businessId } },
       },

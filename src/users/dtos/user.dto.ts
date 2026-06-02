@@ -23,12 +23,6 @@ export class UserDto {
   isSuperAdmin: boolean;
 
   @ApiProperty({
-    example: 'abc123-def456-ghi789',
-    description: 'Supabase user ID',
-  })
-  supabaseId?: string;
-
-  @ApiProperty({
     example: 'john@gmail.com',
     description: 'Users email address',
   })

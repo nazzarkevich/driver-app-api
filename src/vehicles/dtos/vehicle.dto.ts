@@ -7,7 +7,7 @@ export class VehicleDto {
   plateNumber: string;
   model: string;
   make: string;
-  year: Date;
+  year: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AuthProfile, AuthProvider } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { AuthProfile } from '@prisma/client';
 
 @Injectable()
 export class AuthProfilesService {
@@ -8,34 +8,64 @@ export class AuthProfilesService {
 
   constructor(private readonly prismaService: PrismaService) {}
 
-  async findBySupabaseId(supabaseId: string): Promise<AuthProfile | null> {
+  async findByProviderId(supabaseId: string): Promise<AuthProfile | null> {
     try {
       return await this.prismaService.authProfile.findUnique({
-        where: { supabaseId },
+        where: {
+          provider_providerId: {
+            provider: AuthProvider.Supabase,
+            providerId: supabaseId,
+          },
+        },
       });
     } catch (error) {
       this.logger.error(
-        `Error finding auth profile by supabaseId: ${error.message}`,
+        `Error finding auth profile by providerId: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  async findByUserId(userId: number): Promise<AuthProfile | null> {
+    try {
+      return await this.prismaService.authProfile.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Error finding auth profile by userId: ${error.message}`,
       );
       throw error;
     }
   }
 
   async createOrUpdate(
+    userId: number,
     supabaseId: string,
-    provider: string,
+    provider: AuthProvider,
     lastSignIn?: Date,
+    email?: string,
+    phone?: string,
   ): Promise<AuthProfile> {
     try {
       return await this.prismaService.authProfile.upsert({
-        where: { supabaseId },
+        where: {
+          provider_providerId: {
+            provider,
+            providerId: supabaseId,
+          },
+        },
         update: {
           lastSignIn: lastSignIn || new Date(),
           updatedAt: new Date(),
         },
         create: {
-          supabaseId,
+          userId,
           provider,
+          providerId: supabaseId,
+          email,
+          phone,
           lastSignIn: lastSignIn || new Date(),
         },
       });
@@ -47,17 +77,12 @@ export class AuthProfilesService {
     }
   }
 
-  async updateLastSignIn(supabaseId: string): Promise<AuthProfile> {
+  async updateLastSignIn(supabaseId: string): Promise<void> {
     try {
-      // Add validation for supabaseId
-      if (!supabaseId) {
-        throw new Error('supabaseId is required');
-      }
-
-      this.logger.debug(`Updating last sign-in for supabaseId: ${supabaseId}`);
-
-      // Use the existing createOrUpdate method which already handles this case properly
-      return await this.createOrUpdate(supabaseId, 'email', new Date());
+      await this.prismaService.authProfile.updateMany({
+        where: { providerId: supabaseId, provider: AuthProvider.Supabase },
+        data: { lastSignIn: new Date() },
+      });
     } catch (error) {
       this.logger.error(
         `Error updating last sign-in for supabaseId ${supabaseId}: ${error.message}`,

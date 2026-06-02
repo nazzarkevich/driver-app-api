@@ -1,9 +1,4 @@
-import {
-  DiscountType,
-  ParcelType,
-  PaymentParty,
-  PaymentStatus,
-} from '@prisma/client';
+import { ParcelType, PaymentParty, PaymentStatus } from '@prisma/client';
 import {
   IsOptional,
   IsNumber,
@@ -31,19 +26,7 @@ export class ParcelItemDto {
 
   @IsNumber()
   @IsOptional()
-  tariffId?: number;
-
-  @IsNumber()
-  @IsOptional()
   parcelMoneyAmount?: number;
-
-  @IsNumber()
-  @IsOptional()
-  discount?: number;
-
-  @IsEnum(DiscountType)
-  @IsOptional()
-  discountType?: DiscountType;
 
   @IsBoolean()
   @IsOptional()

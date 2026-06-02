@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
+import { AuthProvider } from '@prisma/client';
 
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -113,16 +114,24 @@ export class SupabaseAuthGuard implements CanActivate {
         return { success: false };
       }
 
-      // Find the user in our database
-      const dbUser = await this.prismaService.user.findUnique({
-        where: { supabaseId: user.id },
+      const authProfile = await this.prismaService.authProfile.findUnique({
+        where: {
+          provider_providerId: {
+            provider: AuthProvider.Supabase,
+            providerId: user.id,
+          },
+        },
         include: {
-          business: true,
+          user: {
+            include: { business: true },
+          },
         },
       });
 
+      const dbUser = authProfile?.user ?? null;
+
       if (!dbUser) {
-        console.log(`❌ User not found with supabaseId: ${user.id}`);
+        console.log(`❌ User not found for Supabase ID: ${user.id}`);
         return { success: false };
       }
 

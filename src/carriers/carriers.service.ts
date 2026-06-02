@@ -70,16 +70,15 @@ export class CarriersService {
       ];
     }
 
-    const [usersWithPagination, metadata] =
-      await prismaWithPagination.user
-        .paginate({
-          where,
-          select: USER_SELECT,
-          orderBy: {
-            createdAt: 'desc',
-          },
-        })
-        .withPages({ page });
+    const [usersWithPagination, metadata] = await prismaWithPagination.user
+      .paginate({
+        where,
+        select: USER_SELECT,
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
+      .withPages({ page });
 
     const carriers = usersWithPagination.map((user) => {
       const isDriver = user.type === UserType.InternationalDriver;

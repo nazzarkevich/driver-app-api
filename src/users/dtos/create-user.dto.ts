@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Gender, UserType } from '@prisma/client';
+import { Gender } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -8,7 +8,6 @@ import {
   IsNotEmpty,
   MinLength,
   IsDate,
-  IsOptional,
   ValidateIf,
 } from 'class-validator';
 
@@ -81,11 +80,4 @@ export class CreateUserDto {
   )
   @IsEnum(Gender)
   gender?: Gender;
-
-  @ApiProperty({
-    example: 'Manager',
-    description: 'Users role',
-  })
-  @IsEnum(UserType)
-  type: UserType;
 }

@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserType } from '@prisma/client';
+import { AuthProvider, UserType } from '@prisma/client';
 import { Request } from 'express';
 
 import { UserDto } from 'src/users/dtos/user.dto';
@@ -37,11 +37,16 @@ export class RolesGuard implements CanActivate {
         return false;
       }
 
-      const dbUser = await this.prismaService.user.findUnique({
+      const authProfile = await this.prismaService.authProfile.findUnique({
         where: {
-          supabaseId: user.id,
+          provider_providerId: {
+            provider: AuthProvider.Supabase,
+            providerId: user.id,
+          },
         },
+        include: { user: true },
       });
+      const dbUser = authProfile?.user ?? null;
 
       if (!dbUser) {
         return false;

@@ -14,7 +14,7 @@ import { BaseTenantService } from 'src/common/base-tenant.service';
 import { TariffsService } from 'src/tariffs/tariffs.service';
 import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
 import { AuditService } from 'src/audit/audit.service';
-import { AuditAction, DeliveryStatus, DiscountType } from '@prisma/client';
+import { AuditAction, DeliveryStatus } from '@prisma/client';
 
 @Injectable()
 export class ParcelsService extends BaseTenantService {
@@ -38,8 +38,6 @@ export class ParcelsService extends BaseTenantService {
       price,
       cost,
       parcelMoneyAmount,
-      discount,
-      discountType,
       parcelType,
       paymentStatus,
       paidBy,
@@ -58,26 +56,15 @@ export class ParcelsService extends BaseTenantService {
       basePrice = await this.tariffsService.calculatePrice(tariffId, weight);
     }
 
-    let finalPrice = basePrice;
-    if (discount && discountType && discountType !== DiscountType.None) {
-      if (discountType === DiscountType.Percentage) {
-        finalPrice = parseFloat((basePrice * (1 - discount / 100)).toFixed(2));
-      } else if (discountType === DiscountType.FixedAmount) {
-        finalPrice = parseFloat(Math.max(0, basePrice - discount).toFixed(2));
-      }
-    }
-
     const profile = await this.resolveUserProfile(user.id);
 
     const newParcel = await this.prismaService.parcel.create({
       data: {
         weight,
-        price: finalPrice,
+        price: basePrice,
         calculatedPrice: basePrice,
         cost,
         parcelMoneyAmount,
-        discount,
-        discountType,
         parcelType,
         paymentStatus,
         paidBy,
@@ -89,7 +76,6 @@ export class ParcelsService extends BaseTenantService {
         journeyId,
         originAddressId,
         destinationAddressId,
-        tariffId,
         businessId: user.businessId,
         trackingNumber: this.generateTrackingNumber(),
         pickedUpByCourierId: profile.courierId,
@@ -290,7 +276,9 @@ export class ParcelsService extends BaseTenantService {
         parcelsWithPagination,
       );
 
-      const parcels = parcelsWithGroupSize.map((parcel) => new ParcelDto(parcel));
+      const parcels = parcelsWithGroupSize.map(
+        (parcel) => new ParcelDto(parcel),
+      );
 
       return {
         items: parcels,
@@ -466,27 +454,16 @@ export class ParcelsService extends BaseTenantService {
       calculatedPrice?: number;
     } = { ...attrs };
 
-    if (attrs.discount !== undefined || attrs.discountType !== undefined) {
+    if (attrs.price !== undefined) {
       const current = await this.prismaService.parcel.findUnique({
         where: { id },
         select: {
           calculatedPrice: true,
           price: true,
-          discount: true,
-          discountType: true,
         },
       });
-      const base = current.calculatedPrice ?? current.price;
-      const discount = attrs.discount ?? current.discount;
-      const discountType = attrs.discountType ?? current.discountType;
-
-      if (discountType === DiscountType.Percentage) {
-        updateData.price = parseFloat((base * (1 - discount / 100)).toFixed(2));
-      } else if (discountType === DiscountType.FixedAmount) {
-        updateData.price = parseFloat(Math.max(0, base - discount).toFixed(2));
-      } else {
-        updateData.price = base;
-      }
+      const base = Number(current.calculatedPrice ?? current.price);
+      updateData.price = attrs.price ?? base;
       updateData.calculatedPrice = base;
     }
 
@@ -686,36 +663,17 @@ export class ParcelsService extends BaseTenantService {
 
       for (const parcelItem of parcels) {
         const basePrice = parcelItem.price;
-        let finalPrice = basePrice;
-        if (
-          parcelItem.discount &&
-          parcelItem.discountType &&
-          parcelItem.discountType !== DiscountType.None
-        ) {
-          if (parcelItem.discountType === DiscountType.Percentage) {
-            finalPrice = parseFloat(
-              (basePrice * (1 - parcelItem.discount / 100)).toFixed(2),
-            );
-          } else if (parcelItem.discountType === DiscountType.FixedAmount) {
-            finalPrice = parseFloat(
-              Math.max(0, basePrice - parcelItem.discount).toFixed(2),
-            );
-          }
-        }
 
         const parcel = await tx.parcel.create({
           data: {
             weight: parcelItem.weight,
-            price: finalPrice,
+            price: basePrice,
             calculatedPrice: basePrice,
             cost: parcelItem.cost,
             parcelType: parcelItem.parcelType,
             paymentStatus: parcelItem.paymentStatus,
             paidBy: parcelItem.paidBy,
-            tariffId: parcelItem.tariffId,
             parcelMoneyAmount: parcelItem.parcelMoneyAmount,
-            discount: parcelItem.discount,
-            discountType: parcelItem.discountType,
             hasBorderCheck: parcelItem.hasBorderCheck,
             senderId,
             recipientId,
@@ -764,15 +722,16 @@ export class ParcelsService extends BaseTenantService {
         businessId: user.businessId,
       });
 
-      return createdParcels.map((parcel) =>
-        new ParcelDto({ ...parcel, groupSize: createdParcels.length }),
+      return createdParcels.map(
+        (parcel) =>
+          new ParcelDto({ ...parcel, groupSize: createdParcels.length }),
       );
     });
   }
 
-  private async attachGroupSize<T extends { groupId?: string | null; id: number }>(
-    parcels: T[],
-  ): Promise<(T & { groupSize: number })[]> {
+  private async attachGroupSize<
+    T extends { groupId?: string | null; id: number },
+  >(parcels: T[]): Promise<(T & { groupSize: number })[]> {
     const groupIds = [
       ...new Set(parcels.map((p) => p.groupId).filter(Boolean)),
     ] as string[];
@@ -791,7 +750,7 @@ export class ParcelsService extends BaseTenantService {
 
     return parcels.map((p) => ({
       ...p,
-      groupSize: p.groupId ? (countMap.get(p.groupId) ?? 1) : 1,
+      groupSize: p.groupId ? countMap.get(p.groupId) ?? 1 : 1,
     }));
   }
 

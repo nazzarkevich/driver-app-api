@@ -8,6 +8,7 @@ declare global {
       tokenWasRefreshed?: boolean;
       currentUser?: UserRequestType;
       user?: any;
+      supabaseUserId?: string;
     }
   }
 }

@@ -9,7 +9,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBusinessDto } from './dtos/create-business.dto';
 import { UpdateBusinessDto } from './dtos/update-business.dto';
 import { CreateBusinessWithAdminDto } from './dtos/create-business-with-admin.dto';
-import { UserType } from '@prisma/client';
+import { AuthProvider, UserType } from '@prisma/client';
 import { SupabaseService } from 'src/supabase/supabase.service';
 
 @Injectable()
@@ -38,7 +38,7 @@ export class BusinessesService {
   ): Promise<BusinessDto> {
     return this.prismaService.$transaction(async (tx) => {
       // Check if admin email already exists
-      const existingUser = await tx.user.findUnique({
+      const existingUser = await tx.user.findFirst({
         where: { email: dto.adminEmail },
       });
 
@@ -73,8 +73,17 @@ export class BusinessesService {
         );
       }
 
-      // Create admin user in our database
-      await tx.user.create({
+      const adminPhone =
+        dto.adminPhoneNumber && dto.adminCountryCode
+          ? await tx.phone.create({
+              data: {
+                number: dto.adminPhoneNumber,
+                countryCode: dto.adminCountryCode,
+              },
+            })
+          : null;
+
+      const adminUser = await tx.user.create({
         data: {
           firstName: dto.adminFirstName,
           lastName: dto.adminLastName,
@@ -82,18 +91,17 @@ export class BusinessesService {
           type: UserType.Manager,
           isAdmin: true,
           businessId: business.id,
-          supabaseId: authData.user.id,
-          phoneId:
-            dto.adminPhoneNumber && dto.adminCountryCode
-              ? (
-                  await tx.phone.create({
-                    data: {
-                      number: dto.adminPhoneNumber,
-                      countryCode: dto.adminCountryCode,
-                    },
-                  })
-                ).id
-              : undefined,
+          phoneId: adminPhone?.id,
+        },
+      });
+
+      await tx.authProfile.create({
+        data: {
+          userId: adminUser.id,
+          provider: AuthProvider.Supabase,
+          providerId: authData.user.id,
+          email: dto.adminEmail,
+          lastSignIn: new Date(),
         },
       });
 

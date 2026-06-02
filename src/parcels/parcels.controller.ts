@@ -122,13 +122,15 @@ export class ParcelsController {
     name: 'courierId',
     required: false,
     type: Number,
-    description: 'Filter parcels by courier (pickedUpByCourierId or deliveredByCourierId)',
+    description:
+      'Filter parcels by courier (pickedUpByCourierId or deliveredByCourierId)',
   })
   @ApiQuery({
     name: 'driverId',
     required: false,
     type: Number,
-    description: 'Filter parcels by driver (pickedUpByDriverId or deliveredByDriverId)',
+    description:
+      'Filter parcels by driver (pickedUpByDriverId or deliveredByDriverId)',
   })
   async findAllParcels(
     @CurrentUser() currentUser: UserRequestType,

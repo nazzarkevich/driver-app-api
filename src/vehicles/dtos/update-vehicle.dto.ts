@@ -1,4 +1,10 @@
-import { IsString, IsOptional, MinLength, IsDate, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  MinLength,
+  IsInt,
+  IsBoolean,
+} from 'class-validator';
 
 export class UpdateVehicleDto {
   @IsString()
@@ -16,9 +22,9 @@ export class UpdateVehicleDto {
   @MinLength(2)
   make?: string;
 
-  @IsDate()
+  @IsInt()
   @IsOptional()
-  year?: Date;
+  year?: number;
 
   @IsBoolean()
   @IsOptional()
