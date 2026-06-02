@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AppService } from './app.service';
 import { SupabaseAuthGuard } from './guards/supabase-auth.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
 import { AppController } from './app.controller';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -109,6 +110,10 @@ import { PickupRequestsModule } from './pickup-requests/pickup-requests.module';
     {
       provide: APP_GUARD,
       useClass: SupabaseAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionsGuard,
     },
     CourierJourneysService,
     Logger,

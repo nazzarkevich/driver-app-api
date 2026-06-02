@@ -11,20 +11,19 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { UserType } from '@prisma/client';
 import { ApiTags } from '@nestjs/swagger';
 
 import { UserDto } from './dtos/user.dto';
 import { UsersService } from './users.service';
-import { AdminGuard } from 'src/guards/admin.guard';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { UpdateUserDto } from './dtos/update-user.dto';
-import { Roles } from 'src/decorators/roles.decorator';
 import {
   CurrentUser,
   UserRequestType,
 } from './decorators/current-user.decorator';
 import { SupabaseAuthGuard } from 'src/guards/supabase-auth.guard';
+import { Permissions } from 'src/decorators/permissions.decorator';
+import { Permission } from 'src/permissions/permissions';
 
 @ApiTags('User')
 @Controller('users')
@@ -32,7 +31,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @Roles(UserType.Manager, UserType.InternationalDriver, UserType.ParcelCourier)
+  @Permissions(Permission.USER_READ)
   async getAllUsers(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   ): Promise<Pagination<UserDto>> {
@@ -42,7 +41,7 @@ export class UsersController {
   }
 
   @Get('/:id')
-  @Roles(UserType.Manager, UserType.InternationalDriver, UserType.ParcelCourier)
+  @Permissions(Permission.USER_READ)
   findUser(@Param('id', ParseIntPipe) id: number): Promise<UserDto> {
     return this.usersService.findOne(id);
   }
@@ -63,7 +62,7 @@ export class UsersController {
   }
 
   @Delete('/:id')
-  @UseGuards(AdminGuard)
+  @Permissions(Permission.USER_DELETE)
   removeUser(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.usersService.remove(id);
   }

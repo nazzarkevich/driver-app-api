@@ -16,6 +16,8 @@ import {
   CurrentUser,
   UserRequestType,
 } from 'src/users/decorators/current-user.decorator';
+import { Permissions } from 'src/decorators/permissions.decorator';
+import { Permission } from 'src/permissions/permissions';
 
 @ApiTags('Vehicle')
 @Controller('vehicles')
@@ -23,6 +25,7 @@ export class VehiclesController {
   constructor(private readonly vehiclesService: VehiclesService) {}
 
   @Post()
+  @Permissions(Permission.VEHICLE_CREATE)
   createVehicle(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateVehicleDto,
@@ -31,11 +34,13 @@ export class VehiclesController {
   }
 
   @Get()
+  @Permissions(Permission.VEHICLE_READ)
   findAllVehicles(@CurrentUser() currentUser: UserRequestType) {
     return this.vehiclesService.findAll(currentUser.businessId);
   }
 
   @Get('/:id')
+  @Permissions(Permission.VEHICLE_READ)
   findVehicle(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
@@ -44,6 +49,7 @@ export class VehiclesController {
   }
 
   @Put('/:id')
+  @Permissions(Permission.VEHICLE_UPDATE)
   updateVehicle(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,

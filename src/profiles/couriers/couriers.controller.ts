@@ -10,12 +10,9 @@ import {
   Post,
   Put,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 
-import { AdminGuard } from 'src/guards/admin.guard';
-import { BusinessAdminGuard } from 'src/guards/business-admin.guard';
 import { CouriersService } from './couriers.service';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { CourierProfileDto } from './dtos/courier-profile.dto';
@@ -26,10 +23,8 @@ import {
   CurrentUser,
   UserRequestType,
 } from 'src/users/decorators/current-user.decorator';
-
-// TODO: Question: how to create Audit table to store all the actions
-
-// TODO: create a new table with courier journeys which includes parcels
+import { Permissions } from 'src/decorators/permissions.decorator';
+import { Permission } from 'src/permissions/permissions';
 
 @ApiTags('Courier')
 @Controller('couriers')
@@ -37,6 +32,7 @@ export class CouriersController {
   constructor(private readonly couriersService: CouriersService) {}
 
   @Post()
+  @Permissions(Permission.COURIER_PROFILE_CREATE)
   async createCourierProfile(
     @Body() body: CreateCourierProfileDto,
   ): Promise<void> {
@@ -44,6 +40,7 @@ export class CouriersController {
   }
 
   @Post('create-with-user')
+  @Permissions(Permission.COURIER_PROFILE_CREATE)
   @ApiOperation({ summary: 'Create a new courier with user profile' })
   @ApiBody({
     type: CreateCourierWithUserDto,
@@ -74,6 +71,7 @@ export class CouriersController {
   }
 
   @Get()
+  @Permissions(Permission.COURIER_PROFILE_READ)
   async getAllCouriersProfiles(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   ): Promise<Pagination<CourierProfileDto>> {
@@ -81,6 +79,7 @@ export class CouriersController {
   }
 
   @Get('/:id')
+  @Permissions(Permission.COURIER_PROFILE_READ)
   async getCourierProfile(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<CourierProfileDto> {
@@ -88,6 +87,7 @@ export class CouriersController {
   }
 
   @Put('/:id')
+  @Permissions(Permission.COURIER_PROFILE_UPDATE)
   async updateCourierProfile(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateCourierProfileDto,
@@ -96,7 +96,7 @@ export class CouriersController {
   }
 
   @Patch('/:id/block')
-  @UseGuards(BusinessAdminGuard)
+  @Permissions(Permission.COURIER_PROFILE_BLOCK)
   async toggleBlockCourier(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: UserRequestType,
@@ -105,7 +105,7 @@ export class CouriersController {
   }
 
   @Delete()
-  @UseGuards(AdminGuard)
+  @Permissions(Permission.COURIER_PROFILE_DELETE)
   removeCourierProfile(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.couriersService.removeCourierProfile(id);
   }

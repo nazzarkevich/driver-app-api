@@ -13,6 +13,9 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
+import { Permissions } from 'src/decorators/permissions.decorator';
+import { Permission } from 'src/permissions/permissions';
+
 import {
   CurrentUser,
   UserRequestType,
@@ -27,6 +30,7 @@ export class PickupRequestsController {
   constructor(private readonly pickupRequestsService: PickupRequestsService) {}
 
   @Get()
+  @Permissions(Permission.PICKUP_REQUEST_READ)
   @ApiOperation({ summary: 'Get pickup requests, optionally filtered by date' })
   @ApiQuery({
     name: 'date',
@@ -42,6 +46,7 @@ export class PickupRequestsController {
   }
 
   @Post()
+  @Permissions(Permission.PICKUP_REQUEST_CREATE)
   @ApiOperation({ summary: 'Create a new pickup request' })
   create(
     @CurrentUser() currentUser: UserRequestType,
@@ -51,6 +56,7 @@ export class PickupRequestsController {
   }
 
   @Patch('/:id')
+  @Permissions(Permission.PICKUP_REQUEST_UPDATE)
   @ApiOperation({ summary: 'Update a pickup request' })
   update(
     @CurrentUser() currentUser: UserRequestType,
@@ -61,6 +67,7 @@ export class PickupRequestsController {
   }
 
   @Delete('/:id')
+  @Permissions(Permission.PICKUP_REQUEST_DELETE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft delete a pickup request' })
   remove(

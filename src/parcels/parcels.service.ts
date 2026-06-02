@@ -14,7 +14,13 @@ import { BaseTenantService } from 'src/common/base-tenant.service';
 import { TariffsService } from 'src/tariffs/tariffs.service';
 import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
 import { AuditService } from 'src/audit/audit.service';
-import { AuditAction, DeliveryStatus } from '@prisma/client';
+import { AuditAction, DeliveryStatus, UserType } from '@prisma/client';
+
+const CUSTOMER_TYPES: UserType[] = [
+  UserType.Customer,
+  UserType.Member,
+  UserType.Subscriber,
+];
 
 @Injectable()
 export class ParcelsService extends BaseTenantService {
@@ -112,6 +118,24 @@ export class ParcelsService extends BaseTenantService {
 
     const baseWhere = this.getBusinessWhere(businessId, {}, currentUser);
     const conditions: any[] = [];
+
+    if (currentUser && CUSTOMER_TYPES.includes(currentUser.type)) {
+      const user = await this.prismaService.user.findUnique({
+        where: { id: currentUser.id },
+        select: { customerProfileId: true },
+      });
+
+      if (!user?.customerProfileId) {
+        return [];
+      }
+
+      conditions.push({
+        OR: [
+          { senderId: user.customerProfileId },
+          { recipientId: user.customerProfileId },
+        ],
+      });
+    }
 
     if (deliveryStatus && deliveryStatus.trim() !== '') {
       conditions.push({ deliveryStatus: deliveryStatus });

@@ -12,6 +12,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiQuery, ApiOperation, ApiBody } from '@nestjs/swagger';
 
+import { Permissions } from 'src/decorators/permissions.decorator';
+import { Permission } from 'src/permissions/permissions';
+
 import { JourneyDto } from './dtos/journey.dto';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { JourneysService } from './journeys.service';
@@ -31,6 +34,7 @@ export class JourneysController {
   constructor(private readonly journeysService: JourneysService) {}
 
   @Post()
+  @Permissions(Permission.JOURNEY_CREATE)
   async createJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateJourneyDto,
@@ -39,6 +43,7 @@ export class JourneysController {
   }
 
   @Get('/available-vehicles')
+  @Permissions(Permission.JOURNEY_CREATE)
   @ApiQuery({
     name: 'date',
     required: true,
@@ -57,6 +62,7 @@ export class JourneysController {
   }
 
   @Get('/:id')
+  @Permissions(Permission.JOURNEY_READ)
   async findJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
@@ -65,6 +71,7 @@ export class JourneysController {
   }
 
   @Get()
+  @Permissions(Permission.JOURNEY_READ)
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'isCompleted', required: false, type: Boolean })
   @ApiQuery({ name: 'driverProfileId', required: false, type: Number })
@@ -133,19 +140,17 @@ export class JourneysController {
   }
 
   @Put('/:id')
+  @Permissions(Permission.JOURNEY_UPDATE)
   updateJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateJourneyDto,
   ): Promise<JourneyDto> {
-    // TODO: Add permission
-    // 1) user can edit their details
-    // 2) Admin can edit all users details
-
     return this.journeysService.update(id, body, currentUser.businessId);
   }
 
   @Delete('/:id')
+  @Permissions(Permission.JOURNEY_DELETE)
   async removeJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
@@ -154,6 +159,7 @@ export class JourneysController {
   }
 
   @Get('/:journeyId/parcels')
+  @Permissions(Permission.JOURNEY_READ)
   async findJourneyParcels(
     @CurrentUser() currentUser: UserRequestType,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -167,6 +173,7 @@ export class JourneysController {
   }
 
   @Post('/:id/notes')
+  @Permissions(Permission.JOURNEY_NOTE_CREATE)
   @ApiOperation({ summary: 'Add a note to journey' })
   @ApiBody({ type: CreateJourneyNoteDto })
   addNote(
@@ -183,6 +190,7 @@ export class JourneysController {
   }
 
   @Get('/:id/notes')
+  @Permissions(Permission.JOURNEY_NOTE_READ)
   @ApiOperation({ summary: 'Get all notes for a journey' })
   getNotes(
     @CurrentUser() currentUser: UserRequestType,
@@ -192,6 +200,7 @@ export class JourneysController {
   }
 
   @Delete('/:id/notes/:noteId')
+  @Permissions(Permission.JOURNEY_NOTE_DELETE)
   @ApiOperation({ summary: 'Delete a note from journey' })
   deleteNote(
     @CurrentUser() currentUser: UserRequestType,

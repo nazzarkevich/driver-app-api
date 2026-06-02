@@ -2,28 +2,26 @@ import {
   Controller,
   Get,
   Query,
-  UseGuards,
   DefaultValuePipe,
   ParseIntPipe,
   Param,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { UserType } from '@prisma/client';
 import { AuditService } from './audit.service';
-import { Roles } from '../decorators/roles.decorator';
 import {
   CurrentUser,
   UserRequestType,
 } from '../users/decorators/current-user.decorator';
+import { Permissions } from 'src/decorators/permissions.decorator';
+import { Permission } from 'src/permissions/permissions';
 
 @ApiTags('Audit')
 @Controller('audit')
-@UseGuards() // You might want to add specific guards here
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
   @Get('logs')
-  @Roles(UserType.Manager, UserType.Moderator)
+  @Permissions(Permission.AUDIT_READ)
   @ApiOperation({ summary: 'Get audit logs' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
@@ -66,7 +64,7 @@ export class AuditController {
   }
 
   @Get('logs/user/:userId')
-  @Roles(UserType.Manager, UserType.Moderator)
+  @Permissions(Permission.AUDIT_READ)
   @ApiOperation({ summary: 'Get audit logs for specific user' })
   async getUserAuditLogs(
     @CurrentUser() currentUser: UserRequestType,
@@ -92,7 +90,7 @@ export class AuditController {
   }
 
   @Get('stats')
-  @Roles(UserType.Manager, UserType.Moderator)
+  @Permissions(Permission.AUDIT_READ)
   @ApiOperation({ summary: 'Get audit statistics' })
   async getAuditStats(@CurrentUser() currentUser: UserRequestType) {
     // This is a placeholder for audit statistics

@@ -11,7 +11,6 @@ import {
   Post,
   Put,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiQuery, ApiOperation, ApiBody } from '@nestjs/swagger';
 
@@ -21,7 +20,6 @@ import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
 import { CustomerProfileDto } from './dtos/customer-profile.dto';
 import { CreateCustomerNoteDto } from './dtos/create-customer-note.dto';
 import { GrantAccessDto } from './dtos/grant-access.dto';
-import { BusinessAdminGuard } from 'src/guards/business-admin.guard';
 import {
   CurrentUser,
   UserRequestType,
@@ -29,6 +27,8 @@ import {
 import { Pagination } from 'src/dtos/pagination.dto';
 import { AddAddressDto } from 'src/addresses/dtos/add-address.dto';
 import { UpdateAddressDto } from 'src/addresses/dtos/update-address.dto';
+import { Permissions } from 'src/decorators/permissions.decorator';
+import { Permission } from 'src/permissions/permissions';
 
 @ApiTags('Customer Profile')
 @Controller('customers')
@@ -36,6 +36,7 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Post()
+  @Permissions(Permission.CUSTOMER_CREATE)
   @ApiOperation({ summary: 'Create a new customer profile' })
   @ApiBody({
     type: CreateCustomerProfileDto,
@@ -71,6 +72,7 @@ export class CustomersController {
   }
 
   @Get()
+  @Permissions(Permission.CUSTOMER_READ)
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({
     name: 'search',
@@ -124,6 +126,7 @@ export class CustomersController {
   }
 
   @Get('/:id')
+  @Permissions(Permission.CUSTOMER_READ)
   async findCustomer(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
@@ -137,20 +140,17 @@ export class CustomersController {
   }
 
   @Put('/:id')
+  @Permissions(Permission.CUSTOMER_UPDATE)
   updateCustomer(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateCustomerProfileDto,
   ) {
-    // TODO: Add permission
-    // 1) user can edit their details
-    // 2) Admin can edit all users details
-
     return this.customersService.update(id, body, currentUser.businessId);
   }
 
   @Patch('/:id/block')
-  @UseGuards(BusinessAdminGuard)
+  @Permissions(Permission.CUSTOMER_BLOCK)
   async toggleBlockCustomer(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: UserRequestType,
@@ -159,7 +159,7 @@ export class CustomersController {
   }
 
   @Delete('/:id')
-  @UseGuards(BusinessAdminGuard)
+  @Permissions(Permission.CUSTOMER_DELETE)
   removeCustomer(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
@@ -168,12 +168,12 @@ export class CustomersController {
   }
 
   @Post('/:id/grant-access')
+  @Permissions(Permission.CUSTOMER_GRANT_ACCESS)
   @ApiOperation({
     summary:
       'Grant account access to a customer (admin creates User + AuthProfile with temporary password)',
   })
   @ApiBody({ type: GrantAccessDto })
-  @UseGuards(BusinessAdminGuard)
   async grantAccess(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
@@ -183,6 +183,7 @@ export class CustomersController {
   }
 
   @Post('/:id/notes')
+  @Permissions(Permission.CUSTOMER_NOTE_CREATE)
   @ApiOperation({ summary: 'Add a note to customer profile' })
   @ApiBody({ type: CreateCustomerNoteDto })
   addNote(
@@ -199,6 +200,7 @@ export class CustomersController {
   }
 
   @Get('/:id/notes')
+  @Permissions(Permission.CUSTOMER_NOTE_READ)
   @ApiOperation({ summary: 'Get all notes for a customer profile' })
   getNotes(
     @CurrentUser() currentUser: UserRequestType,
@@ -211,6 +213,7 @@ export class CustomersController {
   }
 
   @Delete('/:id/notes/:noteId')
+  @Permissions(Permission.CUSTOMER_NOTE_DELETE)
   @ApiOperation({ summary: 'Delete a note from customer profile' })
   deleteNote(
     @CurrentUser() currentUser: UserRequestType,
@@ -225,6 +228,7 @@ export class CustomersController {
   }
 
   @Post('/:id/addresses')
+  @Permissions(Permission.CUSTOMER_ADDRESS_CREATE)
   @ApiOperation({ summary: 'Add an address to a customer profile' })
   @ApiBody({ type: AddAddressDto })
   addAddress(
@@ -240,6 +244,7 @@ export class CustomersController {
   }
 
   @Patch('/:id/addresses/:addressId')
+  @Permissions(Permission.CUSTOMER_ADDRESS_UPDATE)
   @ApiOperation({ summary: 'Update an address of a customer profile' })
   updateAddress(
     @CurrentUser() currentUser: UserRequestType,
@@ -256,6 +261,7 @@ export class CustomersController {
   }
 
   @Patch('/:id/addresses/:addressId/primary')
+  @Permissions(Permission.CUSTOMER_ADDRESS_UPDATE)
   @ApiOperation({ summary: 'Set an address as primary for a customer profile' })
   setPrimaryAddress(
     @CurrentUser() currentUser: UserRequestType,
@@ -270,6 +276,7 @@ export class CustomersController {
   }
 
   @Delete('/:id/addresses/:addressId')
+  @Permissions(Permission.CUSTOMER_ADDRESS_DELETE)
   @ApiOperation({ summary: 'Remove an address from a customer profile' })
   @HttpCode(HttpStatus.NO_CONTENT)
   removeAddress(

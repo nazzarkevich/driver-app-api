@@ -26,6 +26,8 @@ import { Pagination } from 'src/dtos/pagination.dto';
 import { SuperAdminGuard } from 'src/guards/super-admin.guard';
 import { SuperAdminQueryDto } from 'src/dtos/super-admin-query.dto';
 import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
+import { Permissions } from 'src/decorators/permissions.decorator';
+import { Permission } from 'src/permissions/permissions';
 
 @ApiTags('Parcel')
 @Controller('parcels')
@@ -33,6 +35,7 @@ export class ParcelsController {
   constructor(private readonly parcelsService: ParcelsService) {}
 
   @Post()
+  @Permissions(Permission.PARCEL_CREATE)
   async createParcel(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateParcelDto,
@@ -41,6 +44,7 @@ export class ParcelsController {
   }
 
   @Post('bulk')
+  @Permissions(Permission.PARCEL_CREATE)
   async createBulkParcels(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateBulkParcelsDto,
@@ -49,6 +53,7 @@ export class ParcelsController {
   }
 
   @Get()
+  @Permissions(Permission.PARCEL_READ)
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({
     name: 'businessId',
@@ -210,6 +215,7 @@ export class ParcelsController {
   }
 
   @Get('/:id')
+  @Permissions(Permission.PARCEL_READ)
   @ApiQuery({
     name: 'businessId',
     required: false,
@@ -230,6 +236,7 @@ export class ParcelsController {
   }
 
   @Put('/:id')
+  @Permissions(Permission.PARCEL_UPDATE)
   @ApiQuery({
     name: 'businessId',
     required: false,
@@ -251,6 +258,7 @@ export class ParcelsController {
   }
 
   @Delete('/:id')
+  @Permissions(Permission.PARCEL_DELETE)
   @ApiQuery({
     name: 'businessId',
     required: false,
@@ -271,6 +279,7 @@ export class ParcelsController {
   }
 
   @Get('/:id/group')
+  @Permissions(Permission.PARCEL_READ)
   @ApiOperation({ summary: 'Get all parcels in the same group' })
   @ApiQuery({
     name: 'businessId',
@@ -292,6 +301,7 @@ export class ParcelsController {
   }
 
   @Post('/:id/notes')
+  @Permissions(Permission.PARCEL_NOTE_CREATE)
   @ApiOperation({ summary: 'Add a note to parcel' })
   @ApiBody({ type: CreateParcelNoteDto })
   addNote(
@@ -308,6 +318,7 @@ export class ParcelsController {
   }
 
   @Get('/:id/notes')
+  @Permissions(Permission.PARCEL_NOTE_READ)
   @ApiOperation({ summary: 'Get all notes for a parcel' })
   getNotes(
     @CurrentUser() currentUser: UserRequestType,
@@ -317,6 +328,7 @@ export class ParcelsController {
   }
 
   @Delete('/:id/notes/:noteId')
+  @Permissions(Permission.PARCEL_NOTE_DELETE)
   @ApiOperation({ summary: 'Delete a note from parcel' })
   deleteNote(
     @CurrentUser() currentUser: UserRequestType,
@@ -331,6 +343,7 @@ export class ParcelsController {
   }
 
   @Put('/:id/mark-delivered')
+  @Permissions(Permission.PARCEL_MARK_DELIVERED)
   @ApiOperation({ summary: 'Mark parcel as delivered' })
   markAsDelivered(
     @CurrentUser() currentUser: UserRequestType,

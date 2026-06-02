@@ -12,6 +12,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 
+import { Permissions } from 'src/decorators/permissions.decorator';
+import { Permission } from 'src/permissions/permissions';
+
 import { Pagination } from 'src/dtos/pagination.dto';
 import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
 import { CourierJourneyDto } from './dtos/courier-journey.dto';
@@ -32,6 +35,7 @@ export class CourierJourneysController {
   ) {}
 
   @Post()
+  @Permissions(Permission.COURIER_JOURNEY_CREATE)
   async createCourierJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateCourierJourneyDto,
@@ -43,6 +47,7 @@ export class CourierJourneysController {
   }
 
   @Get('/:id')
+  @Permissions(Permission.COURIER_JOURNEY_READ)
   async findCourierJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
@@ -51,24 +56,23 @@ export class CourierJourneysController {
   }
 
   @Get()
+  @Permissions(Permission.COURIER_JOURNEY_READ)
   async findAllCourierJourneys(@CurrentUser() currentUser: UserRequestType) {
     return this.courierJourneysService.findAll(currentUser.businessId);
   }
 
   @Put('/:id')
+  @Permissions(Permission.COURIER_JOURNEY_UPDATE)
   updateCourierJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateCourierJourneyDto,
   ): Promise<CourierJourneyDto> {
-    // TODO: Add permission
-    // 1) user can edit their details
-    // 2) Admin can edit all users details
-
     return this.courierJourneysService.update(id, body, currentUser.businessId);
   }
 
   @Get('/:courierJourneyId/parcels')
+  @Permissions(Permission.COURIER_JOURNEY_READ)
   async findJourneyParcels(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Param('courierJourneyId', ParseIntPipe) courierJourneyId: number,
@@ -80,6 +84,7 @@ export class CourierJourneysController {
   }
 
   @Post('/:id/notes')
+  @Permissions(Permission.COURIER_JOURNEY_NOTE_CREATE)
   @ApiOperation({ summary: 'Add a note to courier journey' })
   @ApiBody({ type: CreateCourierJourneyNoteDto })
   addNote(
@@ -96,6 +101,7 @@ export class CourierJourneysController {
   }
 
   @Get('/:id/notes')
+  @Permissions(Permission.COURIER_JOURNEY_NOTE_READ)
   @ApiOperation({ summary: 'Get all notes for a courier journey' })
   getNotes(
     @CurrentUser() currentUser: UserRequestType,
@@ -108,6 +114,7 @@ export class CourierJourneysController {
   }
 
   @Delete('/:id/notes/:noteId')
+  @Permissions(Permission.COURIER_JOURNEY_NOTE_DELETE)
   @ApiOperation({ summary: 'Delete a note from courier journey' })
   deleteNote(
     @CurrentUser() currentUser: UserRequestType,
