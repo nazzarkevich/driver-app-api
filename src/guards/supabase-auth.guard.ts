@@ -1,6 +1,11 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { AuthProvider } from '@prisma/client';
 
 import { SupabaseService } from '../supabase/supabase.service';
@@ -20,6 +25,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
+    const response = context.switchToHttp().getResponse<Response>();
     const token = this.extractTokenFromHeader(request);
     const isPublic = this.reflector.getAllAndOverride('isPublic', [
       context.getHandler(),
@@ -32,7 +38,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
     if (!token) {
       console.log('❌ No token provided in Authorization header');
-      return false;
+      throw new UnauthorizedException('Access token is required');
     }
 
     request.accessToken = token;
@@ -80,6 +86,8 @@ export class SupabaseAuthGuard implements CanActivate {
           token,
         );
         if (refreshResult.success) {
+          response.setHeader('X-New-Access-Token', request.accessToken);
+          response.setHeader('X-New-Refresh-Token', request.refreshToken);
           return this.setupUserContext(
             request,
             refreshResult.user,
@@ -93,8 +101,11 @@ export class SupabaseAuthGuard implements CanActivate {
         );
       }
 
-      return false;
+      throw new UnauthorizedException('Session expired. Please log in again.');
     } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       console.error('Authentication error:', error);
       return false;
     }

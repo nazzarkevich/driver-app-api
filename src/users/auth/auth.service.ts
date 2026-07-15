@@ -231,8 +231,17 @@ export class AuthService {
       });
 
     if (authError || !authData.user) {
+      const msg = authError?.message?.toLowerCase() ?? '';
+      if (
+        msg.includes('already registered') ||
+        msg.includes('already exists')
+      ) {
+        throw new ConflictException(
+          'An account with this email address already exists',
+        );
+      }
       throw new BadRequestException(
-        authError?.message || 'Failed to create user',
+        authError?.message || 'Failed to create account',
       );
     }
 
@@ -245,9 +254,17 @@ export class AuthService {
         lastName,
         type: UserType.Customer,
         business: { connect: { id: businessId } },
-        phoneNumber: {
-          create: { countryCode, number: phoneNumber },
-        },
+        ...(phoneNumber &&
+          countryCode && {
+            phoneNumber: {
+              connectOrCreate: {
+                where: {
+                  countryCode_number: { countryCode, number: phoneNumber },
+                },
+                create: { countryCode, number: phoneNumber },
+              },
+            },
+          }),
       },
       include: { phoneNumber: true },
     });

@@ -29,17 +29,13 @@ export class TokenRefreshInterceptor implements NestInterceptor {
       const headerRefreshToken = request.headers['x-refresh-token'] as string;
       if (headerRefreshToken) {
         request.refreshToken = headerRefreshToken;
-        this.logger.debug(
-          `[TokenRefreshInterceptor] Using refresh token from header`,
-        );
+        this.logger.debug('Using refresh token from header');
       }
     }
 
+    this.logger.debug(`Request: ${request.method} ${request.url}`);
     this.logger.debug(
-      `[TokenRefreshInterceptor] Request: ${request.method} ${request.url}`,
-    );
-    this.logger.debug(
-      `[TokenRefreshInterceptor] Auth state: accessToken=${!!request.accessToken}, refreshToken=${!!request.refreshToken}, alreadyRefreshed=${!!request.tokenWasRefreshed}`,
+      `Auth state: accessToken=${!!request.accessToken}, refreshToken=${!!request.refreshToken}, alreadyRefreshed=${!!request.tokenWasRefreshed}`,
     );
 
     return next.handle().pipe(
@@ -47,12 +43,12 @@ export class TokenRefreshInterceptor implements NestInterceptor {
         const response = context.switchToHttp().getResponse<Response>();
 
         this.logger.debug(
-          `[TokenRefreshInterceptor] Error caught - Status: ${error.status}, Message: ${error.message}`,
+          `Error caught - Status: ${error.status}, Message: ${error.message}`,
         );
 
         if (request.tokenWasRefreshed) {
           this.logger.debug(
-            `[TokenRefreshInterceptor] Skipping refresh - token already refreshed by guard`,
+            'Skipping refresh - token already refreshed by guard',
           );
           return throwError(() => error);
         }
@@ -70,13 +66,13 @@ export class TokenRefreshInterceptor implements NestInterceptor {
 
         if (canAttemptRefresh) {
           this.logger.debug(
-            `[TokenRefreshInterceptor] Attempting automatic refresh for user ${request.currentUser?.id}`,
+            `Attempting automatic refresh for user ${request.currentUser?.id}`,
           );
           return this.attemptTokenRefresh(request, response, context, next);
         }
 
         this.logger.debug(
-          `[TokenRefreshInterceptor] Not attempting refresh - isTokenError=${isTokenRelatedError}, hasTokens=${!!(request.accessToken && request.refreshToken)}, errorMsg="${error.message}"`,
+          `Not attempting refresh - isTokenError=${isTokenRelatedError}, hasTokens=${!!(request.accessToken && request.refreshToken)}, errorMsg="${error.message}"`,
         );
 
         return throwError(() => error);
