@@ -22,6 +22,7 @@ import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
 import { CreateJourneyDto } from './dtos/create-journey.dto';
 import { CreateJourneyNoteDto } from './dtos/create-journey-note.dto';
 import { UpdateJourneyDto } from './dtos/update-journey.dto';
+import { JourneyParcelMetricsDto } from './dtos/journey-parcel-metrics.dto';
 import { VehicleDto } from 'src/vehicles/dtos/vehicle.dto';
 import {
   CurrentUser,
@@ -39,7 +40,16 @@ export class JourneysController {
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateJourneyDto,
   ): Promise<JourneyDto> {
-    return this.journeysService.createJourney(body, currentUser.businessId);
+    return this.journeysService.createJourney(body, currentUser);
+  }
+
+  @Post('/:id/complete')
+  @Permissions(Permission.JOURNEY_COMPLETE)
+  async completeJourney(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<JourneyDto> {
+    return this.journeysService.completeJourney(id, currentUser);
   }
 
   @Get('/available-vehicles')
@@ -67,7 +77,16 @@ export class JourneysController {
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<JourneyDto> {
-    return this.journeysService.findOne(id, currentUser.businessId);
+    return this.journeysService.findOneForUser(id, currentUser);
+  }
+
+  @Get('/:id/parcel-metrics')
+  @Permissions(Permission.JOURNEY_READ)
+  async getParcelMetrics(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<JourneyParcelMetricsDto> {
+    return this.journeysService.getParcelMetrics(id, currentUser);
   }
 
   @Get()
@@ -136,6 +155,7 @@ export class JourneysController {
       endDateParsed,
       startCountryIdNumber,
       endCountryIdNumber,
+      currentUser,
     );
   }
 
@@ -146,7 +166,7 @@ export class JourneysController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateJourneyDto,
   ): Promise<JourneyDto> {
-    return this.journeysService.update(id, body, currentUser.businessId);
+    return this.journeysService.update(id, body, currentUser);
   }
 
   @Delete('/:id')

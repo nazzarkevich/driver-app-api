@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsIn,
   MinLength,
 } from 'class-validator';
 
@@ -14,6 +15,11 @@ export class CreateBusinessWithAdminDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['GBP', 'EUR', 'UAH'])
+  currency?: string;
 
   @IsNotEmpty()
   @IsString()

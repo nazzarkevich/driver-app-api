@@ -32,12 +32,8 @@ import { OAuthSignInDto } from '../dtos/oauth-sign-in.dto';
 import { UserType } from '@prisma/client';
 import { RefreshTokenDto } from '../dtos/refresh-token.dto';
 import { SupabaseVerifyGuard } from 'src/guards/supabase-verify.guard';
-import {
-  ADMIN_EXTRA_PERMISSIONS,
-  AppName,
-  getAllowedApps,
-  ROLE_PERMISSIONS,
-} from 'src/permissions/permissions';
+import { getAllowedAppsForUser } from 'src/permissions/permissions';
+import { TokenUtils } from 'src/utils/token.utils';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -66,8 +62,13 @@ export class AuthController {
   @ApiBadRequestResponse({ description: "User doesn't exist" })
   @Public()
   @Post('/login')
-  async login(@Body() body: SignInDto) {
-    return this.authService.signIn(body);
+  async login(@Body() body: SignInDto, @Req() request: Request) {
+    const result = await this.authService.signIn(body);
+    console.log('[AuthTrace] login response', {
+      ...TokenUtils.requestSource(request),
+      ...TokenUtils.diagnostics(result.token, result.refreshToken),
+    });
+    return result;
   }
 
   @ApiCreatedResponse({
@@ -96,6 +97,7 @@ export class AuthController {
     const accessToken = request.headers.authorization?.split(' ')[1];
 
     console.log('📨 /auth/refresh endpoint called:', {
+      ...TokenUtils.requestSource(request),
       hasBodyRefreshToken: !!body.refreshToken,
       hasHeaderRefreshToken: !!request.headers['x-refresh-token'],
       hasAccessToken: !!accessToken,
@@ -111,18 +113,6 @@ export class AuthController {
       );
       throw new BadRequestException(
         'Refresh token is required in request body or X-Refresh-Token header',
-      );
-    }
-
-    if (
-      typeof refreshToken === 'string' &&
-      (refreshToken.length < 50 || refreshToken.length > 500)
-    ) {
-      console.error(
-        `❌ Refresh token appears invalid (length: ${refreshToken.length})`,
-      );
-      throw new BadRequestException(
-        'Invalid refresh token format. Token appears corrupted. Please log in again.',
       );
     }
 
@@ -173,14 +163,7 @@ export class AuthController {
 
     const userData = await this.usersService.findOne(user.id, include);
 
-    const rolePermissions = ROLE_PERMISSIONS[user.type] ?? [];
-    const effectivePermissions = user.isAdmin
-      ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
-      : rolePermissions;
-
-    const allowedApps = user.isSuperAdmin
-      ? Object.values(AppName)
-      : getAllowedApps(effectivePermissions);
+    const allowedApps = getAllowedAppsForUser(user);
 
     return { ...userData, allowedApps };
   }

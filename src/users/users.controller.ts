@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  Patch,
   ParseIntPipe,
   Put,
   Query,
@@ -24,6 +25,7 @@ import {
 import { SupabaseAuthGuard } from 'src/guards/supabase-auth.guard';
 import { Permissions } from 'src/decorators/permissions.decorator';
 import { Permission } from 'src/permissions/permissions';
+import { UpdateUserRoleDto } from './dtos/update-user-role.dto';
 
 @ApiTags('User')
 @Controller('users')
@@ -59,6 +61,16 @@ export class UsersController {
     }
 
     return this.usersService.update(id, body, currentUser);
+  }
+
+  @Patch('/:id/role')
+  @Permissions(Permission.USER_ROLE_UPDATE)
+  updateUserRole(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateUserRoleDto,
+    @CurrentUser() currentUser: UserRequestType,
+  ): Promise<UserDto> {
+    return this.usersService.updateRole(id, body.type, currentUser);
   }
 
   @Delete('/:id')

@@ -1,7 +1,6 @@
 import { Gender } from '@prisma/client';
 import {
   IsArray,
-  ArrayMinSize,
   IsOptional,
   IsString,
   IsNotEmpty,
@@ -13,6 +12,7 @@ import { Type } from 'class-transformer';
 
 import { CreateAddressDto } from 'src/dtos/create-address.dto';
 import { CreatePhoneDto } from 'src/dtos/create-phone.dto';
+import { CreateCustomerNovaPostAddressDto } from './customer-nova-post-address.dto';
 
 export class CreateCustomerProfileDto {
   @IsString()
@@ -35,8 +35,14 @@ export class CreateCustomerProfileDto {
   phoneNumber: CreatePhoneDto;
 
   @IsArray()
-  @ArrayMinSize(1)
+  @IsOptional()
   @ValidateNested({ each: true })
   @Type(() => CreateAddressDto)
-  addresses: CreateAddressDto[];
+  addresses?: CreateAddressDto[];
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCustomerNovaPostAddressDto)
+  novaPostAddresses?: CreateCustomerNovaPostAddressDto[];
 }

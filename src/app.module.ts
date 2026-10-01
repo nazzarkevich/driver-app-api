@@ -24,10 +24,12 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { AuditModule } from './audit/audit.module';
 import { AuditInterceptor } from './audit/audit.interceptor';
 import { AuthModule } from './auth/auth.module';
-import { TokenRefreshInterceptor } from './interceptors/token-refresh.interceptor';
 import { TariffsModule } from './tariffs/tariffs.module';
 import { CarriersModule } from './carriers/carriers.module';
 import { PickupRequestsModule } from './pickup-requests/pickup-requests.module';
+import { NovaPostModule } from './nova-post/nova-post.module';
+import { AddressSearchModule } from './address-search/address-search.module';
+import { TariffGroupsModule } from './tariff-groups/tariff-groups.module';
 
 /*
   - Extend courier service and controller ✅
@@ -89,8 +91,11 @@ import { PickupRequestsModule } from './pickup-requests/pickup-requests.module';
     SupabaseModule,
     AuditModule,
     TariffsModule,
+    TariffGroupsModule,
     CarriersModule,
     PickupRequestsModule,
+    NovaPostModule,
+    AddressSearchModule,
   ],
   controllers: [AppController],
   providers: [
@@ -98,10 +103,6 @@ import { PickupRequestsModule } from './pickup-requests/pickup-requests.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: UserInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TokenRefreshInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

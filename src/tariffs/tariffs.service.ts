@@ -1,14 +1,33 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ParcelType, Prisma, TariffPricingType } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BaseTenantService } from 'src/common/base-tenant.service';
 import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 import { CreateTariffDto } from './dtos/create-tariff.dto';
 import { UpdateTariffDto } from './dtos/update-tariff.dto';
 import { TariffDto } from './dtos/tariff.dto';
+import {
+  ParcelPriceOptionsDto,
+  ParcelPriceOptionsResponseDto,
+} from 'src/parcels/dtos/parcel-price-options.dto';
 
 const tariffInclude = {
-  originCountry: true,
-};
+  business: { select: { currency: true } },
+  tariffGroup: {
+    include: {
+      originCountry: true,
+      destinationCountry: true,
+    },
+  },
+} satisfies Prisma.TariffInclude;
+
+type PricingTariff = Prisma.TariffGetPayload<{
+  include: typeof tariffInclude;
+}>;
 
 @Injectable()
 export class TariffsService extends BaseTenantService {
@@ -16,8 +35,28 @@ export class TariffsService extends BaseTenantService {
     super(prismaService);
   }
 
-  private buildTariffDto(tariff: any): TariffDto {
-    return new TariffDto(tariff);
+  private buildTariffDto(tariff: PricingTariff): TariffDto {
+    return new TariffDto({
+      ...tariff,
+      currency: tariff.business.currency,
+    } as any);
+  }
+
+  private async validateTariffGroup(
+    tariffGroupId: number,
+    user: UserRequestType,
+  ): Promise<void> {
+    const group = await this.prismaService.tariffGroup.findFirst({
+      where: {
+        id: tariffGroupId,
+        businessId: user.businessId,
+        isActive: true,
+        isDeleted: false,
+      },
+    });
+    if (!group) {
+      throw new NotFoundException('Active tariff group not found');
+    }
   }
 
   async create(
@@ -25,10 +64,26 @@ export class TariffsService extends BaseTenantService {
     createTariffDto: CreateTariffDto,
   ): Promise<TariffDto> {
     await this.validateBusinessAccess(user.businessId, user);
+    await this.validateTariffGroup(createTariffDto.tariffGroupId, user);
 
+    const pricingType = createTariffDto.pricingType ?? TariffPricingType.Fixed;
     const tariff = await this.prismaService.tariff.create({
       data: {
-        ...createTariffDto,
+        name: createTariffDto.name,
+        description: createTariffDto.description,
+        isActive: createTariffDto.isActive,
+        tariffGroupId: createTariffDto.tariffGroupId,
+        parcelType: createTariffDto.parcelType,
+        minimumPrice: createTariffDto.minimumPrice,
+        pricingType,
+        pricePerKg:
+          pricingType === TariffPricingType.Fixed
+            ? null
+            : createTariffDto.pricePerKg,
+        weightThreshold:
+          pricingType === TariffPricingType.Fixed
+            ? null
+            : createTariffDto.weightThreshold,
         businessId: user.businessId,
       },
       include: tariffInclude,
@@ -43,24 +98,18 @@ export class TariffsService extends BaseTenantService {
     isActiveOnly = false,
   ): Promise<TariffDto[]> {
     await this.validateBusinessAccess(businessId, currentUser);
-
-    const whereClause = this.getBusinessWhere(
-      businessId,
-      {
-        ...(isActiveOnly && { isActive: true }),
-        isDeleted: false,
-      },
-      currentUser,
-    );
-
     const tariffs = await this.prismaService.tariff.findMany({
-      where: whereClause,
+      where: this.getBusinessWhere(
+        businessId,
+        {
+          ...(isActiveOnly && { isActive: true }),
+          isDeleted: false,
+        },
+        currentUser,
+      ),
       include: tariffInclude,
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
-
     return tariffs.map((tariff) => this.buildTariffDto(tariff));
   }
 
@@ -70,16 +119,13 @@ export class TariffsService extends BaseTenantService {
     currentUser?: UserRequestType,
   ): Promise<TariffDto> {
     await this.validateBusinessAccess(businessId, currentUser);
-
-    const tariff = await this.prismaService.tariff.findUnique({
-      where: { id },
+    const tariff = await this.prismaService.tariff.findFirst({
+      where: { id, isDeleted: false },
       include: tariffInclude,
     });
-
     if (!tariff || !this.canAccessBusiness(tariff.businessId, currentUser)) {
       throw new NotFoundException('Tariff not found');
     }
-
     return this.buildTariffDto(tariff);
   }
 
@@ -90,24 +136,47 @@ export class TariffsService extends BaseTenantService {
     currentUser?: UserRequestType,
   ): Promise<TariffDto> {
     await this.validateBusinessAccess(businessId, currentUser);
-
-    const existingTariff = await this.prismaService.tariff.findUnique({
-      where: { id },
+    const existingTariff = await this.prismaService.tariff.findFirst({
+      where: { id, isDeleted: false },
     });
-
     if (
       !existingTariff ||
       !this.canAccessBusiness(existingTariff.businessId, currentUser)
     ) {
       throw new NotFoundException('Tariff not found');
     }
+    if (updateTariffDto.tariffGroupId != null) {
+      await this.validateTariffGroup(
+        updateTariffDto.tariffGroupId,
+        currentUser,
+      );
+    }
+
+    const pricingType =
+      updateTariffDto.pricingType ?? existingTariff.pricingType;
+    const effectivePricePerKg =
+      updateTariffDto.pricePerKg ?? existingTariff.pricePerKg;
+    const data: Prisma.TariffUncheckedUpdateInput = {
+      ...updateTariffDto,
+      pricingType,
+      ...(pricingType === TariffPricingType.Fixed
+        ? { pricePerKg: null, weightThreshold: null }
+        : {}),
+    };
+    if (
+      pricingType === TariffPricingType.PerKg &&
+      (effectivePricePerKg == null || Number(effectivePricePerKg) <= 0)
+    ) {
+      throw new BadRequestException(
+        'pricePerKg must be greater than zero for per-kilogram tariffs',
+      );
+    }
 
     const updatedTariff = await this.prismaService.tariff.update({
       where: { id },
-      data: updateTariffDto,
+      data,
       include: tariffInclude,
     });
-
     return this.buildTariffDto(updatedTariff);
   }
 
@@ -117,40 +186,122 @@ export class TariffsService extends BaseTenantService {
     currentUser?: UserRequestType,
   ): Promise<void> {
     await this.validateBusinessAccess(businessId, currentUser);
-
-    const tariff = await this.prismaService.tariff.findUnique({
-      where: { id },
+    const tariff = await this.prismaService.tariff.findFirst({
+      where: { id, isDeleted: false },
     });
-
     if (!tariff || !this.canAccessBusiness(tariff.businessId, currentUser)) {
       throw new NotFoundException('Tariff not found');
     }
-
     await this.prismaService.tariff.update({
       where: { id },
-      data: { isDeleted: true },
+      data: { isDeleted: true, isActive: false },
     });
   }
 
-  async calculatePrice(tariffId: number, weight: number): Promise<number> {
-    const tariff = await this.prismaService.tariff.findUnique({
-      where: { id: tariffId },
+  calculateTariffAmount(
+    tariff: Pick<
+      PricingTariff,
+      'pricingType' | 'minimumPrice' | 'pricePerKg' | 'weightThreshold'
+    >,
+    weight: number,
+  ): number {
+    if (!Number.isFinite(weight) || weight <= 0) {
+      throw new BadRequestException('Weight must be greater than zero');
+    }
+    const minimumPrice = Number(tariff.minimumPrice);
+    if (tariff.pricingType === TariffPricingType.Fixed) {
+      return Number(minimumPrice.toFixed(2));
+    }
+    if (tariff.pricePerKg == null || Number(tariff.pricePerKg) <= 0) {
+      throw new BadRequestException('Per-kilogram tariff is misconfigured');
+    }
+    const threshold =
+      tariff.weightThreshold == null ? null : Number(tariff.weightThreshold);
+    if (threshold != null && weight <= threshold) {
+      return Number(minimumPrice.toFixed(2));
+    }
+    return Number(
+      Math.max(minimumPrice, weight * Number(tariff.pricePerKg)).toFixed(2),
+    );
+  }
+
+  async findEligibleTariff(
+    user: UserRequestType,
+    tariffId: number,
+    originCountryId: number,
+    destinationCountryId: number,
+    parcelType: ParcelType,
+    tx?: Prisma.TransactionClient,
+  ): Promise<PricingTariff> {
+    const client = tx ?? this.prismaService;
+    const tariff = await client.tariff.findFirst({
+      where: {
+        id: tariffId,
+        businessId: user.businessId,
+        isActive: true,
+        isDeleted: false,
+        OR: [{ parcelType }, { parcelType: null }],
+        tariffGroup: {
+          businessId: user.businessId,
+          isActive: true,
+          isDeleted: false,
+          originCountryId,
+          destinationCountryId,
+        },
+      },
+      include: tariffInclude,
     });
-
-    if (!tariff || !tariff.isActive) {
-      throw new NotFoundException('Tariff not found or inactive');
+    if (!tariff) {
+      throw new BadRequestException(
+        'Selected tariff is not available for this parcel',
+      );
     }
+    return tariff;
+  }
 
-    if (tariff.pricingType === 'Fixed') {
-      return tariff.fixedPrice
-        ? tariff.fixedPrice.toNumber()
-        : tariff.minimumPrice.toNumber();
-    }
+  async findPriceOptions(
+    user: UserRequestType,
+    dto: ParcelPriceOptionsDto,
+  ): Promise<ParcelPriceOptionsResponseDto> {
+    await this.validateBusinessAccess(user.businessId, user);
+    const [business, tariffs] = await Promise.all([
+      this.prismaService.business.findUniqueOrThrow({
+        where: { id: user.businessId },
+        select: { currency: true },
+      }),
+      this.prismaService.tariff.findMany({
+        where: {
+          businessId: user.businessId,
+          isActive: true,
+          isDeleted: false,
+          OR: [{ parcelType: dto.parcelType }, { parcelType: null }],
+          tariffGroup: {
+            businessId: user.businessId,
+            isActive: true,
+            isDeleted: false,
+            originCountryId: dto.originCountryId,
+            destinationCountryId: dto.destinationCountryId,
+          },
+        },
+        include: tariffInclude,
+      }),
+    ]);
 
-    if (tariff.weightThreshold && weight <= tariff.weightThreshold.toNumber()) {
-      return tariff.minimumPrice.toNumber();
-    }
+    const options = tariffs
+      .map((tariff) => ({
+        tariffId: tariff.id,
+        tariffName: tariff.name,
+        tariffGroupId: tariff.tariffGroup!.id,
+        tariffGroupName: tariff.tariffGroup!.name,
+        pricingType: tariff.pricingType,
+        calculatedPrice: this.calculateTariffAmount(tariff, dto.weight),
+      }))
+      .sort(
+        (left, right) =>
+          left.calculatedPrice - right.calculatedPrice ||
+          left.tariffId - right.tariffId,
+      );
 
-    return parseFloat((weight * tariff.pricePerKg.toNumber()).toFixed(2));
+    return { currency: business.currency, options };
   }
 }

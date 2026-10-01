@@ -20,6 +20,7 @@ export class BusinessDto {
   activationDate: Date;
   isActive: boolean;
   description: string;
+  currency: string;
   createdAt: Date;
   updatedAt: Date;
 

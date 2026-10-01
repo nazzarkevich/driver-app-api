@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
   ConflictException,
@@ -18,6 +19,13 @@ import prismaWithPagination from 'src/prisma/prisma-client';
 import { BaseTenantService } from 'src/common/base-tenant.service';
 import { VehicleDto } from 'src/vehicles/dtos/vehicle.dto';
 import { JourneyNumberService } from './services/journey-number.service';
+import { UserRequestType } from 'src/users/decorators/current-user.decorator';
+import { Prisma, UserType } from '@prisma/client';
+import { JourneyParcelMetricsDto } from './dtos/journey-parcel-metrics.dto';
+import {
+  JOURNEY_PARCEL_COUNT_TARGET,
+  JOURNEY_WEIGHT_TARGET_KG,
+} from './constants/journey-parcel-metrics.constants';
 
 @Injectable()
 export class JourneysService extends BaseTenantService {
@@ -32,17 +40,24 @@ export class JourneysService extends BaseTenantService {
   }
 
   async createJourney(
-    {
+    body: CreateJourneyDto,
+    currentUser: UserRequestType,
+  ): Promise<JourneyDto> {
+    const {
       startCountryId,
       endCountryId,
       vehicleId,
       departureDate,
       parcels,
-      driverProfiles,
       hasTrailer,
-    }: CreateJourneyDto,
-    businessId: number,
-  ): Promise<JourneyDto> {
+      notes,
+    } = body;
+    const businessId = currentUser.businessId;
+    const driverProfiles =
+      currentUser.type === UserType.InternationalDriver
+        ? [(await this.findDriverProfileForUser(currentUser.id, businessId)).id]
+        : body.driverProfiles;
+
     await this.validateBusinessAccess(businessId);
 
     // Validate and get vehicle - ensure it's active and belongs to business
@@ -196,6 +211,16 @@ export class JourneysService extends BaseTenantService {
         },
       });
 
+      if (notes?.trim()) {
+        await tx.journeyNote.create({
+          data: {
+            journeyId: newJourney.id,
+            userId: currentUser.id,
+            content: notes.trim(),
+          },
+        });
+      }
+
       return newJourney;
     });
 
@@ -203,7 +228,7 @@ export class JourneysService extends BaseTenantService {
       throw new Error('Failed to create or retrieve journey');
     }
 
-    return new JourneyDto(createdJourney);
+    return this.findOneForUser(createdJourney.id, currentUser);
   }
 
   async findParcelsByJourneyId(
@@ -260,21 +285,46 @@ export class JourneysService extends BaseTenantService {
     endDate?: Date,
     startCountryId?: number,
     endCountryId?: number,
+    currentUser?: UserRequestType,
   ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
     await this.validateBusinessAccess(businessId);
 
     let whereClause: any = this.getBusinessWhere(
       businessId,
-      isCompleted !== undefined ? { isCompleted } : {},
+      {
+        isDeleted: false,
+        ...(isCompleted !== undefined && { isCompleted }),
+        ...(isCompleted === false && { isArchived: false }),
+      },
     );
 
-    if (driverProfileId) {
-      await this.validateDriverProfileAccess(driverProfileId, businessId);
+    let effectiveDriverProfileId = driverProfileId;
+
+    if (currentUser?.type === UserType.InternationalDriver) {
+      const ownProfile = await this.findDriverProfileForUser(
+        currentUser.id,
+        businessId,
+      );
+
+      if (driverProfileId && driverProfileId !== ownProfile.id) {
+        throw new ForbiddenException(
+          'Drivers can only access their own journeys',
+        );
+      }
+
+      effectiveDriverProfileId = ownProfile.id;
+    }
+
+    if (effectiveDriverProfileId) {
+      await this.validateDriverProfileAccess(
+        effectiveDriverProfileId,
+        businessId,
+      );
       whereClause = {
         ...whereClause,
         driverProfiles: {
           some: {
-            id: driverProfileId,
+            id: effectiveDriverProfileId,
           },
         },
       };
@@ -429,6 +479,10 @@ export class JourneysService extends BaseTenantService {
         vehicle: true,
         startCountry: true,
         endCountry: true,
+        journeyNotes: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
     });
 
@@ -439,12 +493,139 @@ export class JourneysService extends BaseTenantService {
     return new JourneyDto(journey);
   }
 
+  async findOneForUser(
+    id: number,
+    currentUser: UserRequestType,
+  ): Promise<JourneyDto> {
+    const journey = await this.findOne(id, currentUser.businessId);
+
+    if (currentUser.type === UserType.InternationalDriver) {
+      const ownProfile = await this.findDriverProfileForUser(
+        currentUser.id,
+        currentUser.businessId,
+      );
+      const isAssigned = journey.driverProfiles.some(
+        (driver) => driver.id === ownProfile.id,
+      );
+
+      if (!isAssigned) {
+        throw new ForbiddenException(
+          'Drivers can only access their own journeys',
+        );
+      }
+    }
+
+    return journey;
+  }
+
+  async getParcelMetrics(
+    id: number,
+    currentUser: UserRequestType,
+  ): Promise<JourneyParcelMetricsDto> {
+    const { businessId } = currentUser;
+    await this.validateBusinessAccess(businessId, currentUser);
+
+    const driverProfile =
+      currentUser.type === UserType.InternationalDriver
+        ? await this.findDriverProfileForUser(currentUser.id, businessId)
+        : null;
+
+    return this.prismaService.$transaction(
+      async (tx) => {
+        const journey = await tx.journey.findFirst({
+          where: { id, businessId, isDeleted: false },
+          select: {
+            id: true,
+            driverProfiles: { select: { id: true } },
+          },
+        });
+
+        if (!journey) {
+          throw new NotFoundException('Journey not found');
+        }
+
+        if (
+          driverProfile &&
+          !journey.driverProfiles.some(({ id }) => id === driverProfile.id)
+        ) {
+          throw new ForbiddenException(
+            'Drivers can only access their own journeys',
+          );
+        }
+
+        const parcelWhere = {
+          journeyId: id,
+          businessId,
+          isDeleted: false,
+        };
+        const [aggregate, collectedParcelCount] = await Promise.all([
+          tx.parcel.aggregate({
+            where: parcelWhere,
+            _count: { _all: true },
+            _sum: { weight: true },
+          }),
+          tx.parcel.count({
+            where: { ...parcelWhere, pickedUpAt: { not: null } },
+          }),
+        ]);
+
+        const totalParcelCount = aggregate._count._all;
+        const totalWeightKg = Number(aggregate._sum.weight ?? 0);
+        const collectionProgressPercent = totalParcelCount
+          ? Math.round((collectedParcelCount / totalParcelCount) * 100)
+          : 0;
+
+        return new JourneyParcelMetricsDto({
+          journeyId: id,
+          totalParcelCount,
+          collectedParcelCount,
+          totalWeightKg,
+          collectionProgressPercent,
+          parcelCountTarget: JOURNEY_PARCEL_COUNT_TARGET,
+          weightTargetKg: JOURNEY_WEIGHT_TARGET_KG,
+          parcelCountTargetProgressPercent: Math.min(
+            100,
+            Math.round(
+              (totalParcelCount / JOURNEY_PARCEL_COUNT_TARGET) * 100,
+            ),
+          ),
+          weightTargetProgressPercent: Math.min(
+            100,
+            Math.round((totalWeightKg / JOURNEY_WEIGHT_TARGET_KG) * 100),
+          ),
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
+  }
+
+  async completeJourney(
+    id: number,
+    currentUser: UserRequestType,
+  ): Promise<JourneyDto> {
+    const journey = await this.findOneForUser(id, currentUser);
+
+    if (journey.isCompleted) {
+      return journey;
+    }
+
+    await this.prismaService.journey.update({
+      where: { id },
+      data: {
+        isCompleted: true,
+        arrivalDate: new Date(),
+      },
+    });
+
+    return this.findOneForUser(id, currentUser);
+  }
+
   async update(
     id: number,
     attrs: Partial<UpdateJourneyDto>,
-    businessId: number,
+    currentUser: UserRequestType,
   ): Promise<JourneyDto> {
-    const journey = await this.findOne(id, businessId);
+    const journey = await this.findOneForUser(id, currentUser);
 
     if (!journey) {
       throw new Error('Journey not found');
@@ -452,9 +633,39 @@ export class JourneysService extends BaseTenantService {
 
     // Prepare update data
     const updateData: any = { ...attrs };
+    const noteContent = attrs.notes?.trim();
+
+    delete updateData.notes;
+
+    if (attrs.startCountryId !== undefined) {
+      updateData.startCountry = { connect: { id: attrs.startCountryId } };
+      delete updateData.startCountryId;
+    }
+
+    if (attrs.endCountryId !== undefined) {
+      updateData.endCountry = { connect: { id: attrs.endCountryId } };
+      delete updateData.endCountryId;
+    }
+
+    if (attrs.vehicleId !== undefined) {
+      await this.vehiclesService.findOne(
+        attrs.vehicleId,
+        currentUser.businessId,
+      );
+      updateData.vehicle = { connect: { id: attrs.vehicleId } };
+      delete updateData.vehicleId;
+    }
+
+    if (currentUser.type === UserType.InternationalDriver) {
+      delete updateData.driverProfiles;
+      delete updateData.isCompleted;
+    }
 
     // Handle driverProfiles if provided
-    if (attrs.driverProfiles !== undefined) {
+    if (
+      currentUser.type !== UserType.InternationalDriver &&
+      attrs.driverProfiles !== undefined
+    ) {
       // Remove driverProfiles from direct update data
       delete updateData.driverProfiles;
 
@@ -465,42 +676,24 @@ export class JourneysService extends BaseTenantService {
       };
     }
 
-    const updatedJourney = await this.prismaService.journey.update({
+    await this.prismaService.journey.update({
       where: {
         id,
       },
       data: updateData,
-      include: {
-        startCountry: true,
-        endCountry: true,
-        driverProfiles: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                imageUrl: {
-                  select: {
-                    id: true,
-                    url: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        parcels: {
-          include: {
-            sender: true,
-            recipient: true,
-          },
-        },
-        vehicle: true,
-      },
     });
 
-    return new JourneyDto(updatedJourney);
+    if (noteContent && noteContent !== journey.notes) {
+      await this.prismaService.journeyNote.create({
+        data: {
+          journeyId: id,
+          userId: currentUser.id,
+          content: noteContent,
+        },
+      });
+    }
+
+    return this.findOneForUser(id, currentUser);
   }
 
   async remove(id: number, businessId: number): Promise<void> {
@@ -543,6 +736,22 @@ export class JourneysService extends BaseTenantService {
     if (driverProfile.user.businessId !== businessId) {
       throw new NotFoundException('Driver profile not found');
     }
+  }
+
+  private async findDriverProfileForUser(userId: number, businessId: number) {
+    const driverProfile = await this.prismaService.driverProfile.findFirst({
+      where: {
+        userId,
+        isDeleted: false,
+        user: { businessId },
+      },
+    });
+
+    if (!driverProfile) {
+      throw new NotFoundException('Driver profile not found');
+    }
+
+    return driverProfile;
   }
 
   async getAvailableVehicles(

@@ -4,8 +4,11 @@ import {
   IsNotEmpty,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsNumber,
   IsInt,
+  Min,
+  ValidateIf,
 } from 'class-validator';
 import { ParcelType } from '@prisma/client';
 
@@ -18,35 +21,34 @@ export class CreateTariffDto {
   @IsOptional()
   description?: string;
 
-  @IsString()
-  @IsNotEmpty()
-  currency: string;
-
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsInt()
+  @IsNotEmpty()
+  tariffGroupId: number;
 
   @IsEnum(ParcelType)
   @IsOptional()
   parcelType?: ParcelType | null;
 
-  @IsInt()
-  @IsOptional()
-  originCountryId?: number | null;
-
   @IsNumber()
+  @Min(0)
   @IsNotEmpty()
   minimumPrice: number;
 
+  @ValidateIf((dto) => dto.pricingType === 'PerKg')
   @IsNumber()
-  @IsOptional()
+  @Min(0.01)
   pricePerKg?: number;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   weightThreshold?: number;
 
-  @IsBoolean()
+  @IsIn(['Fixed', 'PerKg'])
   @IsOptional()
-  isWeightBased?: boolean;
+  pricingType?: 'Fixed' | 'PerKg';
 }

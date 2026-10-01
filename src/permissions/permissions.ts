@@ -5,6 +5,7 @@ export enum Permission {
   PARCEL_READ = 'parcel:read',
   PARCEL_UPDATE = 'parcel:update',
   PARCEL_DELETE = 'parcel:delete',
+  PARCEL_MARK_PICKED_UP = 'parcel:mark-picked-up',
   PARCEL_MARK_DELIVERED = 'parcel:mark-delivered',
   PARCEL_NOTE_CREATE = 'parcel:note:create',
   PARCEL_NOTE_READ = 'parcel:note:read',
@@ -13,6 +14,7 @@ export enum Permission {
   JOURNEY_CREATE = 'journey:create',
   JOURNEY_READ = 'journey:read',
   JOURNEY_UPDATE = 'journey:update',
+  JOURNEY_COMPLETE = 'journey:complete',
   JOURNEY_DELETE = 'journey:delete',
   JOURNEY_NOTE_CREATE = 'journey:note:create',
   JOURNEY_NOTE_READ = 'journey:note:read',
@@ -60,6 +62,7 @@ export enum Permission {
   VEHICLE_UPDATE = 'vehicle:update',
 
   USER_READ = 'user:read',
+  USER_ROLE_UPDATE = 'user:role:update',
   USER_DELETE = 'user:delete',
 
   AUDIT_READ = 'audit:read',
@@ -81,16 +84,42 @@ export const APP_PERMISSION_MAP: Record<AppName, Permission> = {
   [AppName.CUSTOMER_PORTAL]: Permission.APP_CUSTOMER_PORTAL,
 };
 
+export const TABLET_USER_TYPES: UserType[] = [
+  UserType.Moderator,
+  UserType.Manager,
+  UserType.InternationalDriver,
+  UserType.ParcelCourier,
+];
+
 export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   [UserType.InternationalDriver]: [
     Permission.APP_TABLET,
     Permission.APP_ADMIN,
     Permission.APP_CUSTOMER_PORTAL,
+    Permission.PARCEL_CREATE,
     Permission.PARCEL_READ,
+    Permission.PARCEL_UPDATE,
+    Permission.PARCEL_MARK_PICKED_UP,
     Permission.PARCEL_MARK_DELIVERED,
+    Permission.PARCEL_NOTE_CREATE,
+    Permission.PARCEL_NOTE_READ,
+    Permission.JOURNEY_CREATE,
     Permission.JOURNEY_READ,
+    Permission.JOURNEY_UPDATE,
+    Permission.JOURNEY_COMPLETE,
     Permission.COURIER_JOURNEY_READ,
     Permission.DRIVER_PROFILE_READ,
+    Permission.CUSTOMER_CREATE,
+    Permission.CUSTOMER_READ,
+    Permission.CUSTOMER_UPDATE,
+    Permission.CUSTOMER_BLOCK,
+    Permission.CUSTOMER_NOTE_CREATE,
+    Permission.CUSTOMER_NOTE_READ,
+    Permission.CUSTOMER_NOTE_DELETE,
+    Permission.CUSTOMER_ADDRESS_CREATE,
+    Permission.CUSTOMER_ADDRESS_UPDATE,
+    Permission.CUSTOMER_ADDRESS_DELETE,
+    Permission.VEHICLE_READ,
   ],
 
   [UserType.ParcelCourier]: [
@@ -98,6 +127,7 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.APP_ADMIN,
     Permission.APP_CUSTOMER_PORTAL,
     Permission.PARCEL_READ,
+    Permission.PARCEL_MARK_PICKED_UP,
     Permission.PARCEL_MARK_DELIVERED,
     Permission.JOURNEY_READ,
     Permission.COURIER_JOURNEY_READ,
@@ -121,6 +151,7 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.JOURNEY_CREATE,
     Permission.JOURNEY_READ,
     Permission.JOURNEY_UPDATE,
+    Permission.JOURNEY_COMPLETE,
     Permission.JOURNEY_NOTE_CREATE,
     Permission.JOURNEY_NOTE_READ,
     Permission.JOURNEY_NOTE_DELETE,
@@ -151,6 +182,7 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.CUSTOMER_ADDRESS_DELETE,
     Permission.VEHICLE_READ,
     Permission.USER_READ,
+    Permission.USER_ROLE_UPDATE,
     Permission.AUDIT_READ,
   ],
 
@@ -167,6 +199,7 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.JOURNEY_CREATE,
     Permission.JOURNEY_READ,
     Permission.JOURNEY_UPDATE,
+    Permission.JOURNEY_COMPLETE,
     Permission.JOURNEY_NOTE_CREATE,
     Permission.JOURNEY_NOTE_READ,
     Permission.JOURNEY_NOTE_DELETE,
@@ -197,6 +230,7 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.CUSTOMER_ADDRESS_DELETE,
     Permission.VEHICLE_READ,
     Permission.USER_READ,
+    Permission.USER_ROLE_UPDATE,
     Permission.AUDIT_READ,
   ],
 
@@ -232,7 +266,30 @@ export function getAllowedApps(permissions: Permission[]): AppName[] {
     .map(([appName]) => appName);
 }
 
+export function getAllowedAppsForUser(user: {
+  type: UserType;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+}): AppName[] {
+  const rolePermissions = ROLE_PERMISSIONS[user.type] ?? [];
+  const effectivePermissions = user.isAdmin
+    ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
+    : rolePermissions;
+  const allowedApps = user.isSuperAdmin
+    ? Object.values(AppName)
+    : getAllowedApps(effectivePermissions);
+
+  return TABLET_USER_TYPES.includes(user.type)
+    ? allowedApps
+    : allowedApps.filter((app) => app !== AppName.TABLET);
+}
+
 export const ADMIN_EXTRA_PERMISSIONS: Permission[] = [
+  Permission.PARCEL_CREATE,
+  Permission.PARCEL_UPDATE,
+  Permission.PARCEL_NOTE_CREATE,
+  Permission.PARCEL_NOTE_READ,
+  Permission.PARCEL_NOTE_DELETE,
   Permission.PARCEL_DELETE,
   Permission.JOURNEY_DELETE,
   Permission.DRIVER_PROFILE_BLOCK,
@@ -245,4 +302,5 @@ export const ADMIN_EXTRA_PERMISSIONS: Permission[] = [
   Permission.VEHICLE_CREATE,
   Permission.VEHICLE_UPDATE,
   Permission.USER_DELETE,
+  Permission.USER_ROLE_UPDATE,
 ];

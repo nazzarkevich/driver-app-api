@@ -15,6 +15,16 @@ export class CustomerProfileDto {
   notes?: CustomerNoteDto[];
   address?: AddressWithCountryDto;
   addresses: AddressWithCountryDto[];
+  novaPostAddresses?: Array<{
+    id: number;
+    warehouseId: number;
+    label?: string | null;
+    isDefault: boolean;
+    note?: string | null;
+    recipientName?: string | null;
+    recipientPhone?: string | null;
+    warehouse: Record<string, any>;
+  }>;
   gender?: Gender | null;
   isActive?: boolean;
   createdAt: Date;

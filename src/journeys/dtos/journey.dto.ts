@@ -21,6 +21,7 @@ export class JourneyDto {
   arrivalDate: Date;
   createdAt: Date;
   updatedAt: Date;
+  notes: string | null;
 
   // Computed properties for backward compatibility
   get startLocation(): string {
@@ -39,7 +40,12 @@ export class JourneyDto {
     return this.endLocation;
   }
 
-  constructor(partial: Partial<JourneyDto>) {
+  constructor(
+    partial: Partial<JourneyDto> & {
+      journeyNotes?: { content: string }[];
+    },
+  ) {
     Object.assign(this, partial);
+    this.notes = partial.journeyNotes?.[0]?.content ?? null;
   }
 }

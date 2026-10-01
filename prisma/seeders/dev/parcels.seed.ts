@@ -1,8 +1,19 @@
-import { DeliveryStatus, ParcelType, PaymentStatus, PrismaClient } from '@prisma/client';
+import {
+  DeliveryStatus,
+  ParcelDestinationType,
+  ParcelType,
+  PaymentStatus,
+  PrismaClient,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const parcelTypes = [ParcelType.Regular, ParcelType.Passport, ParcelType.Document, ParcelType.Money];
+const parcelTypes = [
+  ParcelType.Regular,
+  ParcelType.Passport,
+  ParcelType.Document,
+  ParcelType.Money,
+];
 
 export const seedParcels = async (businessId: number) => {
   const addresses = await prisma.address.findMany();
@@ -47,7 +58,6 @@ export const seedParcels = async (businessId: number) => {
         parcelType: parcelTypes[i % parcelTypes.length],
         trackingNumber,
         price: 10,
-        cost: 5,
         deliveryStatus: DeliveryStatus.Delivered,
         paymentStatus: PaymentStatus.Paid,
         sender: { connect: { id: customers[i % customers.length].id } },
@@ -58,6 +68,15 @@ export const seedParcels = async (businessId: number) => {
         journey: { connect: { id: journeys[i % journeys.length].id } },
         originAddress: { connect: { id: addresses[0].id } },
         destinationAddress: { connect: { id: addresses[1].id } },
+        destinationType: ParcelDestinationType.CustomerAddress,
+        destinationSnapshot: {
+          type: 'CustomerAddress',
+          addressId: addresses[1].id,
+          street: addresses[1].street,
+          city: addresses[1].city,
+          village: addresses[1].village,
+          postcode: addresses[1].postcode,
+        },
       },
     });
 

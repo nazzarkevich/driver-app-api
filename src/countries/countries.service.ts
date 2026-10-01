@@ -21,6 +21,13 @@ export class CountriesService {
     });
   }
 
+  async findOptions(): Promise<CountryDto[]> {
+    const countries = await this.prismaService.country.findMany({
+      orderBy: { name: 'asc' },
+    });
+    return countries.map((country) => new CountryDto(country));
+  }
+
   async findAll(page: number): Promise<Pagination<CountryDto>> {
     const [countriesWithPagination, metadata] =
       await prismaWithPagination.country.paginate().withPages({ page });

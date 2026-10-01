@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
@@ -6,6 +6,7 @@ import {
   IsEmail,
   IsString,
   IsNotEmpty,
+  IsOptional,
   MinLength,
   IsDate,
   ValidateIf,
@@ -48,33 +49,37 @@ export class CreateUserDto {
   @MinLength(2)
   lastName: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '+44',
     description: 'Phone number country code',
   })
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  countryCode: string;
+  countryCode?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '07950 999 888',
     description: 'Users phone number',
   })
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  phoneNumber: string;
+  phoneNumber?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '1995-05-08',
     description: 'Users date of birth',
   })
+  @IsOptional()
   @IsDate()
-  dateOfBirth: Date;
+  dateOfBirth?: Date;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Male',
     description: 'Users gender',
   })
+  @IsOptional()
   @ValidateIf(
     (o) => o.gender !== null && o.gender !== undefined && o.gender !== '',
   )

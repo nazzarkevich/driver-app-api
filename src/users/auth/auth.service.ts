@@ -16,12 +16,8 @@ import { UserDto } from '../dtos/user.dto';
 import { AuthProfilesService } from '../auth-profiles/auth-profiles.service';
 import { BusinessesService } from 'src/businesses/businesses.service';
 import { TokenStorageService } from 'src/auth/token-storage.service';
-import {
-  ADMIN_EXTRA_PERMISSIONS,
-  AppName,
-  getAllowedApps,
-  ROLE_PERMISSIONS,
-} from 'src/permissions/permissions';
+import { AppName, getAllowedAppsForUser } from 'src/permissions/permissions';
+import { TokenUtils } from 'src/utils/token.utils';
 
 @Injectable()
 export class AuthService {
@@ -73,6 +69,11 @@ export class AuthService {
 
     const lockKey = refreshToken.substring(0, 20);
 
+    console.log('[AuthTrace] refresh requested', {
+      ...TokenUtils.diagnostics(oldAccessToken, refreshToken),
+      joiningExistingRequest: this.refreshLocks.has(lockKey),
+    });
+
     if (this.refreshLocks.has(lockKey)) {
       return this.refreshLocks.get(lockKey);
     }
@@ -101,12 +102,18 @@ export class AuthService {
     dbUser?: any;
   }> {
     try {
-      const { data, error } =
-        await this.supabaseService.client.auth.refreshSession({
+      const { data, error } = await this.supabaseService
+        .createAuthClient()
+        .auth.refreshSession({
           refresh_token: refreshToken,
         });
 
       if (error) {
+        console.warn('[AuthTrace] refresh rejected', {
+          refreshFingerprint: TokenUtils.fingerprint(refreshToken),
+          code: error.code,
+          status: error.status,
+        });
         if (error.message?.includes('Already Used')) {
           throw new UnauthorizedException(
             'Refresh token has already been used. Please use the latest tokens or log in again.',
@@ -165,6 +172,14 @@ export class AuthService {
         );
       }
 
+      console.log('[AuthTrace] refresh succeeded', {
+        previousRefreshFingerprint: TokenUtils.fingerprint(refreshToken),
+        ...TokenUtils.diagnostics(
+          data.session.access_token,
+          data.session.refresh_token,
+        ),
+      });
+
       return {
         token: data.session.access_token,
         refreshToken: data.session.refresh_token,
@@ -191,9 +206,12 @@ export class AuthService {
 
   async logout(accessToken: string, userId?: string): Promise<void> {
     try {
-      const { error } = await this.supabaseService.client.auth.signOut();
-      if (error) {
-        console.error('Error signing out from Supabase:', error.message);
+      if (accessToken) {
+        const { error } =
+          await this.supabaseService.client.auth.admin.signOut(accessToken);
+        if (error) {
+          console.error('Error signing out from Supabase:', error.message);
+        }
       }
 
       if (userId) {
@@ -223,8 +241,9 @@ export class AuthService {
     refreshToken: string;
     user: UserDto;
   }> {
-    const { data: authData, error: authError } =
-      await this.supabaseService.client.auth.signUp({
+    const { data: authData, error: authError } = await this.supabaseService
+      .createAuthClient()
+      .auth.signUp({
         email,
         password,
         options: { data: { firstName, lastName } },
@@ -305,7 +324,7 @@ export class AuthService {
     const {
       data: { session },
       error,
-    } = await this.supabaseService.client.auth.signInWithPassword({
+    } = await this.supabaseService.createAuthClient().auth.signInWithPassword({
       email,
       password,
     });
@@ -353,13 +372,7 @@ export class AuthService {
       throw new UnauthorizedException('User is blocked');
     }
 
-    const rolePermissions = ROLE_PERMISSIONS[user.type] ?? [];
-    const effectivePermissions = user.isAdmin
-      ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
-      : rolePermissions;
-    const allowedApps = user.isSuperAdmin
-      ? Object.values(AppName)
-      : getAllowedApps(effectivePermissions);
+    const allowedApps = getAllowedAppsForUser(user);
 
     if (app && !allowedApps.includes(app)) {
       throw new ForbiddenException(`Access to '${app}' is not allowed`);
@@ -373,6 +386,11 @@ export class AuthService {
       session.refresh_token,
       user.id.toString(),
       refreshTokenExpiresAt,
+    );
+
+    console.log(
+      '[AuthTrace] login succeeded',
+      TokenUtils.diagnostics(session.access_token, session.refresh_token),
     );
 
     return {
@@ -393,8 +411,9 @@ export class AuthService {
     allowedApps: AppName[];
     user: UserDto;
   }> {
-    const { data, error } =
-      await this.supabaseService.client.auth.signInWithIdToken({
+    const { data, error } = await this.supabaseService
+      .createAuthClient()
+      .auth.signInWithIdToken({
         provider: provider as any,
         token,
       });
@@ -455,13 +474,7 @@ export class AuthService {
       throw new UnauthorizedException('User is blocked');
     }
 
-    const rolePermissions = ROLE_PERMISSIONS[user.type] ?? [];
-    const effectivePermissions = user.isAdmin
-      ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
-      : rolePermissions;
-    const allowedApps = user.isSuperAdmin
-      ? Object.values(AppName)
-      : getAllowedApps(effectivePermissions);
+    const allowedApps = getAllowedAppsForUser(user);
 
     if (app && !allowedApps.includes(app)) {
       throw new ForbiddenException(`Access to '${app}' is not allowed`);

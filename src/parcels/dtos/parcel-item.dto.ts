@@ -5,20 +5,15 @@ import {
   IsEnum,
   IsBoolean,
   IsNotEmpty,
+  IsInt,
+  Min,
 } from 'class-validator';
 
 export class ParcelItemDto {
   @IsNumber()
+  @Min(0.001)
   @IsNotEmpty()
   weight: number;
-
-  @IsNumber()
-  @IsNotEmpty()
-  price: number;
-
-  @IsNumber()
-  @IsNotEmpty()
-  cost: number;
 
   @IsEnum(ParcelType)
   @IsNotEmpty()
@@ -33,10 +28,19 @@ export class ParcelItemDto {
   hasBorderCheck?: boolean;
 
   @IsEnum(PaymentStatus)
-  @IsNotEmpty()
-  paymentStatus: PaymentStatus;
+  @IsOptional()
+  paymentStatus?: PaymentStatus;
 
   @IsEnum(PaymentParty)
+  @IsOptional()
+  paidBy?: PaymentParty;
+
+  @IsInt()
   @IsNotEmpty()
-  paidBy: PaymentParty;
+  tariffId: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  priceOverride?: number;
 }

@@ -19,12 +19,25 @@ import { Pagination } from 'src/dtos/pagination.dto';
 import prismaWithPagination from 'src/prisma/prisma-client';
 import { AddAddressDto } from 'src/addresses/dtos/add-address.dto';
 import { UpdateAddressDto } from 'src/addresses/dtos/update-address.dto';
+import {
+  isValidUkPostcode,
+  normalizeUkPostcode,
+} from 'src/address-search/utils/uk-postcode';
 import { SupabaseService } from 'src/supabase/supabase.service';
+import {
+  CreateCustomerNovaPostAddressDto,
+  UpdateCustomerNovaPostAddressDto,
+} from './dtos/customer-nova-post-address.dto';
 
 const addressInclude = {
   addresses: {
     include: { country: true },
+    where: { isDeleted: false },
     orderBy: [{ isPrimary: 'desc' as const }, { id: 'asc' as const }],
+  },
+  novaPostAddresses: {
+    include: { warehouse: true },
+    orderBy: [{ isDefault: 'desc' as const }, { id: 'asc' as const }],
   },
 };
 
@@ -44,11 +57,38 @@ export class CustomersService extends BaseTenantService {
       lastName,
       gender,
       phoneNumber,
-      addresses,
+      addresses = [],
+      novaPostAddresses = [],
     }: CreateCustomerProfileDto,
     businessId: number,
   ): Promise<CustomerProfileDto> {
     await this.validateBusinessAccess(businessId);
+
+    if (
+      addresses.some(
+        (address) =>
+          address.countryIsoCode !== 'GB' &&
+          !!(address.provider || address.providerRef || address.uprn),
+      )
+    ) {
+      throw new BadRequestException(
+        'Provider address metadata is only supported for GB addresses',
+      );
+    }
+
+    if (novaPostAddresses.filter((address) => address.isDefault).length > 1) {
+      throw new BadRequestException(
+        'Only one Nova Post address can be the default',
+      );
+    }
+    if (
+      new Set(novaPostAddresses.map((address) => address.warehouseId)).size !==
+      novaPostAddresses.length
+    ) {
+      throw new BadRequestException(
+        'A Nova Post warehouse can only be saved once per customer',
+      );
+    }
 
     const isoCodes = [...new Set(addresses.map((a) => a.countryIsoCode))];
     const countries = await this.prismaService.country.findMany({
@@ -66,13 +106,42 @@ export class CustomersService extends BaseTenantService {
       countries.map((c) => [c.isoCode, c.id]),
     );
 
-    const createdId = await this.prismaService.$transaction(async (prisma) => {
-      const phone = await prisma.phone.create({
-        data: {
-          number: phoneNumber.number,
+    const existingPhone = await this.prismaService.phone.findUnique({
+      where: {
+        countryCode_number: {
           countryCode: phoneNumber.countryCode,
+          number: phoneNumber.number,
         },
-      });
+      },
+      select: { id: true },
+    });
+    if (existingPhone) {
+      throw new ConflictException(
+        'Клієнт із таким номером телефону вже існує.',
+      );
+    }
+
+    const createdId = await this.prismaService.$transaction(async (prisma) => {
+      let phone: { id: number };
+      try {
+        phone = await prisma.phone.create({
+          data: {
+            number: phoneNumber.number,
+            countryCode: phoneNumber.countryCode,
+          },
+          select: { id: true },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          throw new ConflictException(
+            'Клієнт із таким номером телефону вже існує.',
+          );
+        }
+        throw error;
+      }
 
       const customerProfile = await prisma.customerProfile.create({
         data: {
@@ -84,20 +153,66 @@ export class CustomersService extends BaseTenantService {
         },
       });
 
-      await prisma.address.createMany({
-        data: addresses.map((addr, i) => ({
-          street: addr.street,
-          city: addr.city,
-          village: addr.village,
-          postcode: addr.postcode,
-          region: addr.region,
-          flat: addr.flat,
-          isPrimary: i === 0,
-          businessId,
-          profileId: customerProfile.id,
-          countryId: countryMap[addr.countryIsoCode],
-        })),
-      });
+      if (addresses.length > 0) {
+        await prisma.address.createMany({
+          data: addresses.map((addr, i) => ({
+            street: addr.street ?? addr.line1,
+            line1: addr.line1,
+            line2: addr.line2,
+            line3: addr.line3,
+            city: addr.city,
+            village: addr.village,
+            postcode: addr.postcode,
+            region: addr.region,
+            county: addr.county,
+            uprn: addr.uprn,
+            latitude: addr.latitude,
+            longitude: addr.longitude,
+            provider: addr.provider,
+            providerRef: addr.providerRef,
+            flat: addr.flat,
+            isPrimary: i === 0,
+            businessId,
+            profileId: customerProfile.id,
+            countryId: countryMap[addr.countryIsoCode],
+          })),
+        });
+      }
+
+      if (novaPostAddresses.length > 0) {
+        const warehouses = await prisma.novaPostWarehouse.findMany({
+          where: {
+            id: {
+              in: novaPostAddresses.map((address) => address.warehouseId),
+            },
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        if (
+          warehouses.length !==
+          new Set(novaPostAddresses.map((address) => address.warehouseId)).size
+        ) {
+          throw new BadRequestException(
+            'One or more Nova Post warehouses are invalid or inactive',
+          );
+        }
+
+        const hasExplicitDefault = novaPostAddresses.some(
+          (address) => address.isDefault,
+        );
+        await prisma.customerNovaPostAddress.createMany({
+          data: novaPostAddresses.map((address, index) => ({
+            customerProfileId: customerProfile.id,
+            warehouseId: address.warehouseId,
+            label: address.label,
+            note: address.note,
+            recipientName: address.recipientName,
+            recipientPhone: address.recipientPhone,
+            isDefault: hasExplicitDefault ? !!address.isDefault : index === 0,
+          })),
+        });
+      }
 
       return customerProfile.id;
     });
@@ -427,10 +542,24 @@ export class CustomersService extends BaseTenantService {
     businessId: number,
   ): Promise<CustomerProfileDto> {
     await this.validateBusinessAccess(businessId);
+    if (
+      dto.countryIsoCode !== 'GB' &&
+      (dto.provider || dto.providerRef || dto.uprn)
+    ) {
+      throw new BadRequestException(
+        'Provider address metadata is only supported for GB addresses',
+      );
+    }
 
     const profile = await this.prismaService.customerProfile.findUnique({
       where: { id: customerId },
-      select: { businessId: true, _count: { select: { addresses: true } } },
+      select: {
+        businessId: true,
+        addresses: {
+          where: { isActive: true, isDeleted: false },
+          select: { id: true },
+        },
+      },
     });
 
     if (!profile || profile.businessId !== businessId) {
@@ -447,24 +576,42 @@ export class CustomersService extends BaseTenantService {
       );
     }
 
-    const isFirstAddress = profile._count.addresses === 0;
+    const isFirstAddress = profile.addresses.length === 0;
+    const makePrimary = isFirstAddress || dto.isPrimary === true;
 
-    await this.prismaService.address.create({
-      data: {
-        street: dto.street,
-        city: dto.city,
-        village: dto.village,
-        postcode: dto.postcode,
-        region: dto.region,
-        flat: dto.flat,
-        building: dto.building,
-        block: dto.block,
-        note: dto.note,
-        isPrimary: isFirstAddress ? true : dto.isPrimary ?? false,
-        businessId,
-        profileId: customerId,
-        countryId: country.id,
-      },
+    await this.prismaService.$transaction(async (prisma) => {
+      if (makePrimary) {
+        await prisma.address.updateMany({
+          where: { profileId: customerId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+      }
+      await prisma.address.create({
+        data: {
+          street: dto.street ?? dto.line1,
+          line1: dto.line1,
+          line2: dto.line2,
+          line3: dto.line3,
+          city: dto.city,
+          village: dto.village,
+          postcode: dto.postcode,
+          region: dto.region,
+          flat: dto.flat,
+          building: dto.building,
+          block: dto.block,
+          note: dto.note,
+          county: dto.county,
+          uprn: dto.uprn,
+          latitude: dto.latitude,
+          longitude: dto.longitude,
+          provider: dto.provider,
+          providerRef: dto.providerRef,
+          isPrimary: makePrimary,
+          businessId,
+          profileId: customerId,
+          countryId: country.id,
+        },
+      });
     });
 
     return this.findOne(customerId, businessId);
@@ -477,7 +624,13 @@ export class CustomersService extends BaseTenantService {
     businessId: number,
   ): Promise<CustomerProfileDto> {
     const address = await this.prismaService.address.findFirst({
-      where: { id: addressId, profileId: customerId, businessId },
+      where: {
+        id: addressId,
+        profileId: customerId,
+        businessId,
+        isDeleted: false,
+      },
+      include: { country: true },
     });
 
     if (!address) {
@@ -486,6 +639,17 @@ export class CustomersService extends BaseTenantService {
 
     await this.prismaService.$transaction(async (prisma) => {
       const updateData: Prisma.AddressUncheckedUpdateInput = {};
+      const effectiveCountryIsoCode =
+        dto.countryIsoCode ?? address.country.isoCode;
+
+      if (
+        effectiveCountryIsoCode !== 'GB' &&
+        (dto.provider || dto.providerRef || dto.uprn)
+      ) {
+        throw new BadRequestException(
+          'Provider address metadata is only supported for GB addresses',
+        );
+      }
 
       if (dto.countryIsoCode) {
         const country = await prisma.country.findUnique({
@@ -503,9 +667,80 @@ export class CustomersService extends BaseTenantService {
       if (dto.city !== undefined) updateData.city = dto.city;
       if (dto.village !== undefined) updateData.village = dto.village;
       if (dto.region !== undefined) updateData.region = dto.region;
-      if (dto.postcode !== undefined) updateData.postcode = dto.postcode;
+      if (dto.postcode !== undefined) {
+        const postcode =
+          effectiveCountryIsoCode === 'GB'
+            ? normalizeUkPostcode(dto.postcode)
+            : dto.postcode;
+        if (
+          effectiveCountryIsoCode === 'GB' &&
+          !isValidUkPostcode(postcode)
+        ) {
+          throw new BadRequestException('Invalid UK postcode');
+        }
+        updateData.postcode = postcode;
+      }
       if (dto.building !== undefined) updateData.building = dto.building;
       if (dto.flat !== undefined) updateData.flat = dto.flat;
+      if (dto.block !== undefined) updateData.block = dto.block;
+      if (dto.note !== undefined) updateData.note = dto.note;
+      if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+      if (dto.line1 !== undefined) updateData.line1 = dto.line1;
+      if (dto.line2 !== undefined) updateData.line2 = dto.line2;
+      if (dto.line3 !== undefined) updateData.line3 = dto.line3;
+      if (dto.county !== undefined) updateData.county = dto.county;
+      if (dto.uprn !== undefined) updateData.uprn = dto.uprn;
+      if (dto.latitude !== undefined) updateData.latitude = dto.latitude;
+      if (dto.longitude !== undefined) updateData.longitude = dto.longitude;
+      if (dto.provider !== undefined) updateData.provider = dto.provider;
+      if (dto.providerRef !== undefined) updateData.providerRef = dto.providerRef;
+
+      const meaningfulAddressChanged = [
+        dto.street,
+        dto.city,
+        dto.village,
+        dto.region,
+        dto.postcode,
+        dto.building,
+        dto.flat,
+        dto.block,
+        dto.line1,
+        dto.line2,
+        dto.line3,
+        dto.county,
+        dto.countryIsoCode,
+      ].some((value) => value !== undefined);
+      if (
+        meaningfulAddressChanged &&
+        dto.provider === undefined &&
+        dto.providerRef === undefined &&
+        dto.uprn === undefined &&
+        dto.latitude === undefined &&
+        dto.longitude === undefined
+      ) {
+        updateData.provider = null;
+        updateData.providerRef = null;
+        updateData.uprn = null;
+        updateData.latitude = null;
+        updateData.longitude = null;
+      }
+
+      if (address.isPrimary && dto.isActive === false) {
+        const otherActiveAddresses = await prisma.address.count({
+          where: {
+            profileId: customerId,
+            id: { not: addressId },
+            isActive: true,
+            isDeleted: false,
+          },
+        });
+        if (otherActiveAddresses > 0) {
+          throw new BadRequestException(
+            'Set another address as primary before deactivating this one',
+          );
+        }
+        updateData.isPrimary = false;
+      }
 
       if (Object.keys(updateData).length > 0) {
         await prisma.address.update({
@@ -536,10 +771,15 @@ export class CustomersService extends BaseTenantService {
 
     const address = await this.prismaService.address.findUnique({
       where: { id: addressId },
-      select: { profileId: true },
+      select: { profileId: true, isActive: true, isDeleted: true },
     });
 
-    if (!address || address.profileId !== customerId) {
+    if (
+      !address ||
+      address.profileId !== customerId ||
+      !address.isActive ||
+      address.isDeleted
+    ) {
       throw new NotFoundException('Address not found for this customer');
     }
 
@@ -568,7 +808,10 @@ export class CustomersService extends BaseTenantService {
       where: { id: customerId },
       select: {
         businessId: true,
-        _count: { select: { addresses: true } },
+        addresses: {
+          where: { isActive: true, isDeleted: false },
+          select: { id: true },
+        },
       },
     });
 
@@ -578,22 +821,196 @@ export class CustomersService extends BaseTenantService {
 
     const address = await this.prismaService.address.findUnique({
       where: { id: addressId },
-      select: { profileId: true, isPrimary: true },
+      select: { profileId: true, isPrimary: true, isDeleted: true },
     });
 
-    if (!address || address.profileId !== customerId) {
+    if (!address || address.profileId !== customerId || address.isDeleted) {
       throw new NotFoundException('Address not found for this customer');
     }
 
-    if (address.isPrimary && profile._count.addresses > 1) {
+    if (address.isPrimary && profile.addresses.length > 1) {
       throw new BadRequestException(
         'Set another address as primary before deleting this one',
       );
     }
 
-    await this.prismaService.address.delete({
+    await this.prismaService.address.update({
+      where: { id: addressId },
+      data: { isDeleted: true, isActive: false, isPrimary: false },
+    });
+  }
+
+  async getDestinations(customerId: number, businessId: number) {
+    await this.validateBusinessAccess(businessId);
+    const profile = await this.prismaService.customerProfile.findFirst({
+      where: { id: customerId, businessId, isDeleted: false },
+      select: {
+        addresses: {
+          where: { isActive: true, isDeleted: false },
+          include: { country: true },
+          orderBy: [{ isPrimary: 'desc' }, { id: 'asc' }],
+        },
+        novaPostAddresses: {
+          where: { warehouse: { isActive: true } },
+          include: { warehouse: true },
+          orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
+        },
+      },
+    });
+    if (!profile) throw new NotFoundException('Customer profile not found');
+
+    return {
+      addresses: profile.addresses,
+      novaPostAddresses: profile.novaPostAddresses,
+      primaryAddressId:
+        profile.addresses.find((address) => address.isPrimary)?.id ?? null,
+      defaultNovaPostAddressId:
+        profile.novaPostAddresses.find((address) => address.isDefault)?.id ??
+        null,
+    };
+  }
+
+  async addNovaPostAddress(
+    customerId: number,
+    dto: CreateCustomerNovaPostAddressDto,
+    businessId: number,
+  ): Promise<CustomerProfileDto> {
+    await this.validateBusinessAccess(businessId);
+    const [profile, warehouse] = await Promise.all([
+      this.prismaService.customerProfile.findFirst({
+        where: { id: customerId, businessId, isDeleted: false },
+        select: {
+          id: true,
+          _count: { select: { novaPostAddresses: true } },
+          novaPostAddresses: {
+            where: { warehouseId: dto.warehouseId },
+            select: { id: true },
+          },
+        },
+      }),
+      this.prismaService.novaPostWarehouse.findFirst({
+        where: { id: dto.warehouseId, isActive: true },
+        select: { id: true },
+      }),
+    ]);
+    if (!profile) throw new NotFoundException('Customer profile not found');
+    if (!warehouse) {
+      throw new BadRequestException(
+        'Nova Post warehouse is inactive or invalid',
+      );
+    }
+    if (profile.novaPostAddresses.length > 0) {
+      throw new ConflictException(
+        'This Nova Post warehouse is already saved for the customer',
+      );
+    }
+
+    const makeDefault =
+      profile._count.novaPostAddresses === 0 || dto.isDefault === true;
+    await this.prismaService.$transaction(async (prisma) => {
+      if (makeDefault) {
+        await prisma.customerNovaPostAddress.updateMany({
+          where: { customerProfileId: customerId, isDefault: true },
+          data: { isDefault: false },
+        });
+      }
+      await prisma.customerNovaPostAddress.create({
+        data: {
+          customerProfileId: customerId,
+          warehouseId: dto.warehouseId,
+          label: dto.label,
+          note: dto.note,
+          recipientName: dto.recipientName,
+          recipientPhone: dto.recipientPhone,
+          isDefault: makeDefault,
+        },
+      });
+    });
+    return this.findOne(customerId, businessId);
+  }
+
+  async updateNovaPostAddress(
+    customerId: number,
+    addressId: number,
+    dto: UpdateCustomerNovaPostAddressDto,
+    businessId: number,
+  ): Promise<CustomerProfileDto> {
+    await this.validateNovaPostAddress(customerId, addressId, businessId);
+    await this.prismaService.customerNovaPostAddress.update({
+      where: { id: addressId },
+      data: dto,
+    });
+    return this.findOne(customerId, businessId);
+  }
+
+  async setDefaultNovaPostAddress(
+    customerId: number,
+    addressId: number,
+    businessId: number,
+  ): Promise<CustomerProfileDto> {
+    await this.validateNovaPostAddress(customerId, addressId, businessId, true);
+    await this.prismaService.$transaction(async (prisma) => {
+      await prisma.customerNovaPostAddress.updateMany({
+        where: { customerProfileId: customerId, isDefault: true },
+        data: { isDefault: false },
+      });
+      await prisma.customerNovaPostAddress.update({
+        where: { id: addressId, customerProfileId: customerId },
+        data: { isDefault: true },
+      });
+    });
+    return this.findOne(customerId, businessId);
+  }
+
+  async removeNovaPostAddress(
+    customerId: number,
+    addressId: number,
+    businessId: number,
+  ): Promise<void> {
+    const address = await this.validateNovaPostAddress(
+      customerId,
+      addressId,
+      businessId,
+    );
+    if (address._count.destinationParcels + address._count.originParcels > 0) {
+      throw new ConflictException('This saved address is used by a parcel');
+    }
+    const count = await this.prismaService.customerNovaPostAddress.count({
+      where: { customerProfileId: customerId },
+    });
+    if (address.isDefault && count > 1) {
+      throw new BadRequestException(
+        'Set another Nova Post address as default before deleting this one',
+      );
+    }
+    await this.prismaService.customerNovaPostAddress.delete({
       where: { id: addressId },
     });
+  }
+
+  private async validateNovaPostAddress(
+    customerId: number,
+    addressId: number,
+    businessId: number,
+    requireActiveWarehouse = false,
+  ) {
+    const address = await this.prismaService.customerNovaPostAddress.findFirst({
+      where: {
+        id: addressId,
+        customerProfileId: customerId,
+        customerProfile: { businessId, isDeleted: false },
+        ...(requireActiveWarehouse ? { warehouse: { isActive: true } } : {}),
+      },
+      include: {
+        _count: {
+          select: { destinationParcels: true, originParcels: true },
+        },
+      },
+    });
+    if (!address) {
+      throw new NotFoundException('Saved Nova Post address not found');
+    }
+    return address;
   }
 
   async addNote(

@@ -13,6 +13,7 @@ import {
   ValidationError,
   ValidationPipe,
 } from '@nestjs/common';
+import { NextFunction, Request, Response } from 'express';
 
 import { AppModule } from './app.module';
 import { getAllConstraints, getCustomValidationError } from '../utils';
@@ -26,6 +27,14 @@ async function bootstrap() {
   // const app = await NestFactory.create(AppModule, { httpsOptions });
   const app = await NestFactory.create(AppModule);
   const loggerInstance = app.get(Logger);
+
+  // A conditional 304 can revive headers from an older cached response,
+  // including the legacy X-New-*-Token headers. Always send a fresh response.
+  app.getHttpAdapter().getInstance().disable('etag');
+  app.use((_request: Request, response: Response, next: NextFunction) => {
+    response.setHeader('Cache-Control', 'no-store');
+    next();
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Driver API')

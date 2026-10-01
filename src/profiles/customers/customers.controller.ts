@@ -29,6 +29,10 @@ import { AddAddressDto } from 'src/addresses/dtos/add-address.dto';
 import { UpdateAddressDto } from 'src/addresses/dtos/update-address.dto';
 import { Permissions } from 'src/decorators/permissions.decorator';
 import { Permission } from 'src/permissions/permissions';
+import {
+  CreateCustomerNovaPostAddressDto,
+  UpdateCustomerNovaPostAddressDto,
+} from './dtos/customer-nova-post-address.dto';
 
 @ApiTags('Customer Profile')
 @Controller('customers')
@@ -239,6 +243,84 @@ export class CustomersController {
     return this.customersService.addAddress(
       customerId,
       body,
+      currentUser.businessId,
+    );
+  }
+
+  @Get('/:id/destinations')
+  @Permissions(Permission.CUSTOMER_READ)
+  @ApiOperation({
+    summary: 'Get selectable parcel destinations for a customer',
+  })
+  getDestinations(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+  ) {
+    return this.customersService.getDestinations(
+      customerId,
+      currentUser.businessId,
+    );
+  }
+
+  @Post('/:id/nova-post-addresses')
+  @Permissions(Permission.CUSTOMER_ADDRESS_CREATE)
+  @ApiOperation({ summary: 'Save a Nova Post warehouse for a customer' })
+  addNovaPostAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Body() body: CreateCustomerNovaPostAddressDto,
+  ): Promise<CustomerProfileDto> {
+    return this.customersService.addNovaPostAddress(
+      customerId,
+      body,
+      currentUser.businessId,
+    );
+  }
+
+  @Patch('/:id/nova-post-addresses/:addressId')
+  @Permissions(Permission.CUSTOMER_ADDRESS_UPDATE)
+  @ApiOperation({ summary: 'Update a saved Nova Post address' })
+  updateNovaPostAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Param('addressId', ParseIntPipe) addressId: number,
+    @Body() body: UpdateCustomerNovaPostAddressDto,
+  ): Promise<CustomerProfileDto> {
+    return this.customersService.updateNovaPostAddress(
+      customerId,
+      addressId,
+      body,
+      currentUser.businessId,
+    );
+  }
+
+  @Patch('/:id/nova-post-addresses/:addressId/default')
+  @Permissions(Permission.CUSTOMER_ADDRESS_UPDATE)
+  @ApiOperation({ summary: 'Set the default Nova Post address' })
+  setDefaultNovaPostAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Param('addressId', ParseIntPipe) addressId: number,
+  ): Promise<CustomerProfileDto> {
+    return this.customersService.setDefaultNovaPostAddress(
+      customerId,
+      addressId,
+      currentUser.businessId,
+    );
+  }
+
+  @Delete('/:id/nova-post-addresses/:addressId')
+  @Permissions(Permission.CUSTOMER_ADDRESS_DELETE)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a saved Nova Post address' })
+  removeNovaPostAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Param('addressId', ParseIntPipe) addressId: number,
+  ): Promise<void> {
+    return this.customersService.removeNovaPostAddress(
+      customerId,
+      addressId,
       currentUser.businessId,
     );
   }

@@ -95,29 +95,10 @@ export class TariffsController {
     entityType: 'tariff',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Soft delete a tariff' })
   async remove(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<void> {
     return this.tariffsService.remove(id, currentUser.businessId, currentUser);
-  }
-
-  @Get(':id/calculate-price')
-  @ApiOperation({
-    summary: 'Calculate price for a given weight using a tariff',
-  })
-  @ApiQuery({
-    name: 'weight',
-    required: true,
-    type: Number,
-    description: 'Weight in kilograms',
-  })
-  async calculatePrice(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('weight', ParseIntPipe) weight: number,
-  ): Promise<{ price: number }> {
-    const price = await this.tariffsService.calculatePrice(id, weight);
-    return { price };
   }
 }

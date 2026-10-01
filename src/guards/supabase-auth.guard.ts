@@ -5,13 +5,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request, Response } from 'express';
+import { Request } from 'express';
 import { AuthProvider } from '@prisma/client';
 
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { TokenStorageService } from '../auth/token-storage.service';
-import { AuthService } from '../users/auth/auth.service';
+import { TokenUtils } from '../utils/token.utils';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
@@ -19,13 +18,10 @@ export class SupabaseAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly supabaseService: SupabaseService,
     private readonly prismaService: PrismaService,
-    private readonly tokenStorageService: TokenStorageService,
-    private readonly authService: AuthService,
   ) {}
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
-    const response = context.switchToHttp().getResponse<Response>();
     const token = this.extractTokenFromHeader(request);
     const isPublic = this.reflector.getAllAndOverride('isPublic', [
       context.getHandler(),
@@ -43,62 +39,17 @@ export class SupabaseAuthGuard implements CanActivate {
 
     request.accessToken = token;
 
-    let refreshToken = this.tokenStorageService.getRefreshToken(token);
-
-    if (!refreshToken) {
-      const headerRefreshToken = request.headers['x-refresh-token'] as string;
-      if (headerRefreshToken) {
-        refreshToken = headerRefreshToken;
-        console.log('📥 Using refresh token from X-Refresh-Token header');
-        this.tokenStorageService.storeRefreshToken(
-          token,
-          headerRefreshToken,
-          'temp',
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        );
-      } else {
-        console.log(
-          '⚠️  No refresh token found. Token validation may fail without ability to refresh.',
-        );
-      }
-    } else {
-      console.log('💾 Using refresh token from in-memory storage');
-    }
-
-    request.refreshToken = refreshToken;
-
-    console.log(
-      '🔍 Attempting token validation for:',
-      token.substring(0, 20) + '...',
-    );
+    console.log('[AuthTrace] access validation', {
+      method: request.method,
+      path: request.path,
+      ...TokenUtils.requestSource(request),
+      ...TokenUtils.diagnostics(token),
+    });
 
     try {
       const result = await this.validateToken(token);
       if (result.success) {
         return this.setupUserContext(request, result.user, result.dbUser);
-      }
-
-      if (refreshToken) {
-        console.log('🔄 Token validation failed, attempting refresh...');
-        const refreshResult = await this.attemptTokenRefresh(
-          request,
-          refreshToken,
-          token,
-        );
-        if (refreshResult.success) {
-          response.setHeader('X-New-Access-Token', request.accessToken);
-          response.setHeader('X-New-Refresh-Token', request.refreshToken);
-          return this.setupUserContext(
-            request,
-            refreshResult.user,
-            refreshResult.dbUser,
-          );
-        }
-        console.log('❌ Token refresh failed. User needs to log in again.');
-      } else {
-        console.log(
-          '❌ Token validation failed and no refresh token available. User needs to log in again.',
-        );
       }
 
       throw new UnauthorizedException('Session expired. Please log in again.');
@@ -165,54 +116,6 @@ export class SupabaseAuthGuard implements CanActivate {
       return { success: true, user, dbUser };
     } catch (error) {
       console.error('Token validation error:', error);
-      return { success: false };
-    }
-  }
-
-  private async attemptTokenRefresh(
-    request: any,
-    refreshToken: string,
-    oldToken: string,
-  ): Promise<{ success: boolean; user?: any; dbUser?: any }> {
-    try {
-      console.log('🔄 Attempting token refresh...');
-      const refreshResult = await this.authService.refreshToken(
-        refreshToken,
-        oldToken,
-      );
-
-      request.accessToken = refreshResult.token;
-      request.refreshToken = refreshResult.refreshToken;
-      request.tokenWasRefreshed = true;
-      request.headers.authorization = `Bearer ${refreshResult.token}`;
-
-      console.log('✅ Token refresh successful');
-
-      const dbUser = refreshResult.dbUser;
-
-      if (!dbUser) {
-        console.log(`❌ User data not available from refresh result`);
-        return { success: false };
-      }
-
-      if (dbUser.isBlocked) {
-        console.log(`❌ User is blocked: ${dbUser.email}`);
-        return { success: false };
-      }
-
-      if (!dbUser.business?.isActive) {
-        console.log(`❌ User's business is not active:`, {
-          userEmail: dbUser.email,
-          businessId: dbUser.businessId,
-          businessName: dbUser.business?.name,
-          businessIsActive: dbUser.business?.isActive,
-        });
-        return { success: false };
-      }
-
-      return { success: true, user: null, dbUser };
-    } catch (error) {
-      console.error('❌ Token refresh failed:', error.message);
       return { success: false };
     }
   }

@@ -10,6 +10,15 @@ export class AddressDto {
   postcode: string;
   apartment: string;
   country: string;
+  line1?: string;
+  line2?: string;
+  line3?: string;
+  county?: string;
+  uprn?: string;
+  latitude?: unknown;
+  longitude?: unknown;
+  provider?: string;
+  providerRef?: string;
 
   @Exclude()
   profileId: number;

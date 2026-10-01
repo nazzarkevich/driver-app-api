@@ -17,22 +17,31 @@ import {
   UserRequestType,
 } from 'src/users/decorators/current-user.decorator';
 import { ParcelsService } from './parcels.service';
+import { TariffsService } from 'src/tariffs/tariffs.service';
 
 import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { CreateParcelNoteDto } from './dtos/create-parcel-note.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
 import { ParcelDto } from './dtos/parcel.dto';
+import { UpdateParcelJourneyDto } from './dtos/update-parcel-journey.dto';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { SuperAdminGuard } from 'src/guards/super-admin.guard';
 import { SuperAdminQueryDto } from 'src/dtos/super-admin-query.dto';
 import { CreateBulkParcelsDto } from './dtos/create-bulk-parcels.dto';
 import { Permissions } from 'src/decorators/permissions.decorator';
 import { Permission } from 'src/permissions/permissions';
+import {
+  ParcelPriceOptionsDto,
+  ParcelPriceOptionsResponseDto,
+} from './dtos/parcel-price-options.dto';
 
 @ApiTags('Parcel')
 @Controller('parcels')
 export class ParcelsController {
-  constructor(private readonly parcelsService: ParcelsService) {}
+  constructor(
+    private readonly parcelsService: ParcelsService,
+    private readonly tariffsService: TariffsService,
+  ) {}
 
   @Post()
   @Permissions(Permission.PARCEL_CREATE)
@@ -50,6 +59,18 @@ export class ParcelsController {
     @Body() body: CreateBulkParcelsDto,
   ): Promise<ParcelDto[]> {
     return this.parcelsService.createBulk(currentUser, body);
+  }
+
+  @Post('price-options')
+  @Permissions(Permission.PARCEL_CREATE)
+  @ApiOperation({
+    summary: 'Resolve eligible tariff price options for a parcel',
+  })
+  async calculatePrice(
+    @CurrentUser() currentUser: UserRequestType,
+    @Body() dto: ParcelPriceOptionsDto,
+  ): Promise<ParcelPriceOptionsResponseDto> {
+    return this.tariffsService.findPriceOptions(currentUser, dto);
   }
 
   @Get()
@@ -76,6 +97,7 @@ export class ParcelsController {
   })
   @ApiQuery({ name: 'senderId', required: false, type: Number })
   @ApiQuery({ name: 'recipientId', required: false, type: Number })
+  @ApiQuery({ name: 'journeyId', required: false, type: Number })
   @ApiQuery({
     name: 'startDate',
     required: false,
@@ -154,6 +176,7 @@ export class ParcelsController {
     @Query('paymentStatus') paymentStatus?: string,
     @Query('courierId') courierId?: string,
     @Query('driverId') driverId?: string,
+    @Query('journeyId') journeyId?: string,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const senderIdNumber = senderId ? parseInt(senderId, 10) : undefined;
@@ -171,6 +194,7 @@ export class ParcelsController {
       : undefined;
     const courierIdNumber = courierId ? parseInt(courierId, 10) : undefined;
     const driverIdNumber = driverId ? parseInt(driverId, 10) : undefined;
+    const journeyIdNumber = journeyId ? parseInt(journeyId, 10) : undefined;
 
     // SuperAdmin can specify different businessId, regular users use their own
     const targetBusinessId =
@@ -195,6 +219,7 @@ export class ParcelsController {
       paymentStatus,
       courierIdNumber,
       driverIdNumber,
+      journeyIdNumber,
     );
   }
 
@@ -255,6 +280,17 @@ export class ParcelsController {
         : currentUser.businessId;
 
     return this.parcelsService.update(id, body, targetBusinessId, currentUser);
+  }
+
+  @Put('/:id/journey')
+  @Permissions(Permission.PARCEL_UPDATE)
+  @ApiOperation({ summary: 'Assign, move, or remove parcel journey' })
+  updateParcelJourney(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateParcelJourneyDto,
+  ): Promise<ParcelDto[]> {
+    return this.parcelsService.updateJourneyAssignment(id, body, currentUser);
   }
 
   @Delete('/:id')
@@ -350,6 +386,20 @@ export class ParcelsController {
     @Param('id', ParseIntPipe) parcelId: number,
   ) {
     return this.parcelsService.markAsDelivered(
+      parcelId,
+      currentUser.businessId,
+      currentUser.id,
+    );
+  }
+
+  @Put('/:id/mark-picked-up')
+  @Permissions(Permission.PARCEL_MARK_PICKED_UP)
+  @ApiOperation({ summary: 'Mark a parcel or its whole group as picked up' })
+  markAsPickedUp(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+  ): Promise<ParcelDto[]> {
+    return this.parcelsService.markAsPickedUp(
       parcelId,
       currentUser.businessId,
       currentUser.id,

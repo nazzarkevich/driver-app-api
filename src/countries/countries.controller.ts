@@ -21,6 +21,11 @@ export class CountriesController {
     return this.countriesService.addCountry(body);
   }
 
+  @Get('options')
+  async getCountryOptions() {
+    return this.countriesService.findOptions();
+  }
+
   @Get()
   async getAllCountries(@Query('page', ParseIntPipe) page: number) {
     return this.countriesService.findAll(page);

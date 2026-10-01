@@ -1,0 +1,2 @@
+export const JOURNEY_PARCEL_COUNT_TARGET = 150;
+export const JOURNEY_WEIGHT_TARGET_KG = 1_500;

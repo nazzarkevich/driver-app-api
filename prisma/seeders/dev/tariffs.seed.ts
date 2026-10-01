@@ -6,15 +6,15 @@ export const seedTariffs = async (businessId: number) => {
   const tariffs = [];
 
   const tariffData = [
-    { name: 'UK Document', description: 'Flat rate for document delivery to UK.', currency: 'GBP' },
-    { name: 'UK Passport', description: 'Flat rate for passport delivery to UK.', currency: 'GBP' },
-    { name: 'UK Money Transfer', description: 'Flat rate for money transfer to UK.', currency: 'GBP' },
-    { name: 'UK Standard Parcel', description: 'Standard tariff for parcels to UK.', currency: 'GBP' },
-    { name: 'UK Express Parcel', description: 'Express tariff for urgent deliveries to UK.', currency: 'GBP' },
-    { name: 'EU Document', description: 'Flat rate for document delivery to EU countries.', currency: 'EUR' },
-    { name: 'EU Passport', description: 'Flat rate for passport delivery to EU countries.', currency: 'EUR' },
-    { name: 'EU Money Transfer', description: 'Flat rate for money transfer to EU countries.', currency: 'EUR' },
-    { name: 'EU Standard Parcel', description: 'Standard tariff for parcels to EU countries.', currency: 'EUR' },
+    { name: 'UK Document', description: 'Flat rate for document delivery to UK.' },
+    { name: 'UK Passport', description: 'Flat rate for passport delivery to UK.' },
+    { name: 'UK Money Transfer', description: 'Flat rate for money transfer to UK.' },
+    { name: 'UK Standard Parcel', description: 'Standard tariff for parcels to UK.' },
+    { name: 'UK Express Parcel', description: 'Express tariff for urgent deliveries to UK.' },
+    { name: 'EU Document', description: 'Flat rate for document delivery to EU countries.' },
+    { name: 'EU Passport', description: 'Flat rate for passport delivery to EU countries.' },
+    { name: 'EU Money Transfer', description: 'Flat rate for money transfer to EU countries.' },
+    { name: 'EU Standard Parcel', description: 'Standard tariff for parcels to EU countries.' },
   ];
 
   for (const data of tariffData) {

@@ -1,6 +1,13 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Gender } from '@prisma/client';
-import { IsEnum, IsEmail, IsString, IsOptional, IsDate } from 'class-validator';
+import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
+import { Gender, UserType } from '@prisma/client';
+import {
+  IsDate,
+  IsEmail,
+  IsEmpty,
+  IsEnum,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 // TODO: Question: how to update phone number?
 export class UpdateUserDto {
@@ -60,9 +67,17 @@ export class UpdateUserDto {
   @IsOptional()
   gender: Gender;
 
-  // @IsEnum(UserType)
-  // @IsOptional()
-  // type: UserType;
+  @ApiHideProperty()
+  @IsEmpty({ message: 'User role must be changed through the role endpoint' })
+  type?: UserType;
+
+  @ApiHideProperty()
+  @IsEmpty({ message: 'isAdmin cannot be changed through the API' })
+  isAdmin?: boolean;
+
+  @ApiHideProperty()
+  @IsEmpty({ message: 'isSuperAdmin cannot be changed through the API' })
+  isSuperAdmin?: boolean;
 
   // @IsBoolean()
   // @IsOptional()

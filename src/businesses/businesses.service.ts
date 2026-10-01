@@ -22,11 +22,13 @@ export class BusinessesService {
   async createBusiness({
     name,
     description,
+    currency,
   }: CreateBusinessDto): Promise<void> {
     await this.prismaService.business.create({
       data: {
         name,
         description,
+        currency,
         activationDate: new Date(),
         isActive: true,
       },
@@ -51,6 +53,7 @@ export class BusinessesService {
         data: {
           name: dto.businessName,
           description: dto.description,
+          currency: dto.currency,
           isActive: true,
           activationDate: new Date(),
         },
@@ -155,6 +158,17 @@ export class BusinessesService {
 
     if (!business) {
       throw new Error('Business not found');
+    }
+
+    if (attrs.currency && attrs.currency !== business.currency) {
+      const tariffCount = await this.prismaService.tariff.count({
+        where: { businessId: id, isDeleted: false },
+      });
+      if (tariffCount > 0) {
+        throw new BadRequestException(
+          'Business currency cannot change while tariffs exist',
+        );
+      }
     }
 
     Object.assign(business, attrs);

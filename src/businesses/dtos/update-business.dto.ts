@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsBoolean, IsDate } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsDate, IsIn } from 'class-validator';
 
 export class UpdateBusinessDto {
   @IsOptional()
@@ -16,4 +16,9 @@ export class UpdateBusinessDto {
   @IsOptional()
   @IsDate()
   activationDate?: Date;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['GBP', 'EUR', 'UAH'])
+  currency?: string;
 }

@@ -1,22 +1,20 @@
 import { ParcelType, PaymentParty, PaymentStatus } from '@prisma/client';
 import {
-  IsString,
   IsOptional,
   IsNumber,
   IsEnum,
-  IsDate,
   IsNotEmpty,
+  ValidateNested,
+  IsInt,
+  Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ParcelDestinationDto } from './parcel-destination.dto';
 
 export class CreateParcelDto {
   @IsNumber()
+  @Min(0.001)
   weight: number;
-
-  @IsNumber()
-  price: number;
-
-  @IsNumber()
-  cost: number;
 
   @IsNumber()
   @IsOptional()
@@ -27,16 +25,12 @@ export class CreateParcelDto {
   parcelType: ParcelType;
 
   @IsEnum(PaymentStatus)
-  @IsNotEmpty()
-  paymentStatus: PaymentStatus;
+  @IsOptional()
+  paymentStatus?: PaymentStatus;
 
   @IsEnum(PaymentParty)
-  @IsNotEmpty()
-  paidBy: PaymentParty;
-
-  @IsDate()
-  @IsNotEmpty()
-  pickupDate: Date;
+  @IsOptional()
+  paidBy?: PaymentParty;
 
   @IsNumber()
   @IsNotEmpty()
@@ -46,27 +40,26 @@ export class CreateParcelDto {
   @IsNotEmpty()
   recipientId: number;
 
-  @IsString()
-  @IsNotEmpty()
-  recipientPhoneNumber: string;
-
-  @IsString()
-  @IsNotEmpty()
-  senderPhoneNumber: string;
-
   @IsNumber()
   @IsOptional()
   journeyId: number;
 
-  @IsNumber()
+  @ValidateNested()
+  @Type(() => ParcelDestinationDto)
   @IsNotEmpty()
-  originAddressId: number;
+  origin: ParcelDestinationDto;
+
+  @ValidateNested()
+  @Type(() => ParcelDestinationDto)
+  @IsNotEmpty()
+  destination: ParcelDestinationDto;
+
+  @IsInt()
+  @IsNotEmpty()
+  tariffId: number;
 
   @IsNumber()
-  @IsNotEmpty()
-  destinationAddressId: number;
-
-  @IsNumber()
+  @Min(0)
   @IsOptional()
-  tariffId?: number;
+  priceOverride?: number;
 }

@@ -1,5 +1,11 @@
 import { Exclude, Expose } from 'class-transformer';
-import { ParcelType } from '@prisma/client';
+import { ParcelType, TariffPricingType } from '@prisma/client';
+
+const toNumber = (val: any): number | null => {
+  if (val == null) return null;
+  const n = parseFloat(String(val));
+  return isNaN(n) ? null : n;
+};
 
 @Exclude()
 export class TariffDto {
@@ -22,13 +28,21 @@ export class TariffDto {
   businessId: number;
 
   @Expose()
+  tariffGroupId: number | null;
+
+  @Expose()
+  tariffGroup: {
+    id: number;
+    name: string;
+    isActive: boolean;
+    originCountryId: number;
+    destinationCountryId: number;
+    originCountry: { id: number; name: string; isoCode: string };
+    destinationCountry: { id: number; name: string; isoCode: string };
+  } | null;
+
+  @Expose()
   parcelType: ParcelType | null;
-
-  @Expose()
-  originCountryId: number | null;
-
-  @Expose()
-  originCountry: { id: number; name: string } | null;
 
   @Expose()
   minimumPrice: number;
@@ -40,7 +54,7 @@ export class TariffDto {
   weightThreshold: number | null;
 
   @Expose()
-  isWeightBased: boolean;
+  pricingType: TariffPricingType;
 
   @Expose()
   createdAt: Date;
@@ -50,5 +64,8 @@ export class TariffDto {
 
   constructor(partial: Partial<TariffDto>) {
     Object.assign(this, partial);
+    this.minimumPrice = toNumber(partial.minimumPrice) ?? 0;
+    this.pricePerKg = toNumber(partial.pricePerKg);
+    this.weightThreshold = toNumber(partial.weightThreshold);
   }
 }

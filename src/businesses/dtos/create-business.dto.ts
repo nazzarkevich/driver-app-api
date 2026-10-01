@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsIn, IsString, IsOptional } from 'class-validator';
 
 export class CreateBusinessDto {
   @IsString()
@@ -7,4 +7,9 @@ export class CreateBusinessDto {
   @IsString()
   @IsOptional()
   description: string;
+
+  @IsString()
+  @IsIn(['GBP', 'EUR', 'UAH'])
+  @IsOptional()
+  currency?: string;
 }

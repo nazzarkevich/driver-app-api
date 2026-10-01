@@ -1,75 +1,56 @@
 import { ParcelType, PaymentParty, PaymentStatus } from '@prisma/client';
 import {
+  IsBoolean,
   IsEnum,
-  IsOptional,
-  IsNumber,
-  IsDate,
   IsInt,
-  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class UpdateParcelDto {
   @IsNumber()
+  @Min(0.001)
   @IsOptional()
-  weight: number;
-
-  @IsNumber()
-  @IsOptional()
-  price: number;
-
-  @IsNumber()
-  @IsOptional()
-  parcelMoneyAmount: number;
+  weight?: number;
 
   @IsEnum(ParcelType)
   @IsOptional()
   parcelType?: ParcelType;
 
+  @IsInt()
+  @IsOptional()
+  tariffId?: number;
+
+  @ValidateIf((_, value) => value !== null)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  priceOverride?: number | null;
+
+  @ValidateIf((_, value) => value !== null)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  parcelMoneyAmount?: number | null;
+
   @IsEnum(PaymentStatus)
   @IsOptional()
-  paymentStatus: PaymentStatus;
+  paymentStatus?: PaymentStatus;
 
   @IsEnum(PaymentParty)
   @IsOptional()
-  paidBy: PaymentParty;
+  paidBy?: PaymentParty;
 
-  @IsInt()
+  @IsBoolean()
   @IsOptional()
-  pickedUpByCourierId?: number;
+  hasBorderCheck?: boolean;
 
-  @IsInt()
+  @IsString()
+  @MaxLength(1000)
   @IsOptional()
-  pickedUpByDriverId?: number;
-
-  @IsOptional()
-  @IsDateString()
-  pickedUpAt?: Date;
-
-  @IsInt()
-  @IsOptional()
-  deliveredByCourierId?: number;
-
-  @IsInt()
-  @IsOptional()
-  deliveredByDriverId?: number;
-
-  @IsOptional()
-  @IsDateString()
-  deliveredAt?: Date;
-
-  @IsDate()
-  @IsOptional()
-  pickupDate: Date;
-
-  @IsNumber()
-  @IsOptional()
-  senderId: number;
-
-  @IsNumber()
-  @IsOptional()
-  recipientId: number;
-
-  @IsNumber()
-  @IsOptional()
-  journeyId: number;
+  note?: string;
 }

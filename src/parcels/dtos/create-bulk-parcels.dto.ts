@@ -1,8 +1,6 @@
 import {
-  IsString,
   IsOptional,
   IsNumber,
-  IsDate,
   IsNotEmpty,
   IsArray,
   ValidateNested,
@@ -10,6 +8,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ParcelItemDto } from './parcel-item.dto';
+import { ParcelDestinationDto } from './parcel-destination.dto';
 
 export class CreateBulkParcelsDto {
   @IsNumber()
@@ -20,30 +19,19 @@ export class CreateBulkParcelsDto {
   @IsNotEmpty()
   recipientId: number;
 
-  @IsString()
+  @ValidateNested()
+  @Type(() => ParcelDestinationDto)
   @IsNotEmpty()
-  recipientPhoneNumber: string;
+  origin: ParcelDestinationDto;
 
-  @IsString()
+  @ValidateNested()
+  @Type(() => ParcelDestinationDto)
   @IsNotEmpty()
-  senderPhoneNumber: string;
-
-  @IsNumber()
-  @IsNotEmpty()
-  originAddressId: number;
-
-  @IsNumber()
-  @IsNotEmpty()
-  destinationAddressId: number;
+  destination: ParcelDestinationDto;
 
   @IsNumber()
   @IsOptional()
   journeyId?: number;
-
-  @IsDate()
-  @IsNotEmpty()
-  @Type(() => Date)
-  pickupDate: Date;
 
   @IsArray()
   @ValidateNested({ each: true })

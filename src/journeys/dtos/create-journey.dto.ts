@@ -35,4 +35,8 @@ export class CreateJourneyDto {
   @IsBoolean()
   @IsOptional()
   hasTrailer: boolean;
+
+  @IsString()
+  @IsOptional()
+  notes: string;
 }

@@ -13,6 +13,17 @@ export class AddressWithCountryDto {
   flat: string | null;
   note: string | null;
   region: string | null;
+  line1: string | null;
+  line2: string | null;
+  line3: string | null;
+  county: string | null;
+  uprn: string | null;
+  latitude: unknown | null;
+  longitude: unknown | null;
+  provider: string | null;
+  providerRef: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
   country: CountryDto;
 
   constructor(partial: Partial<AddressWithCountryDto>) {

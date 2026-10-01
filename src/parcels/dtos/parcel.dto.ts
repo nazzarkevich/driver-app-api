@@ -3,6 +3,8 @@ import {
   ParcelType,
   PaymentStatus,
   PaymentParty,
+  ParcelDestinationType,
+  Prisma,
 } from '@prisma/client';
 import { Expose } from 'class-transformer';
 import { AddressWithCountryDto } from './address-with-country.dto';
@@ -14,7 +16,6 @@ export class ParcelDto {
   weight: number;
   price: number;
   calculatedPrice?: number;
-  cost: number;
   parcelType: ParcelType;
   trackingNumber: string;
   novaPostTrackingNumber: string;
@@ -23,8 +24,6 @@ export class ParcelDto {
   isArchived: boolean;
   isDamaged: boolean;
   hasBorderCheck: boolean;
-  pickupDate: Date;
-  deliveryDate: Date;
   createdAt: Date;
   updatedAt: Date;
   deliveryStatus: DeliveryStatus;
@@ -53,12 +52,34 @@ export class ParcelDto {
   // Relationships
   senderId: number;
   recipientId: number;
-  journeyId: number;
+  journeyId: number | null;
   courierJourneyId: number;
-  originAddressId: number;
-  destinationAddressId: number;
-  originAddress: AddressWithCountryDto;
-  destinationAddress: AddressWithCountryDto;
+  originType: ParcelDestinationType;
+  originAddressId: number | null;
+  originCustomerNovaPostAddressId: number | null;
+  originNovaPostWarehouseId: number | null;
+  destinationType: ParcelDestinationType;
+  destinationAddressId: number | null;
+  customerNovaPostAddressId: number | null;
+  novaPostWarehouseId: number | null;
+  destinationSnapshot: Prisma.JsonValue | null;
+  originSnapshot: Prisma.JsonValue | null;
+  originAddress: AddressWithCountryDto | null;
+  originCustomerNovaPostAddress?: Record<string, any> | null;
+  originNovaPostWarehouse?: Record<string, any> | null;
+  destinationAddress: AddressWithCountryDto | null;
+  customerNovaPostAddress?: Record<string, any> | null;
+  novaPostWarehouse?: Record<string, any> | null;
+  pricing?: {
+    tariffId: number;
+    tariffGroupId: number;
+    tariff?: Record<string, any> | null;
+    tariffGroup?: Record<string, any> | null;
+    calculatedPrice: number;
+    finalPrice: number;
+    isOverridden: boolean;
+    currency: string;
+  };
 
   constructor(partial: Record<string, any>) {
     Object.assign(this, partial);
@@ -67,19 +88,52 @@ export class ParcelDto {
     if (partial.price != null) this.price = Number(partial.price);
     if (partial.calculatedPrice != null)
       this.calculatedPrice = Number(partial.calculatedPrice);
-    if (partial.cost != null) this.cost = Number(partial.cost);
     if (partial.parcelMoneyAmount != null)
       this.parcelMoneyAmount = Number(partial.parcelMoneyAmount);
+
+    const selectedPrice = partial.selectedPrice;
+    if (
+      selectedPrice?.tariffId != null &&
+      selectedPrice?.tariffGroupId != null
+    ) {
+      this.pricing = {
+        tariffId: selectedPrice.tariffId,
+        tariffGroupId: selectedPrice.tariffGroupId,
+        tariff: selectedPrice.tariff ?? null,
+        tariffGroup:
+          selectedPrice.tariffGroup ??
+          selectedPrice.tariff?.tariffGroup ??
+          null,
+        calculatedPrice: Number(selectedPrice.baseAmount),
+        finalPrice: Number(selectedPrice.finalAmount),
+        isOverridden: selectedPrice.isOverridden,
+        currency: selectedPrice.currency,
+      };
+    }
 
     this.groupId = partial.groupId ?? null;
     this.groupSize = partial.groupSize ?? 1;
 
-    if (partial?.originAddress) {
+    // Preserve the legacy response shape while sourcing parcel history from the
+    // immutable snapshots instead of mutable customer address relations.
+    if (partial?.originSnapshot?.type === 'CustomerAddress') {
+      this.originAddress = this.addressFromSnapshot(
+        partial.originSnapshot,
+        partial.originAddress,
+      );
+    } else if (partial?.originAddress) {
       this.originAddress = new AddressWithCountryDto(
         partial.originAddress as any,
       );
+    } else {
+      this.originAddress = null;
     }
-    if (partial?.destinationAddress) {
+    if (partial?.destinationSnapshot?.type === 'CustomerAddress') {
+      this.destinationAddress = this.addressFromSnapshot(
+        partial.destinationSnapshot,
+        partial.destinationAddress,
+      );
+    } else if (partial?.destinationAddress) {
       this.destinationAddress = new AddressWithCountryDto(
         partial.destinationAddress as any,
       );
@@ -116,5 +170,20 @@ export class ParcelDto {
         lastName: deliveredByDriver.user.lastName,
       };
     }
+  }
+
+  private addressFromSnapshot(
+    snapshot: Record<string, any>,
+    fallback?: Record<string, any> | null,
+  ): AddressWithCountryDto {
+    return new AddressWithCountryDto({
+      ...(fallback ?? {}),
+      ...snapshot,
+      street: snapshot.line1 ?? snapshot.street,
+      country: {
+        ...(fallback?.country ?? {}),
+        isoCode: snapshot.countryIsoCode ?? fallback?.country?.isoCode,
+      },
+    });
   }
 }
