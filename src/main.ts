@@ -27,6 +27,16 @@ async function bootstrap() {
   // const app = await NestFactory.create(AppModule, { httpsOptions });
   const app = await NestFactory.create(AppModule);
   const loggerInstance = app.get(Logger);
+  const trustProxy = process.env.TRUST_PROXY;
+  if (trustProxy) {
+    app
+      .getHttpAdapter()
+      .getInstance()
+      .set(
+        'trust proxy',
+        /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy,
+      );
+  }
 
   // A conditional 304 can revive headers from an older cached response,
   // including the legacy X-New-*-Token headers. Always send a fresh response.

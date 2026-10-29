@@ -1,4 +1,4 @@
-export interface ResolvedAddress {
+export interface ResolvedUkAddress {
   line1: string;
   line2: string | null;
   line3: string | null;
@@ -24,3 +24,18 @@ export interface PostcodeValidationResult {
   adminCounty?: string | null;
   externalServiceAvailable: boolean;
 }
+
+export interface ResolvedUkraineAddress {
+  countryCode: 'UA';
+  street: string | null;
+  building: string | null;
+  city: string | null;
+  village: string | null;
+  region: string | null;
+  postcode: string | null;
+  provider: 'google-places';
+  providerRef: string;
+  attributions: { displayName: string; uri: string }[];
+}
+
+export type ResolvedAddress = ResolvedUkAddress | ResolvedUkraineAddress;

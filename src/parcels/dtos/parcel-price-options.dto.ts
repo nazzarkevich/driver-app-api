@@ -17,6 +17,8 @@ export class ParcelPriceOptionsDto {
 }
 
 export class ParcelPriceOptionDto {
+  pricePerKg: number | null;
+  minimumPrice: number;
   tariffId: number;
   tariffName: string;
   tariffGroupId: number;

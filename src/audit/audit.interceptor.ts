@@ -23,6 +23,13 @@ export class AuditInterceptor implements NestInterceptor {
     // Extract request information
     const method = request.method;
     const endpoint = request.url;
+    if (
+      /^\/(?:api\/)?users\/me\/?$/i.test(request.path) ||
+      request.path.startsWith('/public/tracking') ||
+      request.path.match(/^\/shipments\/[^/]+\/tracking-links/)
+    ) {
+      return next.handle();
+    }
     const ipAddress = request.ip || request.connection.remoteAddress;
     const userAgent = request.get('User-Agent');
     const currentUser: UserRequestType | null = request.currentUser;

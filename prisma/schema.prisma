@@ -36,7 +36,11 @@ model User {
   customerProfileId Int?             @unique
   customerProfile   CustomerProfile? @relation(fields: [customerProfileId], references: [id])
 
-  authProfiles AuthProfile[]
+  authProfiles            AuthProfile[]
+  collectedParcelPayments ParcelPaymentEntry[] @relation("CollectedParcelPayments")
+  recordedParcelPayments  ParcelPaymentEntry[] @relation("RecordedParcelPayments")
+  parcelPriceChanges      ParcelPrice[]        @relation("ParcelPriceChangedBy")
+  closedJourneys          Journey[]            @relation("JourneyClosedBy")
 
   courierProfile CourierProfile?
   driverProfile  DriverProfile?
@@ -103,42 +107,89 @@ model CourierProfile {
 }
 
 model Business {
-  id               Int               @id @default(autoincrement())
-  name             String
-  notes            String?
-  activationDate   DateTime?
-  isActive         Boolean           @default(false)
-  description      String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  imageId          Int?
-  isDeleted        Boolean           @default(false)
-  currency         String            @default("GBP")
-  addresses        Address[]
-  AuditLog         AuditLog[]
-  imageUrl         Image?            @relation(fields: [imageId], references: [id])
-  courierJourney   CourierJourney[]
-  customerProfiles CustomerProfile[]
-  journeys         Journey[]
-  parcels          Parcel[]
-  tariffs          Tariff[]
-  tariffGroups     TariffGroup[]
-  users            User[]
-  vehicles         Vehicle[]
-  discounts        Discount[]
-  pickupRequests   PickupRequest[]
+  id                      Int                      @id @default(autoincrement())
+  name                    String
+  notes                   String?
+  activationDate          DateTime?
+  isActive                Boolean                  @default(false)
+  description             String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  imageId                 Int?
+  isDeleted               Boolean                  @default(false)
+  currency                String                   @default("GBP")
+  addresses               Address[]
+  AuditLog                AuditLog[]
+  imageUrl                Image?                   @relation(fields: [imageId], references: [id])
+  courierJourney          CourierJourney[]
+  customerProfiles        CustomerProfile[]
+  journeys                Journey[]
+  parcels                 Parcel[]
+  tariffs                 Tariff[]
+  tariffGroups            TariffGroup[]
+  users                   User[]
+  vehicles                Vehicle[]
+  discounts               Discount[]
+  pickupRequests          PickupRequest[]
   parcelTrackingSequences ParcelTrackingSequence[]
+  shipments               Shipment[]
+  parcelPaymentEntries    ParcelPaymentEntry[]
+  parcelPaymentRequests   ParcelPaymentRequest[]
 }
 
 model ParcelTrackingSequence {
   businessId Int
   dateKey    String
-  lastValue Int      @default(0)
-  updatedAt DateTime @updatedAt
+  lastValue  Int      @default(0)
+  updatedAt  DateTime @updatedAt
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@id([businessId, dateKey])
+}
+
+model Shipment {
+  id                         String                 @id @db.Uuid
+  businessId                 Int
+  createdAt                  DateTime               @default(now())
+  verificationPostcode       String?
+  verificationPostcodeSource String?
+  business                   Business               @relation(fields: [businessId], references: [id])
+  parcels                    Parcel[]
+  trackingLinks              ShipmentTrackingLink[]
+
+  @@unique([id, businessId])
+  @@index([businessId])
+}
+
+model ShipmentTrackingLink {
+  id         String    @id @default(uuid()) @db.Uuid
+  shipmentId String    @db.Uuid
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+  shipment   Shipment  @relation(fields: [shipmentId], references: [id])
+
+  @@index([shipmentId, revokedAt])
+}
+
+model ParcelCreationRequest {
+  businessId  Int
+  userId      Int
+  key         String
+  fingerprint String
+  parcelIds   Int[]
+  createdAt   DateTime @default(now())
+
+  @@id([businessId, userId, key])
+}
+
+model TrackingRateLimit {
+  key       String   @id
+  count     Int
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }
 
 model CustomerProfile {
@@ -227,36 +278,38 @@ model CourierJourneyNote {
 }
 
 model Parcel {
-  id                              Int                      @id @default(autoincrement())
-  weight                          Decimal                  @db.Decimal(10, 3)
+  id                              Int                        @id @default(autoincrement())
+  weight                          Decimal                    @db.Decimal(10, 3)
   trackingNumber                  String
-  parcelMoneyAmount               Decimal?                 @db.Decimal(10, 2)
-  price                           Decimal                  @default(0) @db.Decimal(10, 2)
-  calculatedPrice                 Decimal?                 @db.Decimal(10, 2)
-  isLost                          Boolean                  @default(false)
-  isArchived                      Boolean                  @default(false)
-  hasBorderCheck                  Boolean                  @default(false)
-  isDamaged                       Boolean                  @default(false)
-  deliveryStatus                  DeliveryStatus           @default(Initial)
-  paymentStatus                   PaymentStatus            @default(NotPaid)
-  paidBy                          PaymentParty             @default(Sender)
+  parcelMoneyAmount               Decimal?                   @db.Decimal(10, 2)
+  price                           Decimal                    @default(0) @db.Decimal(10, 2)
+  calculatedPrice                 Decimal?                   @db.Decimal(10, 2)
+  isLost                          Boolean                    @default(false)
+  isArchived                      Boolean                    @default(false)
+  hasBorderCheck                  Boolean                    @default(false)
+  isDamaged                       Boolean                    @default(false)
+  deliveryStatus                  DeliveryStatus             @default(AtOriginWarehouse)
+  paymentStatus                   PaymentStatus              @default(NotPaid)
+  paymentCurrency                 String?
+  paymentReconciliationState      PaymentReconciliationState @default(Reconciled)
+  paidBy                          PaymentParty               @default(Sender)
   pickedUpByCourierId             Int?
   pickedUpByDriverId              Int?
   pickedUpAt                      DateTime?
   deliveredByCourierId            Int?
   deliveredByDriverId             Int?
   deliveredAt                     DateTime?
-  createdAt                       DateTime                 @default(now())
-  updatedAt                       DateTime                 @updatedAt
+  createdAt                       DateTime                   @default(now())
+  updatedAt                       DateTime                   @updatedAt
   senderId                        Int
   businessId                      Int
   journeyId                       Int?
   recipientId                     Int
   courierJourneyId                Int?
-  isDeleted                       Boolean                  @default(false)
+  isDeleted                       Boolean                    @default(false)
   parcelType                      ParcelType
-  isPriceOverridden               Boolean                  @default(false)
-  originType                      ParcelDestinationType    @default(CustomerAddress)
+  isPriceOverridden               Boolean                    @default(false)
+  originType                      ParcelDestinationType      @default(CustomerAddress)
   destinationType                 ParcelDestinationType
   destinationAddressId            Int?
   customerNovaPostAddressId       Int?
@@ -270,25 +323,30 @@ model Parcel {
   originNovaPostWarehouseId       Int?
   recipientPhoneNumber            String?
   senderPhoneNumber               String?
-  groupId                         String?                  @db.Uuid
+  groupId                         String?                    @db.Uuid
+  shipmentId                      String?                    @db.Uuid
+  shipment                        Shipment?                  @relation(fields: [shipmentId, businessId], references: [id, businessId], onDelete: Restrict)
   images                          Image[]
-  prices                          ParcelPrice[]            @relation("ParcelPrices")
-  business                        Business                 @relation(fields: [businessId], references: [id])
-  courierJourney                  CourierJourney?          @relation(fields: [courierJourneyId], references: [id])
-  destinationAddress              Address?                 @relation("destinationParcels", fields: [destinationAddressId], references: [id], onDelete: Restrict)
-  customerNovaPostAddress         CustomerNovaPostAddress? @relation("DestinationCustomerNovaPostAddress", fields: [customerNovaPostAddressId], references: [id], onDelete: Restrict)
-  novaPostWarehouse               NovaPostWarehouse?       @relation("DestinationNovaPostWarehouse", fields: [novaPostWarehouseId], references: [id], onDelete: Restrict)
-  journey                         Journey?                 @relation(fields: [journeyId], references: [id])
-  originAddress                   Address?                 @relation("originParcels", fields: [originAddressId], references: [id], onDelete: Restrict)
-  originCustomerNovaPostAddress   CustomerNovaPostAddress? @relation("OriginCustomerNovaPostAddress", fields: [originCustomerNovaPostAddressId], references: [id], onDelete: Restrict)
-  originNovaPostWarehouse         NovaPostWarehouse?       @relation("OriginNovaPostWarehouse", fields: [originNovaPostWarehouseId], references: [id], onDelete: Restrict)
-  recipient                       CustomerProfile          @relation("receivedParcels", fields: [recipientId], references: [id])
-  sender                          CustomerProfile          @relation("sentParcels", fields: [senderId], references: [id])
-  pickedUpByCourier               CourierProfile?          @relation("PickedUpByCourier", fields: [pickedUpByCourierId], references: [id])
-  pickedUpByDriver                DriverProfile?           @relation("PickedUpByDriver", fields: [pickedUpByDriverId], references: [id])
-  deliveredByCourier              CourierProfile?          @relation("DeliveredByCourier", fields: [deliveredByCourierId], references: [id])
-  deliveredByDriver               DriverProfile?           @relation("DeliveredByDriver", fields: [deliveredByDriverId], references: [id])
+  prices                          ParcelPrice[]              @relation("ParcelPrices")
+  business                        Business                   @relation(fields: [businessId], references: [id])
+  courierJourney                  CourierJourney?            @relation(fields: [courierJourneyId], references: [id])
+  destinationAddress              Address?                   @relation("destinationParcels", fields: [destinationAddressId], references: [id], onDelete: Restrict)
+  customerNovaPostAddress         CustomerNovaPostAddress?   @relation("DestinationCustomerNovaPostAddress", fields: [customerNovaPostAddressId], references: [id], onDelete: Restrict)
+  novaPostWarehouse               NovaPostWarehouse?         @relation("DestinationNovaPostWarehouse", fields: [novaPostWarehouseId], references: [id], onDelete: Restrict)
+  journey                         Journey?                   @relation(fields: [journeyId], references: [id])
+  originAddress                   Address?                   @relation("originParcels", fields: [originAddressId], references: [id], onDelete: Restrict)
+  originCustomerNovaPostAddress   CustomerNovaPostAddress?   @relation("OriginCustomerNovaPostAddress", fields: [originCustomerNovaPostAddressId], references: [id], onDelete: Restrict)
+  originNovaPostWarehouse         NovaPostWarehouse?         @relation("OriginNovaPostWarehouse", fields: [originNovaPostWarehouseId], references: [id], onDelete: Restrict)
+  recipient                       CustomerProfile            @relation("receivedParcels", fields: [recipientId], references: [id])
+  sender                          CustomerProfile            @relation("sentParcels", fields: [senderId], references: [id])
+  pickedUpByCourier               CourierProfile?            @relation("PickedUpByCourier", fields: [pickedUpByCourierId], references: [id])
+  pickedUpByDriver                DriverProfile?             @relation("PickedUpByDriver", fields: [pickedUpByDriverId], references: [id])
+  deliveredByCourier              CourierProfile?            @relation("DeliveredByCourier", fields: [deliveredByCourierId], references: [id])
+  deliveredByDriver               DriverProfile?             @relation("DeliveredByDriver", fields: [deliveredByDriverId], references: [id])
   parcelNotes                     ParcelNote[]
+  paymentEntries                  ParcelPaymentEntry[]
+  paymentRequests                 ParcelPaymentRequest[]
+  statusTransitions               ParcelStatusTransition[]
 
   selectedPriceId Int?         @unique
   selectedPrice   ParcelPrice? @relation("SelectedParcelPrice", fields: [selectedPriceId], references: [id])
@@ -296,6 +354,7 @@ model Parcel {
   @@unique([businessId, trackingNumber])
   @@index([selectedPriceId])
   @@index([groupId])
+  @@index([shipmentId, businessId])
   @@index([businessId])
   @@index([senderId])
   @@index([recipientId])
@@ -432,27 +491,33 @@ model CourierJourney {
 }
 
 model Journey {
-  id             Int             @id @default(autoincrement())
-  journeyNumber  String          @unique
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  departureDate  DateTime
-  isCompleted    Boolean         @default(false)
-  arrivalDate    DateTime?
-  vehicleId      Int
-  businessId     Int
-  isArchived     Boolean         @default(false)
-  startCountryId Int
-  endCountryId   Int
-  hasTrailer     Boolean         @default(false)
-  isDeleted      Boolean         @default(false)
-  business       Business        @relation(fields: [businessId], references: [id])
-  vehicle        Vehicle         @relation(fields: [vehicleId], references: [id])
-  startCountry   Country         @relation("JourneyStartCountry", fields: [startCountryId], references: [id])
-  endCountry     Country         @relation("JourneyEndCountry", fields: [endCountryId], references: [id])
-  parcels        Parcel[]
-  driverProfiles DriverProfile[] @relation("DriverProfileToJourney")
-  journeyNotes   JourneyNote[]
+  id                Int                       @id @default(autoincrement())
+  journeyNumber     String                    @unique
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  departureDate     DateTime
+  isCompleted       Boolean                   @default(false)
+  status            JourneyStatus             @default(Scheduled)
+  actualDepartureAt DateTime?
+  arrivalDate       DateTime?
+  closedAt          DateTime?
+  closedByUserId    Int?
+  closedBy          User?                     @relation("JourneyClosedBy", fields: [closedByUserId], references: [id], onDelete: Restrict)
+  vehicleId         Int
+  businessId        Int
+  isArchived        Boolean                   @default(false)
+  startCountryId    Int
+  endCountryId      Int
+  hasTrailer        Boolean                   @default(false)
+  isDeleted         Boolean                   @default(false)
+  business          Business                  @relation(fields: [businessId], references: [id])
+  vehicle           Vehicle                   @relation(fields: [vehicleId], references: [id])
+  startCountry      Country                   @relation("JourneyStartCountry", fields: [startCountryId], references: [id])
+  endCountry        Country                   @relation("JourneyEndCountry", fields: [endCountryId], references: [id])
+  parcels           Parcel[]
+  driverProfiles    DriverProfile[]           @relation("DriverProfileToJourney")
+  journeyNotes      JourneyNote[]
+  statusTransitions JourneyStatusTransition[]
 
   @@index([journeyNumber])
   @@index([businessId, departureDate])
@@ -535,6 +600,7 @@ model AuditLog {
   @@index([entityType])
   @@index([createdAt])
   @@index([businessId])
+  @@index([businessId, entityType, entityId, createdAt])
 }
 
 model Tariff {
@@ -630,7 +696,12 @@ model ParcelPrice {
   pricePerKg      Decimal?          @db.Decimal(10, 2)
   weightThreshold Decimal?          @db.Decimal(10, 3)
 
-  discounts ParcelPriceDiscount[]
+  discounts      ParcelPriceDiscount[]
+  paymentEntries ParcelPaymentEntry[]
+
+  changeReason    String?
+  changedByUserId Int?
+  changedBy       User?   @relation("ParcelPriceChangedBy", fields: [changedByUserId], references: [id], onDelete: Restrict)
 
   originCountryId      Int?
   destinationCountryId Int?
@@ -644,6 +715,57 @@ model ParcelPrice {
   @@index([parcelId, isSelected])
   @@index([originCountryId])
   @@index([destinationCountryId])
+  @@index([changedByUserId])
+}
+
+model ParcelPaymentEntry {
+  id                 Int                    @id @default(autoincrement())
+  businessId         Int
+  parcelId           Int
+  parcelPriceId      Int
+  kind               ParcelPaymentEntryKind
+  amount             Decimal                @db.Decimal(10, 2)
+  currency           String
+  method             ParcelPaymentMethod?
+  payerParty         PaymentParty?
+  collectorId        Int?
+  recordedById       Int?
+  note               String?
+  reason             String?
+  reversesEntryId    Int?                   @unique
+  replacementEntryId Int?                   @unique
+  createdAt          DateTime               @default(now())
+
+  business         Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  parcel           Parcel              @relation(fields: [parcelId], references: [id], onDelete: Restrict)
+  parcelPrice      ParcelPrice         @relation(fields: [parcelPriceId], references: [id], onDelete: Restrict)
+  collector        User?               @relation("CollectedParcelPayments", fields: [collectorId], references: [id], onDelete: Restrict)
+  recordedBy       User?               @relation("RecordedParcelPayments", fields: [recordedById], references: [id], onDelete: Restrict)
+  reversesEntry    ParcelPaymentEntry? @relation("PaymentReversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversalEntry    ParcelPaymentEntry? @relation("PaymentReversal")
+  replacementEntry ParcelPaymentEntry? @relation("PaymentReplacement", fields: [replacementEntryId], references: [id], onDelete: Restrict)
+  replacementOf    ParcelPaymentEntry? @relation("PaymentReplacement")
+
+  @@index([businessId, parcelId, createdAt])
+  @@index([parcelPriceId])
+  @@index([collectorId])
+  @@index([recordedById])
+}
+
+model ParcelPaymentRequest {
+  businessId      Int
+  idempotencyKey  String
+  parcelId        Int
+  operation       String
+  fingerprint     String
+  responsePayload Json
+  createdAt       DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  parcel   Parcel   @relation(fields: [parcelId], references: [id], onDelete: Restrict)
+
+  @@id([businessId, idempotencyKey])
+  @@index([parcelId])
 }
 
 model ParcelPriceDiscount {
@@ -784,12 +906,61 @@ enum DiscountType {
 }
 
 enum DeliveryStatus {
-  Initial
-  InProgress
+  AwaitingPickup
+  PickedUp
+  AtOriginWarehouse
+  InTransit
+  AtDestinationWarehouse
+  AtNovaPostWarehouse
   Delivered
   Cancelled
   Returned
   Lost
+}
+
+enum JourneyStatus {
+  Scheduled
+  InTransit
+  Completed
+  Cancelled
+}
+
+model ParcelStatusTransition {
+  id              Int            @id @default(autoincrement())
+  parcelId        Int
+  businessId      Int
+  journeyId       Int?
+  batchId         String         @db.Uuid
+  fromStatus      DeliveryStatus
+  toStatus        DeliveryStatus
+  actorId         Int?
+  reason          String?
+  isCorrection    Boolean        @default(false)
+  reversesBatchId String?        @db.Uuid
+  createdAt       DateTime       @default(now())
+  parcel          Parcel         @relation(fields: [parcelId], references: [id], onDelete: Restrict)
+
+  @@index([parcelId, createdAt])
+  @@index([businessId, batchId])
+  @@index([journeyId])
+}
+
+model JourneyStatusTransition {
+  id              Int           @id @default(autoincrement())
+  journeyId       Int
+  businessId      Int
+  batchId         String        @db.Uuid
+  fromStatus      JourneyStatus
+  toStatus        JourneyStatus
+  actorId         Int?
+  reason          String?
+  isCorrection    Boolean       @default(false)
+  reversesBatchId String?       @db.Uuid
+  createdAt       DateTime      @default(now())
+  journey         Journey       @relation(fields: [journeyId], references: [id], onDelete: Restrict)
+
+  @@index([journeyId, createdAt])
+  @@index([businessId, batchId])
 }
 
 enum PaymentStatus {
@@ -801,6 +972,22 @@ enum PaymentStatus {
 enum PaymentParty {
   Sender
   Recipient
+}
+
+enum ParcelPaymentEntryKind {
+  Collection
+  Reversal
+  LegacyOpeningBalance
+}
+
+enum ParcelPaymentMethod {
+  Cash
+  BankTransfer
+}
+
+enum PaymentReconciliationState {
+  Reconciled
+  RequiresReconciliation
 }
 
 enum AuditAction {

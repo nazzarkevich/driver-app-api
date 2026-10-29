@@ -8,6 +8,12 @@ export class JourneyParcelMetricsDto {
   weightTargetKg: number;
   parcelCountTargetProgressPercent: number;
   weightTargetProgressPercent: number;
+  readyParcelCount: number;
+  blockingParcelCount: number;
+  novaPostWarehouseCount: number;
+  deliveredParcelCount: number;
+  readyForDeliveryCount: number;
+  countsByStatus: Record<string, number>;
 
   constructor(partial: JourneyParcelMetricsDto) {
     Object.assign(this, partial);

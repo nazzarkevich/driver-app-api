@@ -1,0 +1,8 @@
+ALTER TABLE "Journey"
+ADD COLUMN "closedAt" TIMESTAMP(3),
+ADD COLUMN "closedByUserId" INTEGER;
+
+ALTER TABLE "Journey"
+ADD CONSTRAINT "Journey_closedByUserId_fkey"
+FOREIGN KEY ("closedByUserId") REFERENCES "User"("id")
+ON DELETE RESTRICT ON UPDATE CASCADE;

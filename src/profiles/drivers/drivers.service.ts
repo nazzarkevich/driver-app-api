@@ -161,10 +161,17 @@ export class DriversService {
     return new DriverProfileDto(result);
   }
 
-  async findAll(page: number): Promise<Pagination<DriverProfileDto>> {
+  async findAll(
+    page: number,
+    currentUser: UserRequestType,
+  ): Promise<Pagination<DriverProfileDto>> {
     const [driversProfilesWithPagination, metadata] =
       await prismaWithPagination.driverProfile
         .paginate({
+          where: {
+            isDeleted: false,
+            user: { businessId: currentUser.businessId, isDeleted: false },
+          },
           include: {
             user: {
               select: USER_SELECT,
@@ -186,10 +193,15 @@ export class DriversService {
     };
   }
 
-  async findOne(id: number): Promise<DriverProfileDto> {
-    const profile = await this.prismaService.driverProfile.findUnique({
+  async findOne(id: number, businessId?: number): Promise<DriverProfileDto> {
+    const profile = await this.prismaService.driverProfile.findFirst({
       where: {
         id,
+        isDeleted: false,
+        user: {
+          isDeleted: false,
+          ...(businessId !== undefined ? { businessId } : {}),
+        },
       },
       include: {
         user: {

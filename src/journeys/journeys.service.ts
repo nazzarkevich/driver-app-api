@@ -20,12 +20,25 @@ import { BaseTenantService } from 'src/common/base-tenant.service';
 import { VehicleDto } from 'src/vehicles/dtos/vehicle.dto';
 import { JourneyNumberService } from './services/journey-number.service';
 import { UserRequestType } from 'src/users/decorators/current-user.decorator';
-import { Prisma, UserType } from '@prisma/client';
+import {
+  AuditAction,
+  DeliveryStatus,
+  JourneyStatus,
+  ParcelDestinationType,
+  Prisma,
+  UserType,
+} from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { JourneyParcelMetricsDto } from './dtos/journey-parcel-metrics.dto';
 import {
   JOURNEY_PARCEL_COUNT_TARGET,
   JOURNEY_WEIGHT_TARGET_KG,
 } from './constants/journey-parcel-metrics.constants';
+import {
+  CancelJourneyDto,
+  ReverseJourneyStatusDto,
+  TransitionJourneyDto,
+} from './dtos/transition-journey.dto';
 
 @Injectable()
 export class JourneysService extends BaseTenantService {
@@ -153,7 +166,9 @@ export class JourneysService extends BaseTenantService {
               departureDate.getDate() + 1,
             ),
           },
-          isCompleted: false,
+          status: {
+            in: [JourneyStatus.Scheduled, JourneyStatus.InTransit],
+          },
           isDeleted: false,
         },
       });
@@ -294,7 +309,12 @@ export class JourneysService extends BaseTenantService {
       {
         isDeleted: false,
         ...(isCompleted !== undefined && { isCompleted }),
-        ...(isCompleted === false && { isArchived: false }),
+        ...(isCompleted === false && {
+          isArchived: false,
+          status: {
+            in: [JourneyStatus.Scheduled, JourneyStatus.InTransit],
+          },
+        }),
       },
     );
 
@@ -558,7 +578,12 @@ export class JourneysService extends BaseTenantService {
           businessId,
           isDeleted: false,
         };
-        const [aggregate, collectedParcelCount] = await Promise.all([
+        const [
+          aggregate,
+          collectedParcelCount,
+          statusGroups,
+          readyForDeliveryCount,
+        ] = await Promise.all([
           tx.parcel.aggregate({
             where: parcelWhere,
             _count: { _all: true },
@@ -567,6 +592,25 @@ export class JourneysService extends BaseTenantService {
           tx.parcel.count({
             where: { ...parcelWhere, pickedUpAt: { not: null } },
           }),
+          tx.parcel.groupBy({
+            by: ['deliveryStatus'],
+            where: parcelWhere,
+            _count: { _all: true },
+          }),
+          tx.parcel.count({
+            where: {
+              ...parcelWhere,
+              OR: [
+                {
+                  deliveryStatus: DeliveryStatus.AtDestinationWarehouse,
+                  destinationType: {
+                    not: ParcelDestinationType.NovaPostWarehouse,
+                  },
+                },
+                { deliveryStatus: DeliveryStatus.AtNovaPostWarehouse },
+              ],
+            },
+          }),
         ]);
 
         const totalParcelCount = aggregate._count._all;
@@ -574,6 +618,20 @@ export class JourneysService extends BaseTenantService {
         const collectionProgressPercent = totalParcelCount
           ? Math.round((collectedParcelCount / totalParcelCount) * 100)
           : 0;
+        const countsByStatus = Object.fromEntries(
+          Object.values(DeliveryStatus).map((status) => [status, 0]),
+        );
+        statusGroups.forEach((group) => {
+          countsByStatus[group.deliveryStatus] = group._count._all;
+        });
+        const readyParcelCount =
+          countsByStatus[DeliveryStatus.PickedUp] +
+          countsByStatus[DeliveryStatus.AtOriginWarehouse];
+        const terminalCount =
+          countsByStatus[DeliveryStatus.Delivered] +
+          countsByStatus[DeliveryStatus.Cancelled] +
+          countsByStatus[DeliveryStatus.Returned] +
+          countsByStatus[DeliveryStatus.Lost];
 
         return new JourneyParcelMetricsDto({
           journeyId: id,
@@ -593,31 +651,574 @@ export class JourneysService extends BaseTenantService {
             100,
             Math.round((totalWeightKg / JOURNEY_WEIGHT_TARGET_KG) * 100),
           ),
+          readyParcelCount,
+          blockingParcelCount: Math.max(
+            0,
+            totalParcelCount - readyParcelCount - terminalCount,
+          ),
+          novaPostWarehouseCount:
+            countsByStatus[DeliveryStatus.AtNovaPostWarehouse],
+          deliveredParcelCount: countsByStatus[DeliveryStatus.Delivered],
+          readyForDeliveryCount,
+          countsByStatus,
         });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
   }
 
-  async completeJourney(
+  async startJourney(
     id: number,
+    body: TransitionJourneyDto,
     currentUser: UserRequestType,
   ): Promise<JourneyDto> {
-    const journey = await this.findOneForUser(id, currentUser);
+    await this.findOneForUser(id, currentUser);
+    const readyStatuses: DeliveryStatus[] = [
+      DeliveryStatus.PickedUp,
+      DeliveryStatus.AtOriginWarehouse,
+    ];
+    const terminalStatuses: DeliveryStatus[] = [
+      DeliveryStatus.Delivered,
+      DeliveryStatus.Cancelled,
+      DeliveryStatus.Returned,
+      DeliveryStatus.Lost,
+    ];
 
-    if (journey.isCompleted) {
-      return journey;
-    }
+    await this.prismaService.$transaction(
+      async (tx) => {
+        const journey = await tx.journey.findFirst({
+          where: {
+            id,
+            businessId: currentUser.businessId,
+            isDeleted: false,
+          },
+        });
+        if (!journey) throw new NotFoundException('Journey not found');
+        if (journey.status !== JourneyStatus.Scheduled) {
+          throw new ConflictException('Only scheduled journeys can start');
+        }
+        if (journey.updatedAt.toISOString() !== body.expectedUpdatedAt) {
+          throw new ConflictException('Journey was changed by another user');
+        }
 
-    await this.prismaService.journey.update({
-      where: { id },
-      data: {
-        isCompleted: true,
-        arrivalDate: new Date(),
+        const parcels = await tx.parcel.findMany({
+          where: {
+            journeyId: id,
+            businessId: currentUser.businessId,
+            isDeleted: false,
+          },
+          select: { id: true, deliveryStatus: true, isDamaged: true },
+        });
+        const active = parcels.filter(
+          (parcel) => !terminalStatuses.includes(parcel.deliveryStatus),
+        );
+        if (active.length === 0) {
+          throw new ConflictException('Journey has no active parcels');
+        }
+        const blockers = active.filter(
+          (parcel) =>
+            parcel.isDamaged || !readyStatuses.includes(parcel.deliveryStatus),
+        );
+        if (blockers.length > 0) {
+          throw new ConflictException({
+            message: 'Journey contains parcels that are not ready',
+            parcelIds: blockers.map(({ id: parcelId }) => parcelId),
+          });
+        }
+
+        const batchId = randomUUID();
+        const actualDepartureAt = new Date();
+        const updatedParcels = await tx.parcel.updateMany({
+          where: {
+            journeyId: id,
+            businessId: currentUser.businessId,
+            isDeleted: false,
+            deliveryStatus: { in: readyStatuses },
+          },
+          data: { deliveryStatus: DeliveryStatus.InTransit },
+        });
+        if (updatedParcels.count !== active.length) {
+          throw new ConflictException(
+            'Journey manifest changed while starting the journey',
+          );
+        }
+        await tx.parcelStatusTransition.createMany({
+          data: active.map((parcel) => ({
+            parcelId: parcel.id,
+            businessId: currentUser.businessId,
+            journeyId: id,
+            batchId,
+            fromStatus: parcel.deliveryStatus,
+            toStatus: DeliveryStatus.InTransit,
+            actorId: currentUser.id,
+          })),
+        });
+        await this.createParcelJourneyEvents(
+          tx,
+          active,
+          currentUser,
+          id,
+          batchId,
+          DeliveryStatus.InTransit,
+          'ParcelInTransit',
+          'Journey started; parcel is in transit',
+        );
+        const updateResult = await tx.journey.updateMany({
+          where: { id, updatedAt: journey.updatedAt },
+          data: {
+            status: JourneyStatus.InTransit,
+            actualDepartureAt,
+            isCompleted: false,
+          },
+        });
+        if (updateResult.count !== 1) {
+          throw new ConflictException('Journey was changed by another user');
+        }
+        await tx.journeyStatusTransition.create({
+          data: {
+            journeyId: id,
+            businessId: currentUser.businessId,
+            batchId,
+            fromStatus: JourneyStatus.Scheduled,
+            toStatus: JourneyStatus.InTransit,
+            actorId: currentUser.id,
+          },
+        });
       },
-    });
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     return this.findOneForUser(id, currentUser);
+  }
+
+  async completeJourney(
+    id: number,
+    body: TransitionJourneyDto,
+    currentUser: UserRequestType,
+  ): Promise<JourneyDto> {
+    await this.findOneForUser(id, currentUser);
+    const terminalStatuses: DeliveryStatus[] = [
+      DeliveryStatus.Delivered,
+      DeliveryStatus.Cancelled,
+      DeliveryStatus.Returned,
+      DeliveryStatus.Lost,
+    ];
+
+    await this.prismaService.$transaction(
+      async (tx) => {
+        const journey = await tx.journey.findFirst({
+          where: {
+            id,
+            businessId: currentUser.businessId,
+            isDeleted: false,
+          },
+        });
+        if (!journey) throw new NotFoundException('Journey not found');
+        if (journey.status !== JourneyStatus.InTransit) {
+          throw new ConflictException('Only in-transit journeys can complete');
+        }
+        if (journey.updatedAt.toISOString() !== body.expectedUpdatedAt) {
+          throw new ConflictException('Journey was changed by another user');
+        }
+
+        const parcels = await tx.parcel.findMany({
+          where: {
+            journeyId: id,
+            businessId: currentUser.businessId,
+            isDeleted: false,
+          },
+          select: { id: true, deliveryStatus: true, isDamaged: true },
+        });
+        const active = parcels.filter(
+          (parcel) => !terminalStatuses.includes(parcel.deliveryStatus),
+        );
+        const blockers = active.filter(
+          (parcel) =>
+            parcel.isDamaged ||
+            parcel.deliveryStatus !== DeliveryStatus.InTransit,
+        );
+        if (blockers.length > 0) {
+          throw new ConflictException({
+            message: 'Journey contains parcels that are not in transit',
+            parcelIds: blockers.map(({ id: parcelId }) => parcelId),
+          });
+        }
+
+        const batchId = randomUUID();
+        const arrivalDate = new Date();
+        const updatedParcels = await tx.parcel.updateMany({
+          where: {
+            journeyId: id,
+            businessId: currentUser.businessId,
+            isDeleted: false,
+            deliveryStatus: DeliveryStatus.InTransit,
+          },
+          data: { deliveryStatus: DeliveryStatus.AtDestinationWarehouse },
+        });
+        if (updatedParcels.count !== active.length) {
+          throw new ConflictException(
+            'Journey manifest changed while completing the journey',
+          );
+        }
+        await tx.parcelStatusTransition.createMany({
+          data: active.map((parcel) => ({
+            parcelId: parcel.id,
+            businessId: currentUser.businessId,
+            journeyId: id,
+            batchId,
+            fromStatus: DeliveryStatus.InTransit,
+            toStatus: DeliveryStatus.AtDestinationWarehouse,
+            actorId: currentUser.id,
+          })),
+        });
+        await this.createParcelJourneyEvents(
+          tx,
+          active,
+          currentUser,
+          id,
+          batchId,
+          DeliveryStatus.AtDestinationWarehouse,
+          'ParcelAtDestinationWarehouse',
+          'Journey completed; parcel reached destination warehouse',
+        );
+        const updateResult = await tx.journey.updateMany({
+          where: { id, updatedAt: journey.updatedAt },
+          data: {
+            status: JourneyStatus.Completed,
+            isCompleted: true,
+            arrivalDate,
+          },
+        });
+        if (updateResult.count !== 1) {
+          throw new ConflictException('Journey was changed by another user');
+        }
+        await tx.journeyStatusTransition.create({
+          data: {
+            journeyId: id,
+            businessId: currentUser.businessId,
+            batchId,
+            fromStatus: JourneyStatus.InTransit,
+            toStatus: JourneyStatus.Completed,
+            actorId: currentUser.id,
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    return this.findOneForUser(id, currentUser);
+  }
+
+  async cancelJourney(
+    id: number,
+    body: CancelJourneyDto,
+    currentUser: UserRequestType,
+  ): Promise<JourneyDto> {
+    await this.findOneForUser(id, currentUser);
+    await this.prismaService.$transaction(async (tx) => {
+      const journey = await tx.journey.findFirst({
+        where: { id, businessId: currentUser.businessId, isDeleted: false },
+      });
+      if (!journey) throw new NotFoundException('Journey not found');
+      if (journey.status !== JourneyStatus.Scheduled) {
+        throw new ConflictException('Only scheduled journeys can be cancelled');
+      }
+      if (journey.updatedAt.toISOString() !== body.expectedUpdatedAt) {
+        throw new ConflictException('Journey was changed by another user');
+      }
+      const batchId = randomUUID();
+      await tx.parcel.updateMany({
+        where: { journeyId: id, businessId: currentUser.businessId },
+        data: { journeyId: null },
+      });
+      await tx.journey.update({
+        where: { id },
+        data: { status: JourneyStatus.Cancelled, isCompleted: false },
+      });
+      await tx.journeyStatusTransition.create({
+        data: {
+          journeyId: id,
+          businessId: currentUser.businessId,
+          batchId,
+          fromStatus: JourneyStatus.Scheduled,
+          toStatus: JourneyStatus.Cancelled,
+          actorId: currentUser.id,
+          reason: body.reason.trim(),
+        },
+      });
+    });
+    return this.findOneForUser(id, currentUser);
+  }
+
+  async deliverEligibleParcels(
+    id: number,
+    body: TransitionJourneyDto,
+    currentUser: UserRequestType,
+  ): Promise<{ updatedCount: number }> {
+    await this.findOneForUser(id, currentUser);
+
+    const updatedCount = await this.prismaService.$transaction(
+      async (tx) => {
+        const journey = await tx.journey.findFirst({
+          where: { id, businessId: currentUser.businessId, isDeleted: false },
+        });
+        if (!journey) throw new NotFoundException('Journey not found');
+        if (journey.status !== JourneyStatus.Completed) {
+          throw new ConflictException(
+            'Parcels can be bulk delivered only after journey completion',
+          );
+        }
+        if (journey.updatedAt.toISOString() !== body.expectedUpdatedAt) {
+          throw new ConflictException('Journey was changed by another user');
+        }
+
+        const eligible = await tx.parcel.findMany({
+          where: {
+            journeyId: id,
+            businessId: currentUser.businessId,
+            isDeleted: false,
+            isDamaged: false,
+            OR: [
+              {
+                deliveryStatus: DeliveryStatus.AtDestinationWarehouse,
+                destinationType: {
+                  not: ParcelDestinationType.NovaPostWarehouse,
+                },
+              },
+              { deliveryStatus: DeliveryStatus.AtNovaPostWarehouse },
+            ],
+          },
+          select: { id: true, deliveryStatus: true },
+        });
+        if (eligible.length === 0) {
+          throw new ConflictException('No parcels are ready for delivery');
+        }
+
+        const batchId = randomUUID();
+        const deliveredAt = new Date();
+        const updateResult = await tx.parcel.updateMany({
+          where: {
+            id: { in: eligible.map(({ id: parcelId }) => parcelId) },
+            deliveryStatus: {
+              in: [
+                DeliveryStatus.AtDestinationWarehouse,
+                DeliveryStatus.AtNovaPostWarehouse,
+              ],
+            },
+          },
+          data: {
+            deliveryStatus: DeliveryStatus.Delivered,
+            deliveredAt,
+          },
+        });
+        if (updateResult.count !== eligible.length) {
+          throw new ConflictException(
+            'Journey manifest changed during bulk delivery',
+          );
+        }
+        await tx.parcelStatusTransition.createMany({
+          data: eligible.map((parcel) => ({
+            parcelId: parcel.id,
+            businessId: currentUser.businessId,
+            journeyId: id,
+            batchId,
+            fromStatus: parcel.deliveryStatus,
+            toStatus: DeliveryStatus.Delivered,
+            actorId: currentUser.id,
+          })),
+        });
+        await this.createParcelJourneyEvents(
+          tx,
+          eligible,
+          currentUser,
+          id,
+          batchId,
+          DeliveryStatus.Delivered,
+          'ParcelDelivered',
+          'Bulk delivered from journey manifest',
+        );
+        return updateResult.count;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    return { updatedCount };
+  }
+
+  async reverseStatus(
+    id: number,
+    body: ReverseJourneyStatusDto,
+    currentUser: UserRequestType,
+  ): Promise<JourneyDto> {
+    const canCorrect =
+      currentUser.isAdmin ||
+      currentUser.isSuperAdmin ||
+      currentUser.type === UserType.Manager;
+    if (!canCorrect) {
+      throw new ForbiddenException('Only managers can correct journey status');
+    }
+    await this.findOneForUser(id, currentUser);
+
+    await this.prismaService.$transaction(
+      async (tx) => {
+        const journey = await tx.journey.findFirst({
+          where: { id, businessId: currentUser.businessId, isDeleted: false },
+        });
+        if (!journey) throw new NotFoundException('Journey not found');
+        if (journey.updatedAt.toISOString() !== body.expectedUpdatedAt) {
+          throw new ConflictException('Journey was changed by another user');
+        }
+        const previous = await tx.journeyStatusTransition.findFirst({
+          where: { journeyId: id, businessId: currentUser.businessId },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (!previous || previous.isCorrection) {
+          throw new ConflictException('No journey transition can be reversed');
+        }
+        if (journey.status !== previous.toStatus) {
+          throw new ConflictException('Journey has changed since this transition');
+        }
+        if (previous.toStatus === JourneyStatus.Cancelled) {
+          throw new ConflictException(
+            'Cancelled journeys must be rescheduled as a new journey',
+          );
+        }
+
+        const transitions = await tx.parcelStatusTransition.findMany({
+          where: {
+            journeyId: id,
+            businessId: currentUser.businessId,
+            batchId: previous.batchId,
+          },
+        });
+        const currentParcels = await tx.parcel.findMany({
+          where: { id: { in: transitions.map(({ parcelId }) => parcelId) } },
+          select: { id: true, deliveryStatus: true },
+        });
+        const currentById = new Map(
+          currentParcels.map((parcel) => [parcel.id, parcel.deliveryStatus]),
+        );
+        if (
+          transitions.some(
+            (transition) =>
+              currentById.get(transition.parcelId) !== transition.toStatus,
+          )
+        ) {
+          throw new ConflictException(
+            'One or more parcels changed after the journey transition',
+          );
+        }
+
+        const correctionBatchId = randomUUID();
+        for (const transition of transitions) {
+          await tx.parcel.update({
+            where: { id: transition.parcelId },
+            data: { deliveryStatus: transition.fromStatus },
+          });
+        }
+        if (transitions.length > 0) {
+          await tx.parcelStatusTransition.createMany({
+            data: transitions.map((transition) => ({
+              parcelId: transition.parcelId,
+              businessId: currentUser.businessId,
+              journeyId: id,
+              batchId: correctionBatchId,
+              fromStatus: transition.toStatus,
+              toStatus: transition.fromStatus,
+              actorId: currentUser.id,
+              reason: body.reason.trim(),
+              isCorrection: true,
+              reversesBatchId: previous.batchId,
+            })),
+          });
+          await tx.auditLog.createMany({
+            data: transitions.map((transition) => ({
+              userId: currentUser.id,
+              businessId: currentUser.businessId,
+              action: AuditAction.UPDATE,
+              entityType: 'Parcel',
+              entityId: String(transition.parcelId),
+              description: 'Reversed journey parcel delivery status',
+              method: 'PARCEL_EVENT',
+              metadata: {
+                eventType: 'ParcelStatusCorrected',
+                details: {
+                  journeyId: id,
+                  fromStatus: transition.toStatus,
+                  toStatus: transition.fromStatus,
+                  reason: body.reason.trim(),
+                  batchId: correctionBatchId,
+                  reversesBatchId: previous.batchId,
+                },
+              },
+            })),
+          });
+        }
+        await tx.journey.update({
+          where: { id },
+          data: {
+            status: previous.fromStatus,
+            isCompleted: previous.fromStatus === JourneyStatus.Completed,
+            actualDepartureAt:
+              previous.toStatus === JourneyStatus.InTransit
+                ? null
+                : journey.actualDepartureAt,
+            arrivalDate:
+              previous.toStatus === JourneyStatus.Completed
+                ? null
+                : journey.arrivalDate,
+          },
+        });
+        await tx.journeyStatusTransition.create({
+          data: {
+            journeyId: id,
+            businessId: currentUser.businessId,
+            batchId: correctionBatchId,
+            fromStatus: previous.toStatus,
+            toStatus: previous.fromStatus,
+            actorId: currentUser.id,
+            reason: body.reason.trim(),
+            isCorrection: true,
+            reversesBatchId: previous.batchId,
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    return this.findOneForUser(id, currentUser);
+  }
+
+  private async createParcelJourneyEvents(
+    tx: Prisma.TransactionClient,
+    parcels: { id: number; deliveryStatus: DeliveryStatus }[],
+    user: UserRequestType,
+    journeyId: number,
+    batchId: string,
+    toStatus: DeliveryStatus,
+    eventType: string,
+    description: string,
+  ) {
+    await tx.auditLog.createMany({
+      data: parcels.map((parcel) => ({
+        userId: user.id,
+        businessId: user.businessId,
+        action: AuditAction.UPDATE,
+        entityType: 'Parcel',
+        entityId: String(parcel.id),
+        description,
+        method: 'PARCEL_EVENT',
+        metadata: {
+          eventType,
+          details: {
+            journeyId,
+            fromStatus: parcel.deliveryStatus,
+            toStatus,
+            batchId,
+          },
+        },
+      })),
+    });
   }
 
   async update(
@@ -629,6 +1230,9 @@ export class JourneysService extends BaseTenantService {
 
     if (!journey) {
       throw new Error('Journey not found');
+    }
+    if (journey.status !== JourneyStatus.Scheduled) {
+      throw new ConflictException('Only scheduled journeys can be edited');
     }
 
     // Prepare update data
@@ -658,7 +1262,6 @@ export class JourneysService extends BaseTenantService {
 
     if (currentUser.type === UserType.InternationalDriver) {
       delete updateData.driverProfiles;
-      delete updateData.isCompleted;
     }
 
     // Handle driverProfiles if provided
@@ -780,7 +1383,9 @@ export class JourneysService extends BaseTenantService {
             departureDate.getDate() + 1,
           ),
         },
-        isCompleted: false,
+        status: {
+          in: [JourneyStatus.Scheduled, JourneyStatus.InTransit],
+        },
         isDeleted: false,
       },
       select: {

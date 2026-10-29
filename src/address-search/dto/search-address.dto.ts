@@ -1,7 +1,8 @@
+import { AddressLookupContextDto } from './address-lookup-context.dto';
 import { Transform } from 'class-transformer';
 import { IsString, Length } from 'class-validator';
 
-export class SearchAddressDto {
+export class SearchAddressDto extends AddressLookupContextDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @Length(3, 150)

@@ -208,9 +208,13 @@ export class TariffsService extends BaseTenantService {
     if (!Number.isFinite(weight) || weight <= 0) {
       throw new BadRequestException('Weight must be greater than zero');
     }
-    const minimumPrice = Number(tariff.minimumPrice);
+    const minimumPrice = new Prisma.Decimal(tariff.minimumPrice);
     if (tariff.pricingType === TariffPricingType.Fixed) {
-      return Number(minimumPrice.toFixed(2));
+      return Number(
+        minimumPrice
+          .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+          .toString(),
+      );
     }
     if (tariff.pricePerKg == null || Number(tariff.pricePerKg) <= 0) {
       throw new BadRequestException('Per-kilogram tariff is misconfigured');
@@ -218,10 +222,17 @@ export class TariffsService extends BaseTenantService {
     const threshold =
       tariff.weightThreshold == null ? null : Number(tariff.weightThreshold);
     if (threshold != null && weight <= threshold) {
-      return Number(minimumPrice.toFixed(2));
+      return Number(
+        minimumPrice
+          .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+          .toString(),
+      );
     }
+    const weightedPrice = new Prisma.Decimal(weight).times(tariff.pricePerKg!);
     return Number(
-      Math.max(minimumPrice, weight * Number(tariff.pricePerKg)).toFixed(2),
+      Prisma.Decimal.max(minimumPrice, weightedPrice)
+        .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+        .toString(),
     );
   }
 
@@ -294,6 +305,9 @@ export class TariffsService extends BaseTenantService {
         tariffGroupId: tariff.tariffGroup!.id,
         tariffGroupName: tariff.tariffGroup!.name,
         pricingType: tariff.pricingType,
+        pricePerKg:
+          tariff.pricePerKg == null ? null : Number(tariff.pricePerKg),
+        minimumPrice: Number(tariff.minimumPrice),
         calculatedPrice: this.calculateTariffAmount(tariff, dto.weight),
       }))
       .sort(

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  validateAddressMetadata,
+  validateUkraineAddress,
+} from 'src/address-search/utils/address-metadata';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { AddressDto } from './dtos/address.dto';
 import { AddAddressDto } from './dtos/add-address.dto';
@@ -12,14 +16,8 @@ export class AddressesService {
     { profileId, countryIsoCode, isPrimary, ...address }: AddAddressDto,
     businessId: number,
   ): Promise<void> {
-    if (
-      countryIsoCode !== 'GB' &&
-      (address.provider || address.providerRef || address.uprn)
-    ) {
-      throw new BadRequestException(
-        'Provider address metadata is only supported for GB addresses',
-      );
-    }
+    validateAddressMetadata(countryIsoCode, address);
+    validateUkraineAddress({ ...address, countryIsoCode });
     const country = await this.prismaService.country.findUnique({
       where: { isoCode: countryIsoCode },
     });
@@ -29,13 +27,31 @@ export class AddressesService {
     }
 
     await this.prismaService.$transaction(async (prisma) => {
-      const activeAddressCount = await prisma.address.count({
-        where: { profileId, isActive: true, isDeleted: false },
-      });
-      const makePrimary = isPrimary === true || activeAddressCount === 0;
+      if (
+        profileId != null &&
+        !(await prisma.customerProfile.findFirst({
+          where: { id: profileId, businessId, isDeleted: false },
+          select: { id: true },
+        }))
+      ) {
+        throw new NotFoundException('Customer profile not found');
+      }
+      const activeAddressCount =
+        profileId != null
+          ? await prisma.address.count({
+              where: {
+                profileId,
+                businessId,
+                isActive: true,
+                isDeleted: false,
+              },
+            })
+          : 0;
+      const makePrimary =
+        profileId != null && (isPrimary === true || activeAddressCount === 0);
       if (makePrimary) {
         await prisma.address.updateMany({
-          where: { profileId, isPrimary: true },
+          where: { profileId, businessId, isPrimary: true },
           data: { isPrimary: false },
         });
       }
@@ -68,9 +84,9 @@ export class AddressesService {
     });
   }
 
-  async findAll(): Promise<AddressDto[]> {
+  async findAll(businessId: number): Promise<AddressDto[]> {
     const allAddresses = await this.prismaService.address.findMany({
-      where: { isDeleted: false },
+      where: { businessId, isDeleted: false },
     });
 
     return allAddresses.map((address) => new AddressDto(address));

@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   ParseIntPipe,
   Post,
@@ -22,6 +23,13 @@ import { TariffsService } from 'src/tariffs/tariffs.service';
 import { CreateParcelDto } from './dtos/create-parcel.dto';
 import { CreateParcelNoteDto } from './dtos/create-parcel-note.dto';
 import { UpdateParcelDto } from './dtos/update-parcel.dto';
+import { MarkParcelPaidDto } from './dtos/mark-parcel-paid.dto';
+import { CollectParcelPaymentDto } from './dtos/collect-parcel-payment.dto';
+import { ReverseParcelPaymentDto } from './dtos/reverse-parcel-payment.dto';
+import { ReconcileParcelPaymentDto } from './dtos/reconcile-parcel-payment.dto';
+import { CashCollectionType } from './dtos/cash-collection.dto';
+import { ParcelPaymentsService } from './parcel-payments.service';
+import { AuditService } from 'src/audit/audit.service';
 import { ParcelDto } from './dtos/parcel.dto';
 import { UpdateParcelJourneyDto } from './dtos/update-parcel-journey.dto';
 import { Pagination } from 'src/dtos/pagination.dto';
@@ -34,6 +42,13 @@ import {
   ParcelPriceOptionsDto,
   ParcelPriceOptionsResponseDto,
 } from './dtos/parcel-price-options.dto';
+import {
+  CorrectParcelStatusDto,
+  ReportParcelDamageDto,
+  ReverseParcelStatusDto,
+  ResolveParcelDamageDto,
+  TransitionParcelStatusDto,
+} from './dtos/transition-parcel-status.dto';
 
 @ApiTags('Parcel')
 @Controller('parcels')
@@ -41,6 +56,8 @@ export class ParcelsController {
   constructor(
     private readonly parcelsService: ParcelsService,
     private readonly tariffsService: TariffsService,
+    private readonly parcelPaymentsService: ParcelPaymentsService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Post()
@@ -48,8 +65,9 @@ export class ParcelsController {
   async createParcel(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateParcelDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.parcelsService.createParcel(currentUser, body);
+    return this.parcelsService.createParcel(currentUser, body, idempotencyKey);
   }
 
   @Post('bulk')
@@ -57,8 +75,9 @@ export class ParcelsController {
   async createBulkParcels(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateBulkParcelsDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<ParcelDto[]> {
-    return this.parcelsService.createBulk(currentUser, body);
+    return this.parcelsService.createBulk(currentUser, body, idempotencyKey);
   }
 
   @Post('price-options')
@@ -223,6 +242,99 @@ export class ParcelsController {
     );
   }
 
+  @Get('/:id/payments')
+  @Permissions(Permission.PARCEL_READ)
+  async getParcelPayments(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Query('page') page?: string,
+  ) {
+    const parcel = await this.parcelsService.findOne(
+      id,
+      currentUser.businessId,
+      currentUser,
+    );
+    return this.parcelPaymentsService.history(
+      id,
+      parcel.businessId,
+      page ? parseInt(page, 10) : 1,
+    );
+  }
+
+  @Get('/:id/history')
+  @Permissions(Permission.PARCEL_READ)
+  async getParcelHistory(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parcel = await this.parcelsService.findOne(
+      id,
+      currentUser.businessId,
+      currentUser,
+    );
+    return this.auditService.getParcelHistory(
+      id,
+      parcel.businessId,
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+    );
+  }
+
+  @Post('/:id/payments')
+  @Permissions(Permission.PARCEL_MARK_PAID)
+  async collectParcelPayment(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CollectParcelPaymentDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<ParcelDto> {
+    await this.parcelPaymentsService.collect(
+      id,
+      body,
+      currentUser,
+      idempotencyKey,
+    );
+    return this.parcelsService.findOne(id, currentUser.businessId, currentUser);
+  }
+
+  @Post('/:id/payments/:entryId/reverse')
+  @Permissions(Permission.PARCEL_PAYMENT_CORRECT)
+  async reverseParcelPayment(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('entryId', ParseIntPipe) entryId: number,
+    @Body() body: ReverseParcelPaymentDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<ParcelDto> {
+    await this.parcelPaymentsService.reverse(
+      id,
+      entryId,
+      body,
+      currentUser,
+      idempotencyKey,
+    );
+    return this.parcelsService.findOne(id, currentUser.businessId, currentUser);
+  }
+
+  @Post('/:id/payments/reconcile')
+  @Permissions(Permission.PARCEL_PAYMENT_RECONCILE)
+  async reconcileParcelPayment(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ReconcileParcelPaymentDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<ParcelDto> {
+    await this.parcelPaymentsService.reconcile(
+      id,
+      body,
+      currentUser,
+      idempotencyKey,
+    );
+    return this.parcelsService.findOne(id, currentUser.businessId, currentUser);
+  }
+
   @Get('/cross-business')
   @UseGuards(SuperAdminGuard)
   @ApiQuery({
@@ -261,7 +373,7 @@ export class ParcelsController {
   }
 
   @Put('/:id')
-  @Permissions(Permission.PARCEL_UPDATE)
+  @Permissions(Permission.PARCEL_STATUS_UPDATE)
   @ApiQuery({
     name: 'businessId',
     required: false,
@@ -283,7 +395,7 @@ export class ParcelsController {
   }
 
   @Put('/:id/journey')
-  @Permissions(Permission.PARCEL_UPDATE)
+  @Permissions(Permission.PARCEL_STATUS_CORRECT)
   @ApiOperation({ summary: 'Assign, move, or remove parcel journey' })
   updateParcelJourney(
     @CurrentUser() currentUser: UserRequestType,
@@ -291,6 +403,39 @@ export class ParcelsController {
     @Body() body: UpdateParcelJourneyDto,
   ): Promise<ParcelDto[]> {
     return this.parcelsService.updateJourneyAssignment(id, body, currentUser);
+  }
+
+  @Put('/:id/mark-paid')
+  @Permissions(Permission.PARCEL_MARK_PAID)
+  @ApiOperation({ summary: 'Confirm full payment for this parcel only' })
+  markParcelAsPaid(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: MarkParcelPaidDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<ParcelDto> {
+    return this.parcelsService
+      .findOne(id, currentUser.businessId, currentUser)
+      .then(async (parcel) => {
+        await this.parcelPaymentsService.collect(
+          id,
+          {
+            expectedUpdatedAt: body.expectedUpdatedAt,
+            collection: {
+              type: CashCollectionType.Full,
+              payerParty: parcel.paidBy,
+            },
+          },
+          currentUser,
+          idempotencyKey,
+          true,
+        );
+        return this.parcelsService.findOne(
+          id,
+          currentUser.businessId,
+          currentUser,
+        );
+      });
   }
 
   @Delete('/:id')
@@ -390,6 +535,60 @@ export class ParcelsController {
       currentUser.businessId,
       currentUser.id,
     );
+  }
+
+  @Post('/:id/status-transitions')
+  @Permissions(Permission.PARCEL_STATUS_UPDATE)
+  transitionStatus(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+    @Body() body: TransitionParcelStatusDto,
+  ): Promise<ParcelDto> {
+    return this.parcelsService.transitionStatus(parcelId, body, currentUser);
+  }
+
+  @Post('/:id/status-transitions/reverse')
+  @Permissions(Permission.PARCEL_STATUS_CORRECT)
+  reverseStatus(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+    @Body() body: ReverseParcelStatusDto,
+  ): Promise<ParcelDto> {
+    return this.parcelsService.reverseStatusTransition(
+      parcelId,
+      body,
+      currentUser,
+    );
+  }
+
+  @Post('/:id/status-transitions/correct')
+  @Permissions(Permission.PARCEL_STATUS_UPDATE)
+  correctStatus(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+    @Body() body: CorrectParcelStatusDto,
+  ): Promise<ParcelDto> {
+    return this.parcelsService.correctStatus(parcelId, body, currentUser);
+  }
+
+  @Post('/:id/damage-reports')
+  @Permissions(Permission.PARCEL_STATUS_UPDATE)
+  reportDamage(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+    @Body() body: ReportParcelDamageDto,
+  ): Promise<ParcelDto> {
+    return this.parcelsService.reportDamage(parcelId, body, currentUser);
+  }
+
+  @Post('/:id/damage-reports/resolve')
+  @Permissions(Permission.PARCEL_STATUS_UPDATE)
+  resolveDamage(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+    @Body() body: ResolveParcelDamageDto,
+  ): Promise<ParcelDto> {
+    return this.parcelsService.resolveDamage(parcelId, body, currentUser);
   }
 
   @Put('/:id/mark-picked-up')

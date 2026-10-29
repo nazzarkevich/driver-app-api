@@ -5,9 +5,11 @@ import {
   PaymentParty,
   ParcelDestinationType,
   Prisma,
+  PaymentReconciliationState,
 } from '@prisma/client';
 import { Expose } from 'class-transformer';
 import { AddressWithCountryDto } from './address-with-country.dto';
+import { netCollectedAmount } from '../payment-totals';
 
 @Expose()
 export class ParcelDto {
@@ -29,6 +31,10 @@ export class ParcelDto {
   deliveryStatus: DeliveryStatus;
   paymentStatus: PaymentStatus;
   paidBy: PaymentParty;
+  paymentCurrency: string | null;
+  paymentReconciliationState: PaymentReconciliationState;
+  collectedAmount: string | null;
+  outstandingAmount: string | null;
   pickedUpByCourierId?: number | null;
   pickedUpByDriverId?: number | null;
   pickedUpAt?: Date | null;
@@ -48,6 +54,8 @@ export class ParcelDto {
 
   groupId: string | null;
   groupSize: number;
+  shipmentId: string | null;
+  tracking: { manualLookupAvailable: boolean; postcodeSource: string | null };
 
   // Relationships
   senderId: number;
@@ -71,8 +79,16 @@ export class ParcelDto {
   customerNovaPostAddress?: Record<string, any> | null;
   novaPostWarehouse?: Record<string, any> | null;
   pricing?: {
-    tariffId: number;
-    tariffGroupId: number;
+    tariffId: number | null;
+    tariffGroupId: number | null;
+    tariffName: string | null;
+    tariffGroupName: string | null;
+    pricingType: 'Fixed' | 'PerKg' | null;
+    fixedPrice: number | null;
+    minimumPrice: number | null;
+    pricePerKg: number | null;
+    weightThreshold: number | null;
+    weight: number | null;
     tariff?: Record<string, any> | null;
     tariffGroup?: Record<string, any> | null;
     calculatedPrice: number;
@@ -83,6 +99,13 @@ export class ParcelDto {
 
   constructor(partial: Record<string, any>) {
     Object.assign(this, partial);
+    this.tracking = {
+      manualLookupAvailable: Boolean(
+        partial.shipment?.verificationPostcodeSource,
+      ),
+      postcodeSource: partial.shipment?.verificationPostcodeSource ?? null,
+    };
+    delete (this as any).shipment;
 
     if (partial.weight != null) this.weight = Number(partial.weight);
     if (partial.price != null) this.price = Number(partial.price);
@@ -91,14 +114,38 @@ export class ParcelDto {
     if (partial.parcelMoneyAmount != null)
       this.parcelMoneyAmount = Number(partial.parcelMoneyAmount);
 
-    const selectedPrice = partial.selectedPrice;
+    this.paymentCurrency = partial.paymentCurrency ?? null;
+    this.paymentReconciliationState = partial.paymentReconciliationState;
     if (
-      selectedPrice?.tariffId != null &&
-      selectedPrice?.tariffGroupId != null
+      partial.paymentReconciliationState ===
+      PaymentReconciliationState.Reconciled
     ) {
+      const collected = netCollectedAmount(partial.paymentEntries ?? []);
+      this.collectedAmount = collected.toFixed(2);
+      this.outstandingAmount = new Prisma.Decimal(partial.price ?? 0)
+        .minus(collected)
+        .toFixed(2);
+    } else {
+      this.collectedAmount = null;
+      this.outstandingAmount = null;
+    }
+    delete (this as any).paymentEntries;
+
+    const selectedPrice = partial.selectedPrice;
+    if (selectedPrice) {
+      const nullableNumber = (value: unknown): number | null =>
+        value == null ? null : Number(value);
       this.pricing = {
-        tariffId: selectedPrice.tariffId,
-        tariffGroupId: selectedPrice.tariffGroupId,
+        tariffId: selectedPrice.tariffId ?? null,
+        tariffGroupId: selectedPrice.tariffGroupId ?? null,
+        tariffName: selectedPrice.tariffName ?? null,
+        tariffGroupName: selectedPrice.tariffGroupName ?? null,
+        pricingType: selectedPrice.pricingType ?? null,
+        fixedPrice: nullableNumber(selectedPrice.fixedPrice),
+        minimumPrice: nullableNumber(selectedPrice.minimumPrice),
+        pricePerKg: nullableNumber(selectedPrice.pricePerKg),
+        weightThreshold: nullableNumber(selectedPrice.weightThreshold),
+        weight: nullableNumber(selectedPrice.weight),
         tariff: selectedPrice.tariff ?? null,
         tariffGroup:
           selectedPrice.tariffGroup ??

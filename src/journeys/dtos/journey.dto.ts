@@ -1,4 +1,4 @@
-import { Parcel, Vehicle, Country } from '@prisma/client';
+import { Parcel, Vehicle, Country, JourneyStatus } from '@prisma/client';
 import { Expose, Type } from 'class-transformer';
 import { DriverProfileWithUserDto } from './driver-profile-with-user.dto';
 
@@ -16,6 +16,10 @@ export class JourneyDto {
   businessId: number;
   vehicle: Vehicle;
   isCompleted: boolean;
+  status: JourneyStatus;
+  actualDepartureAt: Date | null;
+  closedAt: Date | null;
+  closedByUserId: number | null;
   hasTrailer: boolean;
   departureDate: Date;
   arrivalDate: Date;

@@ -129,6 +129,21 @@ export class CustomersController {
     );
   }
 
+  @Get('/:id/recipient-suggestions')
+  @Permissions(Permission.CUSTOMER_READ)
+  @ApiOperation({
+    summary: 'Get frequent recipient suggestions for a customer',
+  })
+  getRecipientSuggestions(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.customersService.getRecipientSuggestions(
+      id,
+      currentUser.businessId,
+    );
+  }
+
   @Get('/:id')
   @Permissions(Permission.CUSTOMER_READ)
   async findCustomer(

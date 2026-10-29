@@ -33,7 +33,10 @@ export class TokenRefreshInterceptor implements NestInterceptor {
       }
     }
 
-    this.logger.debug(`Request: ${request.method} ${request.url}`);
+    const logUrl = request.path.startsWith('/address-search')
+      ? '/address-search/[redacted]'
+      : request.url;
+    this.logger.debug(`Request: ${request.method} ${logUrl}`);
     this.logger.debug(
       `Auth state: accessToken=${!!request.accessToken}, refreshToken=${!!request.refreshToken}, alreadyRefreshed=${!!request.tokenWasRefreshed}`,
     );

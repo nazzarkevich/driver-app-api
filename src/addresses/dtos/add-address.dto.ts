@@ -1,10 +1,10 @@
+import { IsAddressPostcode } from 'src/validators/is-address-postcode.validator';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
   IsLatitude,
   IsLongitude,
-  Matches,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -12,10 +12,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { IsCityOrVillage } from 'src/validators/is-city-or-village.validator';
-import {
-  normalizeUkPostcode,
-  UK_POSTCODE_PATTERN,
-} from 'src/address-search/utils/uk-postcode';
+import { normalizeUkPostcode } from 'src/address-search/utils/uk-postcode';
 
 export class AddAddressDto {
   @IsString()
@@ -48,10 +45,7 @@ export class AddAddressDto {
   @IsOptional()
   state?: string;
 
-  @ValidateIf((o) => o.countryIsoCode === 'GB')
-  @IsString()
-  @IsNotEmpty({ message: 'Postcode is required for Great Britain addresses' })
-  @Matches(UK_POSTCODE_PATTERN)
+  @IsAddressPostcode()
   @Transform(({ value, obj }) =>
     obj.countryIsoCode === 'GB' && typeof value === 'string'
       ? normalizeUkPostcode(value)

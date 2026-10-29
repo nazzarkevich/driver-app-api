@@ -18,10 +18,17 @@ import { Permission } from 'src/permissions/permissions';
 import { JourneyDto } from './dtos/journey.dto';
 import { Pagination } from 'src/dtos/pagination.dto';
 import { JourneysService } from './journeys.service';
+import { JourneySummaryService } from './services/journey-summary.service';
+import { JourneySummaryDto } from './dtos/journey-summary.dto';
 import { ParcelDto } from 'src/parcels/dtos/parcel.dto';
 import { CreateJourneyDto } from './dtos/create-journey.dto';
 import { CreateJourneyNoteDto } from './dtos/create-journey-note.dto';
 import { UpdateJourneyDto } from './dtos/update-journey.dto';
+import {
+  CancelJourneyDto,
+  ReverseJourneyStatusDto,
+  TransitionJourneyDto,
+} from './dtos/transition-journey.dto';
 import { JourneyParcelMetricsDto } from './dtos/journey-parcel-metrics.dto';
 import { VehicleDto } from 'src/vehicles/dtos/vehicle.dto';
 import {
@@ -32,7 +39,30 @@ import {
 @ApiTags('Journey')
 @Controller('journeys')
 export class JourneysController {
-  constructor(private readonly journeysService: JourneysService) {}
+  constructor(
+    private readonly journeysService: JourneysService,
+    private readonly journeySummaryService: JourneySummaryService,
+  ) {}
+
+  @Get('/:id/summary')
+  @Permissions(Permission.JOURNEY_READ)
+  getSummary(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<JourneySummaryDto> {
+    return this.journeySummaryService.summary(id, currentUser);
+  }
+
+  @Post('/:id/close')
+  @Permissions(Permission.JOURNEY_COMPLETE)
+  async closeJourney(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: TransitionJourneyDto,
+  ): Promise<JourneyDto> {
+    await this.journeySummaryService.close(id, body, currentUser);
+    return this.journeysService.findOneForUser(id, currentUser);
+  }
 
   @Post()
   @Permissions(Permission.JOURNEY_CREATE)
@@ -48,8 +78,53 @@ export class JourneysController {
   async completeJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
+    @Body() body: TransitionJourneyDto,
   ): Promise<JourneyDto> {
-    return this.journeysService.completeJourney(id, currentUser);
+    return this.journeysService.completeJourney(id, body, currentUser);
+  }
+
+  @Post('/:id/parcels/deliver')
+  @Permissions(Permission.JOURNEY_COMPLETE)
+  deliverEligibleParcels(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: TransitionJourneyDto,
+  ): Promise<{ updatedCount: number }> {
+    return this.journeysService.deliverEligibleParcels(
+      id,
+      body,
+      currentUser,
+    );
+  }
+
+  @Post('/:id/start')
+  @Permissions(Permission.JOURNEY_COMPLETE)
+  startJourney(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: TransitionJourneyDto,
+  ): Promise<JourneyDto> {
+    return this.journeysService.startJourney(id, body, currentUser);
+  }
+
+  @Post('/:id/cancel')
+  @Permissions(Permission.JOURNEY_COMPLETE)
+  cancelJourney(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CancelJourneyDto,
+  ): Promise<JourneyDto> {
+    return this.journeysService.cancelJourney(id, body, currentUser);
+  }
+
+  @Post('/:id/status/reverse')
+  @Permissions(Permission.JOURNEY_UPDATE)
+  reverseJourneyStatus(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ReverseJourneyStatusDto,
+  ): Promise<JourneyDto> {
+    return this.journeysService.reverseStatus(id, body, currentUser);
   }
 
   @Get('/available-vehicles')

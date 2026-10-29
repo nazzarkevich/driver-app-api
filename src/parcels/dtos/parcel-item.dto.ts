@@ -1,4 +1,4 @@
-import { ParcelType, PaymentParty, PaymentStatus } from '@prisma/client';
+import { DeliveryStatus, ParcelType, PaymentParty } from '@prisma/client';
 import {
   IsOptional,
   IsNumber,
@@ -7,7 +7,13 @@ import {
   IsNotEmpty,
   IsInt,
   Min,
+  IsEmpty,
+  IsString,
+  MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CashCollectionDto } from './cash-collection.dto';
 
 export class ParcelItemDto {
   @IsNumber()
@@ -27,9 +33,12 @@ export class ParcelItemDto {
   @IsOptional()
   hasBorderCheck?: boolean;
 
-  @IsEnum(PaymentStatus)
+  @IsEmpty({ message: 'paymentStatus must be changed through payment actions' })
+  paymentStatus?: never;
+
+  @IsEnum(DeliveryStatus)
   @IsOptional()
-  paymentStatus?: PaymentStatus;
+  initialDeliveryStatus?: DeliveryStatus;
 
   @IsEnum(PaymentParty)
   @IsOptional()
@@ -43,4 +52,20 @@ export class ParcelItemDto {
   @Min(0)
   @IsOptional()
   priceOverride?: number;
+
+  @IsString()
+  @MaxLength(1000)
+  @IsOptional()
+  priceOverrideReason?: string;
+
+  @ValidateNested()
+  @Type(() => CashCollectionDto)
+  @IsOptional()
+  paymentCollection?: CashCollectionDto;
+
+  /** @deprecated Use paymentCollection. */
+  @ValidateNested()
+  @Type(() => CashCollectionDto)
+  @IsOptional()
+  cashCollection?: CashCollectionDto;
 }

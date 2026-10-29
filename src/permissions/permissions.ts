@@ -7,6 +7,11 @@ export enum Permission {
   PARCEL_DELETE = 'parcel:delete',
   PARCEL_MARK_PICKED_UP = 'parcel:mark-picked-up',
   PARCEL_MARK_DELIVERED = 'parcel:mark-delivered',
+  PARCEL_STATUS_UPDATE = 'parcel:status-update',
+  PARCEL_STATUS_CORRECT = 'parcel:status-correct',
+  PARCEL_MARK_PAID = 'parcel:mark-paid',
+  PARCEL_PAYMENT_CORRECT = 'parcel:payment:correct',
+  PARCEL_PAYMENT_RECONCILE = 'parcel:payment:reconcile',
   PARCEL_NOTE_CREATE = 'parcel:note:create',
   PARCEL_NOTE_READ = 'parcel:note:read',
   PARCEL_NOTE_DELETE = 'parcel:note:delete',
@@ -93,6 +98,7 @@ export const TABLET_USER_TYPES: UserType[] = [
 
 export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   [UserType.InternationalDriver]: [
+    Permission.PARCEL_MARK_PAID,
     Permission.APP_TABLET,
     Permission.APP_ADMIN,
     Permission.APP_CUSTOMER_PORTAL,
@@ -101,6 +107,7 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.PARCEL_UPDATE,
     Permission.PARCEL_MARK_PICKED_UP,
     Permission.PARCEL_MARK_DELIVERED,
+    Permission.PARCEL_STATUS_UPDATE,
     Permission.PARCEL_NOTE_CREATE,
     Permission.PARCEL_NOTE_READ,
     Permission.JOURNEY_CREATE,
@@ -123,12 +130,20 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   ],
 
   [UserType.ParcelCourier]: [
+    Permission.VEHICLE_READ,
+    Permission.DRIVER_PROFILE_READ,
+    Permission.PARCEL_CREATE,
+    Permission.CUSTOMER_CREATE,
+    Permission.PARCEL_MARK_PAID,
+    Permission.CUSTOMER_READ,
+    Permission.CUSTOMER_NOTE_READ,
     Permission.APP_TABLET,
     Permission.APP_ADMIN,
     Permission.APP_CUSTOMER_PORTAL,
     Permission.PARCEL_READ,
     Permission.PARCEL_MARK_PICKED_UP,
     Permission.PARCEL_MARK_DELIVERED,
+    Permission.PARCEL_STATUS_UPDATE,
     Permission.JOURNEY_READ,
     Permission.COURIER_JOURNEY_READ,
     Permission.COURIER_JOURNEY_UPDATE,
@@ -139,12 +154,17 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   ],
 
   [UserType.Manager]: [
+    Permission.PARCEL_MARK_PAID,
+    Permission.PARCEL_PAYMENT_CORRECT,
+    Permission.PARCEL_PAYMENT_RECONCILE,
     Permission.APP_TABLET,
     Permission.APP_ADMIN,
     Permission.APP_CUSTOMER_PORTAL,
     Permission.PARCEL_CREATE,
     Permission.PARCEL_READ,
     Permission.PARCEL_UPDATE,
+    Permission.PARCEL_STATUS_UPDATE,
+    Permission.PARCEL_STATUS_CORRECT,
     Permission.PARCEL_NOTE_CREATE,
     Permission.PARCEL_NOTE_READ,
     Permission.PARCEL_NOTE_DELETE,
@@ -187,12 +207,14 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   ],
 
   [UserType.Moderator]: [
+    Permission.PARCEL_MARK_PAID,
     Permission.APP_TABLET,
     Permission.APP_ADMIN,
     Permission.APP_CUSTOMER_PORTAL,
     Permission.PARCEL_CREATE,
     Permission.PARCEL_READ,
     Permission.PARCEL_UPDATE,
+    Permission.PARCEL_STATUS_UPDATE,
     Permission.PARCEL_NOTE_CREATE,
     Permission.PARCEL_NOTE_READ,
     Permission.PARCEL_NOTE_DELETE,
@@ -285,8 +307,13 @@ export function getAllowedAppsForUser(user: {
 }
 
 export const ADMIN_EXTRA_PERMISSIONS: Permission[] = [
+  Permission.PARCEL_MARK_PAID,
+  Permission.PARCEL_PAYMENT_CORRECT,
+  Permission.PARCEL_PAYMENT_RECONCILE,
   Permission.PARCEL_CREATE,
   Permission.PARCEL_UPDATE,
+  Permission.PARCEL_STATUS_UPDATE,
+  Permission.PARCEL_STATUS_CORRECT,
   Permission.PARCEL_NOTE_CREATE,
   Permission.PARCEL_NOTE_READ,
   Permission.PARCEL_NOTE_DELETE,

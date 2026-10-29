@@ -1,4 +1,8 @@
 import {
+  validateAddressMetadata,
+  validateUkraineAddress,
+} from 'src/address-search/utils/address-metadata';
+import {
   BadRequestException,
   ConflictException,
   Injectable,
@@ -9,6 +13,7 @@ import { AuditAction, AuthProvider, Prisma, UserType } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCustomerProfileDto } from './dtos/create-customer-profile.dto';
 import { CustomerProfileDto } from './dtos/customer-profile.dto';
+import { RecipientSuggestionDto } from './dtos/recipient-suggestion.dto';
 import { UpdateCustomerProfileDto } from './dtos/update-customer-profile.dto';
 import { CustomerNoteDto } from './dtos/customer-note.dto';
 import { GrantAccessDto } from './dtos/grant-access.dto';
@@ -64,16 +69,9 @@ export class CustomersService extends BaseTenantService {
   ): Promise<CustomerProfileDto> {
     await this.validateBusinessAccess(businessId);
 
-    if (
-      addresses.some(
-        (address) =>
-          address.countryIsoCode !== 'GB' &&
-          !!(address.provider || address.providerRef || address.uprn),
-      )
-    ) {
-      throw new BadRequestException(
-        'Provider address metadata is only supported for GB addresses',
-      );
+    for (const address of addresses) {
+      validateAddressMetadata(address.countryIsoCode, address);
+      validateUkraineAddress(address);
     }
 
     if (novaPostAddresses.filter((address) => address.isDefault).length > 1) {
@@ -171,6 +169,7 @@ export class CustomersService extends BaseTenantService {
             provider: addr.provider,
             providerRef: addr.providerRef,
             flat: addr.flat,
+            building: addr.building,
             isPrimary: i === 0,
             businessId,
             profileId: customerProfile.id,
@@ -363,6 +362,114 @@ export class CustomersService extends BaseTenantService {
     return new CustomerProfileDto(customerProfile);
   }
 
+  async getRecipientSuggestions(
+    customerId: number,
+    businessId: number,
+  ): Promise<RecipientSuggestionDto[]> {
+    await this.validateBusinessAccess(businessId);
+
+    const sourceCustomer = await this.prismaService.customerProfile.findFirst({
+      where: {
+        id: customerId,
+        businessId,
+        isDeleted: false,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!sourceCustomer) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
+    const [sentRelationships, receivedRelationships] = await Promise.all([
+      this.prismaService.parcel.groupBy({
+        by: ['recipientId'],
+        where: { businessId, senderId: customerId, isDeleted: false },
+        _count: { id: true },
+        _max: { createdAt: true },
+      }),
+      this.prismaService.parcel.groupBy({
+        by: ['senderId'],
+        where: { businessId, recipientId: customerId, isDeleted: false },
+        _count: { id: true },
+        _max: { createdAt: true },
+      }),
+    ]);
+
+    const relationships = new Map<
+      number,
+      { parcelCount: number; lastParcelAt: Date }
+    >();
+    const addRelationship = (
+      counterpartId: number,
+      parcelCount: number,
+      lastParcelAt: Date | null,
+    ) => {
+      if (counterpartId === customerId || !lastParcelAt) return;
+      const current = relationships.get(counterpartId);
+      relationships.set(counterpartId, {
+        parcelCount: (current?.parcelCount ?? 0) + parcelCount,
+        lastParcelAt:
+          !current || lastParcelAt > current.lastParcelAt
+            ? lastParcelAt
+            : current.lastParcelAt,
+      });
+    };
+
+    sentRelationships.forEach((relationship) =>
+      addRelationship(
+        relationship.recipientId,
+        relationship._count.id,
+        relationship._max.createdAt,
+      ),
+    );
+    receivedRelationships.forEach((relationship) =>
+      addRelationship(
+        relationship.senderId,
+        relationship._count.id,
+        relationship._max.createdAt,
+      ),
+    );
+
+    if (relationships.size === 0) return [];
+
+    const customers = await this.prismaService.customerProfile.findMany({
+      where: {
+        id: { in: [...relationships.keys()] },
+        businessId,
+        isDeleted: false,
+        isActive: true,
+      },
+      include: {
+        phoneNumber: true,
+        ...addressInclude,
+      },
+    });
+    const customersById = new Map(
+      customers.map((customer) => [customer.id, customer]),
+    );
+
+    return [...relationships.entries()]
+      .flatMap(([counterpartId, relationship]) => {
+        const customer = customersById.get(counterpartId);
+        return customer
+          ? [
+              new RecipientSuggestionDto({
+                customer: new CustomerProfileDto(customer),
+                ...relationship,
+              }),
+            ]
+          : [];
+      })
+      .sort(
+        (first, second) =>
+          second.parcelCount - first.parcelCount ||
+          second.lastParcelAt.getTime() - first.lastParcelAt.getTime() ||
+          first.customer.id - second.customer.id,
+      )
+      .slice(0, 3);
+  }
+
   async update(
     id: number,
     attrs: Partial<UpdateCustomerProfileDto>,
@@ -542,14 +649,8 @@ export class CustomersService extends BaseTenantService {
     businessId: number,
   ): Promise<CustomerProfileDto> {
     await this.validateBusinessAccess(businessId);
-    if (
-      dto.countryIsoCode !== 'GB' &&
-      (dto.provider || dto.providerRef || dto.uprn)
-    ) {
-      throw new BadRequestException(
-        'Provider address metadata is only supported for GB addresses',
-      );
-    }
+    validateAddressMetadata(dto.countryIsoCode, dto);
+    validateUkraineAddress(dto);
 
     const profile = await this.prismaService.customerProfile.findUnique({
       where: { id: customerId },
@@ -642,12 +743,15 @@ export class CustomersService extends BaseTenantService {
       const effectiveCountryIsoCode =
         dto.countryIsoCode ?? address.country.isoCode;
 
+      validateAddressMetadata(effectiveCountryIsoCode, dto);
       if (
-        effectiveCountryIsoCode !== 'GB' &&
-        (dto.provider || dto.providerRef || dto.uprn)
+        effectiveCountryIsoCode === 'UA' &&
+        dto.postcode != null &&
+        dto.postcode !== '' &&
+        !/^\d{5}$/.test(dto.postcode)
       ) {
         throw new BadRequestException(
-          'Provider address metadata is only supported for GB addresses',
+          'Ukrainian postcode must contain five digits',
         );
       }
 
@@ -672,10 +776,7 @@ export class CustomersService extends BaseTenantService {
           effectiveCountryIsoCode === 'GB'
             ? normalizeUkPostcode(dto.postcode)
             : dto.postcode;
-        if (
-          effectiveCountryIsoCode === 'GB' &&
-          !isValidUkPostcode(postcode)
-        ) {
+        if (effectiveCountryIsoCode === 'GB' && !isValidUkPostcode(postcode)) {
           throw new BadRequestException('Invalid UK postcode');
         }
         updateData.postcode = postcode;
@@ -693,31 +794,35 @@ export class CustomersService extends BaseTenantService {
       if (dto.latitude !== undefined) updateData.latitude = dto.latitude;
       if (dto.longitude !== undefined) updateData.longitude = dto.longitude;
       if (dto.provider !== undefined) updateData.provider = dto.provider;
-      if (dto.providerRef !== undefined) updateData.providerRef = dto.providerRef;
+      if (dto.providerRef !== undefined)
+        updateData.providerRef = dto.providerRef;
 
-      const meaningfulAddressChanged = [
-        dto.street,
-        dto.city,
-        dto.village,
-        dto.region,
-        dto.postcode,
-        dto.building,
-        dto.flat,
-        dto.block,
-        dto.line1,
-        dto.line2,
-        dto.line3,
-        dto.county,
-        dto.countryIsoCode,
-      ].some((value) => value !== undefined);
-      if (
-        meaningfulAddressChanged &&
-        dto.provider === undefined &&
-        dto.providerRef === undefined &&
-        dto.uprn === undefined &&
-        dto.latitude === undefined &&
-        dto.longitude === undefined
-      ) {
+      const physicalFields: (keyof UpdateAddressDto)[] = [
+        'street',
+        'city',
+        'village',
+        'region',
+        'postcode',
+        'building',
+        'block',
+        'line1',
+        'line2',
+        'line3',
+        'county',
+        'countryIsoCode',
+      ];
+      const meaningfulAddressChanged = physicalFields.some((field) => {
+        const next = dto[field];
+        if (next === undefined) return false;
+        const previous =
+          field === 'countryIsoCode'
+            ? address.country.isoCode
+            : address[field as keyof typeof address];
+        return next !== previous;
+      });
+      if (meaningfulAddressChanged) {
+        // A physical edit invalidates the lookup provenance, even when a client
+        // submits the unchanged provider fields alongside the edited address.
         updateData.provider = null;
         updateData.providerRef = null;
         updateData.uprn = null;

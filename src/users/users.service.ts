@@ -33,6 +33,111 @@ export class UsersService {
     return new UserDto(user);
   }
 
+  async updateSelf(
+    currentUser: UserRequestType,
+    body: Record<string, unknown>,
+  ) {
+    const allowed = ['firstName', 'lastName', 'phoneNumber'];
+    if (
+      !body ||
+      Array.isArray(body) ||
+      typeof body !== 'object' ||
+      Object.keys(body).some((key) => !allowed.includes(key))
+    ) {
+      throw new BadRequestException(
+        'Only name and contact phone can be updated',
+      );
+    }
+    const data: Prisma.UserUpdateInput = {};
+    for (const key of ['firstName', 'lastName'] as const) {
+      if (body[key] !== undefined) {
+        if (
+          typeof body[key] !== 'string' ||
+          !body[key].trim() ||
+          body[key].trim().length > 100
+        ) {
+          throw new BadRequestException(
+            'Names must contain between 1 and 100 characters',
+          );
+        }
+        data[key] = body[key].trim();
+      }
+    }
+    let phone: { countryCode: string; number: string } | undefined;
+    if (body.phoneNumber !== undefined) {
+      const input = body.phoneNumber as Record<string, unknown>;
+      if (
+        !input ||
+        Array.isArray(input) ||
+        typeof input !== 'object' ||
+        Object.keys(input).some(
+          (key) => !['countryCode', 'number'].includes(key),
+        ) ||
+        typeof input.countryCode !== 'string' ||
+        typeof input.number !== 'string'
+      ) {
+        throw new BadRequestException('A complete contact phone is required');
+      }
+      const countryCode = input.countryCode.trim();
+      let number = input.number.replace(/[\s()-]/g, '');
+      if (
+        (countryCode === '+380' || countryCode === '+44') &&
+        number.startsWith('0')
+      ) {
+        number = number.slice(1);
+      }
+      if (
+        !/^\+[1-9]\d{0,3}$/.test(countryCode) ||
+        !/^\d+$/.test(number) ||
+        countryCode.length - 1 + number.length < 7 ||
+        countryCode.length - 1 + number.length > 15 ||
+        (countryCode === '+380' && number.length !== 9) ||
+        (countryCode === '+44' && number.length !== 10)
+      ) {
+        throw new BadRequestException('Contact phone format is invalid');
+      }
+      phone = { countryCode, number };
+    }
+    const updated = await this.prismaService.$transaction(async (tx) => {
+      const user = await tx.user.findFirst({
+        where: {
+          id: currentUser.id,
+          businessId: currentUser.businessId,
+          isDeleted: false,
+        },
+      });
+      if (!user) throw new NotFoundException('User not found');
+      if (phone) {
+        const record = await tx.phone.upsert({
+          where: { countryCode_number: phone },
+          create: phone,
+          update: {},
+        });
+        data.phoneNumber = { connect: { id: record.id } };
+      }
+      return tx.user.update({
+        where: { id: user.id },
+        data,
+        include: {
+          phoneNumber: true,
+          business: true,
+          driverProfile: true,
+          courierProfile: true,
+        },
+      });
+    });
+    await this.auditService.log({
+      userId: currentUser.id,
+      businessId: currentUser.businessId,
+      action: AuditAction.UPDATE,
+      entityType: 'User',
+      entityId: String(currentUser.id),
+      description: 'Updated own contact profile',
+      metadata: { updatedFields: Object.keys(body) },
+    });
+    return new UserDto(updated);
+  }
+
   async findAll({ page }: { page: number }): Promise<Pagination<UserDto>> {
     const [usersWithPagination, metadata] = await prismaWithPagination.user
       .paginate({

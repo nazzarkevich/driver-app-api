@@ -98,6 +98,7 @@ export class UserDto {
   })
   businessId: number;
   imageId: number;
+  phoneNumber?: { countryCode: string; number: string } | null;
 
   constructor(partial: any) {
     Object.assign(this, partial);

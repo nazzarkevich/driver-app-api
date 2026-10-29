@@ -18,8 +18,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const status = exception.getStatus();
     const errorDetails = exception.getResponse();
 
+    const requestUrl =
+      request.path.startsWith('/public/tracking') ||
+      request.path.startsWith('/shipments')
+        ? request.path
+        : request.path.startsWith('/address-search')
+          ? '/address-search/[redacted]'
+          : request.originalUrl;
     this.logger.error(
-      `${request.method} ${request.originalUrl} ${status} error: ${exception.message}`,
+      `${request.method} ${requestUrl} ${status} error: ${exception.message}`,
     );
 
     response.status(status).json({

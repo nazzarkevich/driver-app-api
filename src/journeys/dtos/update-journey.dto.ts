@@ -40,10 +40,6 @@ export class UpdateJourneyDto {
 
   @IsBoolean()
   @IsOptional()
-  isCompleted: boolean;
-
-  @IsBoolean()
-  @IsOptional()
   hasTrailer: boolean;
 
   @IsString()

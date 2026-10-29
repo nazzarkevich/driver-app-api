@@ -1,4 +1,4 @@
-import { ParcelType, PaymentParty, PaymentStatus } from '@prisma/client';
+import { ParcelType, PaymentParty } from '@prisma/client';
 import {
   IsBoolean,
   IsEnum,
@@ -9,9 +9,14 @@ import {
   MaxLength,
   Min,
   ValidateIf,
+  IsEmpty,
+  IsDateString,
 } from 'class-validator';
 
 export class UpdateParcelDto {
+  @IsDateString()
+  expectedUpdatedAt: string;
+
   @IsNumber()
   @Min(0.001)
   @IsOptional()
@@ -37,9 +42,8 @@ export class UpdateParcelDto {
   @IsOptional()
   parcelMoneyAmount?: number | null;
 
-  @IsEnum(PaymentStatus)
-  @IsOptional()
-  paymentStatus?: PaymentStatus;
+  @IsEmpty({ message: 'paymentStatus must be changed through payment actions' })
+  paymentStatus?: never;
 
   @IsEnum(PaymentParty)
   @IsOptional()
@@ -53,4 +57,9 @@ export class UpdateParcelDto {
   @MaxLength(1000)
   @IsOptional()
   note?: string;
+
+  @IsString()
+  @MaxLength(1000)
+  @IsOptional()
+  priceOverrideReason?: string;
 }

@@ -159,6 +159,57 @@ export class AuditService {
     };
   }
 
+  async getParcelHistory(
+    parcelId: number,
+    businessId: number,
+    page = 1,
+    limit = 20,
+  ) {
+    const currentPage = Number.isInteger(page) && page > 0 ? page : 1;
+    const pageSize = Math.min(Math.max(limit || 20, 1), 50);
+    const where = {
+      businessId,
+      entityType: 'Parcel',
+      entityId: String(parcelId),
+      method: 'PARCEL_EVENT',
+    };
+    const [logs, totalCount] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        include: {
+          user: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (currentPage - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+    const pageCount = Math.ceil(totalCount / pageSize);
+
+    return {
+      items: logs.map((log) => {
+        const metadata = (log.metadata ?? {}) as Record<string, unknown>;
+        return {
+          id: log.id,
+          eventType: metadata.eventType,
+          createdAt: log.createdAt,
+          actor: log.user,
+          details: (metadata.details ?? {}) as Record<string, unknown>,
+        };
+      }),
+      currentPage,
+      pageCount,
+      totalCount,
+      isFirstPage: currentPage <= 1,
+      isLastPage: pageCount === 0 || currentPage >= pageCount,
+      previousPage: currentPage > 1 ? currentPage - 1 : null,
+      nextPage: currentPage < pageCount ? currentPage + 1 : null,
+    };
+  }
+
   private async getUserBusinessId(userId: number): Promise<number | undefined> {
     try {
       const user = await this.prisma.user.findUnique({

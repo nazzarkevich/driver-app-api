@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { UserType } from '@prisma/client';
 
 import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 import {
@@ -30,6 +31,25 @@ export class PermissionsGuard implements CanActivate {
       return false;
     }
 
+    const required = this.reflector.getAllAndOverride<Permission[]>(
+      PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    // Couriers can create customers, but cannot modify existing customer data,
+    // even with elevated account flags. Addresses can be supplied at creation.
+    if (
+      user.type === UserType.ParcelCourier &&
+      required?.some(
+        (permission) =>
+          permission.startsWith('customer:') &&
+          permission !== Permission.CUSTOMER_CREATE &&
+          permission !== Permission.CUSTOMER_READ &&
+          permission !== Permission.CUSTOMER_NOTE_READ,
+      )
+    ) {
+      return false;
+    }
+
     if (user.isSuperAdmin) {
       return true;
     }
@@ -38,11 +58,6 @@ export class PermissionsGuard implements CanActivate {
     const effectivePermissions = user.isAdmin
       ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
       : rolePermissions;
-
-    const required = this.reflector.getAllAndOverride<Permission[]>(
-      PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
 
     if (!required || required.length === 0) {
       return true;

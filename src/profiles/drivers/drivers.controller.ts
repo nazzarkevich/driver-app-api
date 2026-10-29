@@ -72,16 +72,18 @@ export class DriversController {
   @Permissions(Permission.DRIVER_PROFILE_READ)
   async getAllDriversProfiles(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @CurrentUser() currentUser: UserRequestType,
   ): Promise<Pagination<DriverProfileDto>> {
-    return this.driversService.findAll(page);
+    return this.driversService.findAll(page, currentUser);
   }
 
   @Get('/:id')
   @Permissions(Permission.DRIVER_PROFILE_READ)
   async getDriverProfile(
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser: UserRequestType,
   ): Promise<DriverProfileDto> {
-    return this.driversService.findOne(id);
+    return this.driversService.findOne(id, currentUser.businessId);
   }
 
   @Put('/:id')

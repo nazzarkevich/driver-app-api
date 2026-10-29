@@ -24,13 +24,22 @@ import {
 } from './decorators/current-user.decorator';
 import { SupabaseAuthGuard } from 'src/guards/supabase-auth.guard';
 import { Permissions } from 'src/decorators/permissions.decorator';
-import { Permission } from 'src/permissions/permissions';
+import { Permission, getAllowedAppsForUser } from 'src/permissions/permissions';
 import { UpdateUserRoleDto } from './dtos/update-user-role.dto';
 
 @ApiTags('User')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Patch('me')
+  async updateMyProfile(
+    @Body() body: Record<string, unknown>,
+    @CurrentUser() currentUser: UserRequestType,
+  ) {
+    const user = await this.usersService.updateSelf(currentUser, body);
+    return { ...user, allowedApps: getAllowedAppsForUser(currentUser) };
+  }
 
   @Get()
   @Permissions(Permission.USER_READ)

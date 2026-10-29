@@ -7,11 +7,12 @@ import { ParcelsModule } from 'src/parcels/parcels.module';
 import { VehiclesModule } from 'src/vehicles/vehicles.module';
 import { DriversModule } from 'src/profiles/drivers/drivers.module';
 import { JourneyNumberService } from './services/journey-number.service';
+import { JourneySummaryService } from './services/journey-summary.service';
 
 @Module({
   imports: [PrismaModule, ParcelsModule, VehiclesModule, DriversModule],
   exports: [JourneysService],
-  providers: [JourneysService, JourneyNumberService],
+  providers: [JourneysService, JourneyNumberService, JourneySummaryService],
   controllers: [JourneysController],
 })
 export class JourneysModule {}

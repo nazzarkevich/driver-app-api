@@ -1,3 +1,4 @@
+import { GooglePlacesProvider } from './providers/google-places.provider';
 import { Module } from '@nestjs/common';
 import { AddressSearchController } from './address-search.controller';
 import { AddressSearchService } from './address-search.service';
@@ -18,6 +19,7 @@ import { ConfigService } from '@nestjs/config';
     AddressSearchCache,
     AddressSearchRateLimitGuard,
     IdealPostcodesProvider,
+    GooglePlacesProvider,
     PostcodesIoProvider,
     {
       provide: ADDRESS_PROVIDER,

@@ -1,3 +1,5 @@
+import { GooglePlacesProvider } from './providers/google-places.provider';
+import { AddressLookupContext } from './providers/address-provider.interface';
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -20,26 +22,44 @@ export class AddressSearchService {
 
   constructor(
     @Inject(ADDRESS_PROVIDER) private readonly provider: AddressProvider,
-    @Inject(POSTCODE_PROVIDER) private readonly postcodeProvider: PostcodeProvider,
+    @Inject(POSTCODE_PROVIDER)
+    private readonly postcodeProvider: PostcodeProvider,
     private readonly cache: AddressSearchCache,
     configService: ConfigService,
+    private readonly googleProvider: GooglePlacesProvider,
   ) {
     this.postcodeLookupEnabled =
-      configService.get<string>('POSTCODES_IO_ENABLED', 'true').toLowerCase() !==
-      'false';
+      configService
+        .get<string>('POSTCODES_IO_ENABLED', 'true')
+        .toLowerCase() !== 'false';
   }
 
-  async search(query: string): Promise<AddressSearchResponse> {
+  async search(
+    query: string,
+    context: AddressLookupContext = {},
+  ): Promise<AddressSearchResponse> {
     const normalizedQuery = query.trim().replace(/\s+/g, ' ');
+    if (context.countryCode === 'UA') {
+      return {
+        results: await this.googleProvider.search(normalizedQuery, context),
+      };
+    }
     const key = `search:${normalizedQuery.toLocaleLowerCase('en-GB')}`;
     const cached = this.cache.get<AddressSearchResponse>(key);
     if (cached) return cached;
-    const response = { results: (await this.provider.search(normalizedQuery)).slice(0, 10) };
+    const response = {
+      results: (await this.provider.search(normalizedQuery)).slice(0, 10),
+    };
     this.cache.set(key, response, 5 * 60_000);
     return response;
   }
 
-  async retrieve(id: string): Promise<ResolvedAddress> {
+  async retrieve(
+    id: string,
+    context: AddressLookupContext = {},
+  ): Promise<ResolvedAddress> {
+    if (context.countryCode === 'UA')
+      return this.googleProvider.retrieve(id, context);
     const key = `retrieve:${id}`;
     const cached = this.cache.get<ResolvedAddress>(key);
     if (cached) return cached;
@@ -65,14 +85,13 @@ export class AddressSearchService {
     if (cached) return cached;
     try {
       const result = await this.postcodeProvider.lookup(normalized);
-      const response =
-        result ?? {
-          postcode: normalized,
-          valid: false,
-          latitude: null,
-          longitude: null,
-          externalServiceAvailable: true,
-        };
+      const response = result ?? {
+        postcode: normalized,
+        valid: false,
+        latitude: null,
+        longitude: null,
+        externalServiceAvailable: true,
+      };
       this.cache.set(key, response, 24 * 60 * 60_000);
       return response;
     } catch {
