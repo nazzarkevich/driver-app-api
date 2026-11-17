@@ -1,5 +1,5 @@
 # Use an official Node.js runtime as a base image
-FROM node:20.11-alpine AS base
+FROM node:20.19-alpine AS base
 
 # Set the working directory in the container
 WORKDIR /driver-app-api
