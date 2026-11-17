@@ -1,3 +1,4 @@
+import { StaffAccountUpdater } from '../staff-account-updater';
 import {
   BadRequestException,
   ForbiddenException,
@@ -45,12 +46,20 @@ export class DriversService {
     private readonly supabaseService: SupabaseService,
     private readonly authProfilesService: AuthProfilesService,
     private readonly auditService: AuditService,
+    private readonly staffAccountUpdater: StaffAccountUpdater,
   ) {}
 
-  async createProfile({ userId }: CreateDriverProfileDto): Promise<void> {
+  async createProfile(
+    { userId }: CreateDriverProfileDto,
+    businessId: number,
+  ): Promise<void> {
     const user = await this.prismaService.user.findUnique({
       where: {
         id: userId,
+        businessId,
+        isDeleted: false,
+        type: UserType.InternationalDriver,
+        staffApprovalStatus: 'Approved',
       },
     });
 
@@ -109,11 +118,14 @@ export class DriversService {
     let result;
     try {
       result = await this.prismaService.$transaction(async (tx) => {
-        const phone = await tx.phone.create({
-          data: {
-            number: dto.phoneNumber,
-            countryCode: dto.phoneCountryCode,
-          },
+        const contact = {
+          number: dto.phoneNumber,
+          countryCode: dto.phoneCountryCode,
+        };
+        const phone = await tx.phone.upsert({
+          where: { countryCode_number: contact },
+          create: contact,
+          update: {},
         });
 
         const user = await tx.user.create({
@@ -170,7 +182,13 @@ export class DriversService {
         .paginate({
           where: {
             isDeleted: false,
-            user: { businessId: currentUser.businessId, isDeleted: false },
+            user: {
+              businessId: currentUser.businessId,
+              isDeleted: false,
+              isBlocked: false,
+              type: UserType.InternationalDriver,
+              staffApprovalStatus: 'Approved',
+            },
           },
           include: {
             user: {
@@ -200,6 +218,8 @@ export class DriversService {
         isDeleted: false,
         user: {
           isDeleted: false,
+          type: UserType.InternationalDriver,
+          staffApprovalStatus: 'Approved',
           ...(businessId !== undefined ? { businessId } : {}),
         },
       },
@@ -217,13 +237,24 @@ export class DriversService {
     return new DriverProfileDto(profile);
   }
 
-  async findManyByIds(driverProfileIds: number[]): Promise<DriverProfileDto[]> {
+  async findManyByIds(
+    driverProfileIds: number[],
+    businessId: number,
+  ): Promise<DriverProfileDto[]> {
     if (driverProfileIds?.length === 0) {
       return [];
     }
 
     const driverProfiles = await this.prismaService.driverProfile.findMany({
       where: {
+        isDeleted: false,
+        user: {
+          businessId,
+          isDeleted: false,
+          isBlocked: false,
+          type: UserType.InternationalDriver,
+          staffApprovalStatus: 'Approved',
+        },
         id: {
           in: driverProfileIds,
         },
@@ -245,88 +276,18 @@ export class DriversService {
   async update(
     id: number,
     dto: UpdateDriverProfileDto,
+    businessId: number,
   ): Promise<DriverProfileDto> {
-    const profile = await this.prismaService.driverProfile.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            phoneId: true,
-          },
-        },
-      },
-    });
-
-    if (!profile) {
-      throw new NotFoundException('Driver profile not found');
-    }
-
-    const userData: { firstName?: string; lastName?: string; email?: string } =
-      {};
-    if (dto.firstName !== undefined) userData.firstName = dto.firstName;
-    if (dto.lastName !== undefined) userData.lastName = dto.lastName;
-    if (dto.email !== undefined) userData.email = dto.email;
-
-    if (Object.keys(userData).length > 0) {
-      await this.prismaService.user.update({
-        where: { id: profile.user.id },
-        data: userData,
-      });
-    }
-
-    if (dto.phoneNumber !== undefined) {
-      if (profile.user.phoneId) {
-        await this.prismaService.phone.update({
-          where: { id: profile.user.phoneId },
-          data: {
-            number: dto.phoneNumber,
-            ...(dto.phoneCountryCode !== undefined && {
-              countryCode: dto.phoneCountryCode,
-            }),
-          },
-        });
-      } else {
-        const phone = await this.prismaService.phone.create({
-          data: {
-            number: dto.phoneNumber,
-            countryCode: dto.phoneCountryCode || '+380',
-          },
-        });
-        await this.prismaService.user.update({
-          where: { id: profile.user.id },
-          data: { phoneId: phone.id },
-        });
-      }
-    }
-
-    if (dto.password) {
-      const authProfile = await this.prismaService.authProfile.findFirst({
-        where: { userId: profile.user.id },
-      });
-
-      if (authProfile) {
-        const { error } =
-          await this.supabaseService.client.auth.admin.updateUserById(
-            authProfile.providerId,
-            { password: dto.password },
-          );
-
-        if (error) {
-          throw new BadRequestException(
-            error.message || 'Failed to update password',
-          );
-        }
-      }
-    }
-
-    return this.findOne(id);
+    const profile = await this.findOne(id, businessId);
+    await this.staffAccountUpdater.update(profile.user.id, businessId, dto);
+    return this.findOne(id, businessId);
   }
 
   async toggleBlock(
     id: number,
     currentUser: UserRequestType,
   ): Promise<DriverProfileDto> {
+    await this.findOne(id, currentUser.businessId);
     const profile = await this.prismaService.driverProfile.findUnique({
       where: { id },
       include: {
@@ -364,11 +325,13 @@ export class DriversService {
     return this.findOne(id);
   }
 
-  async remove(id: number): Promise<void> {
-    await this.prismaService.driverProfile.delete({
+  async remove(id: number, businessId: number): Promise<void> {
+    await this.findOne(id, businessId);
+    await this.prismaService.driverProfile.update({
       where: {
         id,
       },
+      data: { isDeleted: true },
     });
   }
 }

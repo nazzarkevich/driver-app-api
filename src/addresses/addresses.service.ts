@@ -1,4 +1,5 @@
 import {
+  addressStreet,
   validateAddressMetadata,
   validateUkraineAddress,
 } from 'src/address-search/utils/address-metadata';
@@ -57,7 +58,7 @@ export class AddressesService {
       }
       await prisma.address.create({
         data: {
-          street: address.street ?? address.line1,
+          street: addressStreet({ ...address, countryIsoCode }),
           city: address.city,
           village: address.village,
           postcode: address.postcode,

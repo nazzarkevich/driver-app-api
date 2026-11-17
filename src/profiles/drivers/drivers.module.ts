@@ -1,3 +1,4 @@
+import { StaffAccountUpdater } from '../staff-account-updater';
 import { Module } from '@nestjs/common';
 import { DriversService } from './drivers.service';
 import { DriversController } from './drivers.controller';
@@ -9,7 +10,7 @@ import { AuditModule } from 'src/audit/audit.module';
 @Module({
   imports: [PrismaModule, SupabaseModule, AuthProfilesModule, AuditModule],
   exports: [DriversService],
-  providers: [DriversService],
+  providers: [DriversService, StaffAccountUpdater],
   controllers: [DriversController],
 })
 export class DriversModule {}

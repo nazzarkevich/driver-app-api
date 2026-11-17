@@ -60,3 +60,10 @@ export class ResolveParcelDamageDto {
   @IsDateString()
   expectedUpdatedAt: string;
 }
+
+export class UpdateNovaPostTrackingDto extends ResolveParcelDamageDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  novaPostTrackingNumber: string;
+}

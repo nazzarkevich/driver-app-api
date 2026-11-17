@@ -9,12 +9,19 @@ export const POSTCODE_PROVIDER = Symbol('POSTCODE_PROVIDER');
 
 export interface AddressLookupContext {
   countryCode?: 'GB' | 'UA';
+  provider?: 'google-places';
   sessionToken?: string;
 }
 
 export interface AddressProvider {
-  search(query: string, context?: AddressLookupContext): Promise<AddressSuggestion[]>;
-  retrieve(id: string, context?: AddressLookupContext): Promise<ResolvedAddress>;
+  search(
+    query: string,
+    context?: AddressLookupContext,
+  ): Promise<AddressSuggestion[]>;
+  retrieve(
+    id: string,
+    context?: AddressLookupContext,
+  ): Promise<ResolvedAddress>;
 }
 
 export interface PostcodeProvider {

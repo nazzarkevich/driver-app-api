@@ -21,6 +21,12 @@ export class ParcelDto {
   parcelType: ParcelType;
   trackingNumber: string;
   novaPostTrackingNumber: string;
+  novaPostTrackingNumberUpdatedAt?: Date | null;
+  deliveryState?: {
+    lastActiveStatus: DeliveryStatus | null;
+    problemReason: string | null;
+    problemReportedAt: Date | null;
+  };
   parcelMoneyAmount: number;
   isLost: boolean;
   isArchived: boolean;

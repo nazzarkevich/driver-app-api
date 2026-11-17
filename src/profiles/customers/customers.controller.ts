@@ -1,3 +1,4 @@
+import { customerBusinessScope } from './customer-business-scope';
 import {
   Body,
   Controller,
@@ -79,6 +80,12 @@ export class CustomersController {
   @Permissions(Permission.CUSTOMER_READ)
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({
+    name: 'businessId',
+    required: false,
+    type: Number,
+    description: 'Business scope override for superadmins',
+  })
+  @ApiQuery({
     name: 'search',
     required: false,
     type: String,
@@ -94,7 +101,8 @@ export class CustomersController {
     name: 'originCountryId',
     required: false,
     type: Number,
-    description: 'Filter by origin country ID (1: Ukraine, 2: United Kingdom)',
+    description:
+      'Match active saved addresses by country ID, including Nova Post branches for Ukraine',
   })
   @ApiQuery({
     name: 'isActive',
@@ -109,7 +117,9 @@ export class CustomersController {
     @Query('isBlocked') isBlocked?: string,
     @Query('originCountryId') originCountryId?: string,
     @Query('isActive') isActive?: string,
+    @Query('businessId') businessId?: string,
   ): Promise<Pagination<CustomerProfileDto> | CustomerProfileDto[]> {
+    const scopedBusinessId = customerBusinessScope(currentUser, businessId);
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const isBlockedBoolean =
       isBlocked !== undefined ? isBlocked === 'true' : undefined;
@@ -120,12 +130,13 @@ export class CustomersController {
       isActive !== undefined ? isActive === 'true' : undefined;
 
     return this.customersService.findAll(
-      currentUser.businessId,
+      scopedBusinessId,
       pageNumber,
       search,
       isBlockedBoolean,
       originCountryIdNumber,
       isActiveBoolean,
+      currentUser,
     );
   }
 
@@ -149,10 +160,12 @@ export class CustomersController {
   async findCustomer(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
+    @Query('businessId') businessId?: string,
   ) {
     const profiles = await this.customersService.findOne(
       id,
-      currentUser.businessId,
+      customerBusinessScope(currentUser, businessId),
+      currentUser,
     );
 
     return profiles;
@@ -224,10 +237,12 @@ export class CustomersController {
   getNotes(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) customerProfileId: number,
+    @Query('businessId') businessId?: string,
   ) {
     return this.customersService.getNotes(
       customerProfileId,
-      currentUser.businessId,
+      customerBusinessScope(currentUser, businessId),
+      currentUser,
     );
   }
 

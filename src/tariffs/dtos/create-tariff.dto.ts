@@ -8,11 +8,14 @@ import {
   IsNumber,
   IsInt,
   Min,
+  Max,
   ValidateIf,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ParcelType } from '@prisma/client';
 
 export class CreateTariffDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -26,6 +29,7 @@ export class CreateTariffDto {
   isActive?: boolean;
 
   @IsInt()
+  @Min(1)
   @IsNotEmpty()
   tariffGroupId: number;
 
@@ -33,18 +37,21 @@ export class CreateTariffDto {
   @IsOptional()
   parcelType?: ParcelType | null;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
+  @Max(99999999.99)
   @IsNotEmpty()
   minimumPrice: number;
 
   @ValidateIf((dto) => dto.pricingType === 'PerKg')
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
+  @Max(99999999.99)
   pricePerKg?: number;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
+  @Max(9999999.999)
   @IsOptional()
   weightThreshold?: number;
 

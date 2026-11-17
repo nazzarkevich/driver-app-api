@@ -1,5 +1,7 @@
+import { resolveBusinessScope } from 'src/common/business-scope';
 import {
   Body,
+  ForbiddenException,
   Controller,
   DefaultValuePipe,
   Delete,
@@ -25,6 +27,7 @@ import {
 } from 'src/users/decorators/current-user.decorator';
 import { Permissions } from 'src/decorators/permissions.decorator';
 import { Permission } from 'src/permissions/permissions';
+import { canManageStaff } from 'src/users/staff-access';
 
 @ApiTags('Driver')
 @Controller('drivers')
@@ -35,8 +38,9 @@ export class DriversController {
   @Permissions(Permission.DRIVER_PROFILE_CREATE)
   async createDriverProfile(
     @Body() body: CreateDriverProfileDto,
+    @CurrentUser() actor: UserRequestType,
   ): Promise<void> {
-    return this.driversService.createProfile(body);
+    return this.driversService.createProfile(body, actor.businessId);
   }
 
   @Post('create-with-user')
@@ -61,7 +65,16 @@ export class DriversController {
   async createDriverWithUser(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateDriverWithUserDto,
+    @Query('businessId') businessId?: string,
   ): Promise<DriverProfileDto> {
+    if (
+      resolveBusinessScope(currentUser, businessId) !== currentUser.businessId
+    )
+      throw new ForbiddenException('Manage staff in your own business');
+    if (!canManageStaff(currentUser))
+      throw new ForbiddenException(
+        'Only managers and admins can create staff accounts',
+      );
     return this.driversService.createProfileWithUser(
       body,
       currentUser.businessId,
@@ -82,8 +95,12 @@ export class DriversController {
   async getDriverProfile(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: UserRequestType,
+    @Query('businessId') businessId?: string,
   ): Promise<DriverProfileDto> {
-    return this.driversService.findOne(id, currentUser.businessId);
+    return this.driversService.findOne(
+      id,
+      resolveBusinessScope(currentUser, businessId),
+    );
   }
 
   @Put('/:id')
@@ -91,8 +108,14 @@ export class DriversController {
   async updateDriverProfile(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateDriverProfileDto,
+    @CurrentUser() actor: UserRequestType,
+    @Query('businessId') businessId?: string,
   ): Promise<DriverProfileDto> {
-    return this.driversService.update(id, body);
+    if (!canManageStaff(actor))
+      throw new ForbiddenException('Only managers and admins can update staff');
+    if (resolveBusinessScope(actor, businessId) !== actor.businessId)
+      throw new ForbiddenException('Manage staff in your own business');
+    return this.driversService.update(id, body, actor.businessId);
   }
 
   @Patch('/:id/block')
@@ -100,13 +123,23 @@ export class DriversController {
   async toggleBlockDriver(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: UserRequestType,
+    @Query('businessId') businessId?: string,
   ): Promise<DriverProfileDto> {
+    if (!currentUser.isAdmin && !currentUser.isSuperAdmin)
+      throw new ForbiddenException('Only admins can block staff');
+    if (
+      resolveBusinessScope(currentUser, businessId) !== currentUser.businessId
+    )
+      throw new ForbiddenException('Manage staff in your own business');
     return this.driversService.toggleBlock(id, currentUser);
   }
 
-  @Delete()
+  @Delete(':id')
   @Permissions(Permission.DRIVER_PROFILE_DELETE)
-  removeDriverProfile(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.driversService.remove(id);
+  removeDriverProfile(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() actor: UserRequestType,
+  ): Promise<void> {
+    return this.driversService.remove(id, actor.businessId);
   }
 }

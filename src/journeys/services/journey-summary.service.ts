@@ -136,6 +136,7 @@ export class JourneySummaryService extends BaseTenantService {
     tx: Prisma.TransactionClient,
     id: number,
     user: UserRequestType,
+    requireAssignment = false,
   ): Promise<SummaryJourney> {
     const journey = await tx.journey.findFirst({
       where: { id, businessId: user.businessId, isDeleted: false },
@@ -143,13 +144,14 @@ export class JourneySummaryService extends BaseTenantService {
     });
     if (!journey) throw new NotFoundException('Journey not found');
     if (
+      requireAssignment &&
       user.type === UserType.InternationalDriver &&
       !journey.driverProfiles.some(
         (driver) => driver.userId === user.id && !driver.isDeleted,
       )
     ) {
       throw new ForbiddenException(
-        'Drivers can only access their own journeys',
+        'Drivers can only close their assigned journeys',
       );
     }
     return journey;
@@ -360,7 +362,7 @@ export class JourneySummaryService extends BaseTenantService {
     await this.prismaService
       .$transaction(
         async (tx) => {
-          const journey = await this.accessibleJourney(tx, id, user);
+          const journey = await this.accessibleJourney(tx, id, user, true);
           // A repeated request retains the original close date and audit event.
           if (journey.closedAt) return;
           if (journey.updatedAt.toISOString() !== body.expectedUpdatedAt) {

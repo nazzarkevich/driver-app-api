@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsEmail, MinLength } from 'class-validator';
+import { IsStaffPassword } from '../../staff-password.validator';
+import { IsString, IsOptional, IsEmail } from 'class-validator';
 
 export class UpdateCourierProfileDto {
   @IsString()
@@ -14,7 +15,7 @@ export class UpdateCourierProfileDto {
   email?: string;
 
   @IsString()
-  @MinLength(6)
+  @IsStaffPassword()
   @IsOptional()
   password?: string;
 

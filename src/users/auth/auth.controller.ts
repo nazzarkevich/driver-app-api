@@ -25,6 +25,7 @@ import { AuthService } from './auth.service';
 import { SignInDto } from '../dtos/sign-in.dto';
 import { UsersService } from '../users.service';
 import { CreateUserDto } from '../dtos/create-user.dto';
+import { RegisterStaffDto } from '../dtos/register-staff.dto';
 import { RegisterCustomerDto } from '../dtos/register-customer.dto';
 import { Public } from 'src/decorators/public.decorator';
 import { UserDto } from '../dtos/user.dto';
@@ -54,6 +55,12 @@ export class AuthController {
   @Post('/signup')
   async createUser(@Body() body: CreateUserDto) {
     return this.authService.signUp(body);
+  }
+
+  @Public()
+  @Post('/signup/staff')
+  registerStaff(@Body() body: RegisterStaffDto) {
+    return this.authService.registerStaff(body);
   }
 
   @ApiCreatedResponse({

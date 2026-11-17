@@ -1,5 +1,7 @@
+import { resolveBusinessScope } from 'src/common/business-scope';
 import {
   Body,
+  NotFoundException,
   Controller,
   Delete,
   Get,
@@ -8,6 +10,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Patch,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -48,6 +51,7 @@ import {
   ReverseParcelStatusDto,
   ResolveParcelDamageDto,
   TransitionParcelStatusDto,
+  UpdateNovaPostTrackingDto,
 } from './dtos/transition-parcel-status.dto';
 
 @ApiTags('Parcel')
@@ -59,6 +63,22 @@ export class ParcelsController {
     private readonly parcelPaymentsService: ParcelPaymentsService,
     private readonly auditService: AuditService,
   ) {}
+
+  private async readScopedParcel(
+    currentUser: UserRequestType,
+    id: number,
+    requested?: string,
+  ) {
+    const businessId = resolveBusinessScope(currentUser, requested);
+    const parcel = await this.parcelsService.findOne(
+      id,
+      businessId,
+      currentUser,
+    );
+    if (parcel.businessId !== businessId)
+      throw new NotFoundException('Parcel not found');
+    return parcel;
+  }
 
   @Post()
   @Permissions(Permission.PARCEL_CREATE)
@@ -243,17 +263,20 @@ export class ParcelsController {
   }
 
   @Get('/:id/payments')
+  @ApiQuery({
+    name: 'businessId',
+    required: false,
+    type: Number,
+    description: 'SuperAdmin only: specify business context',
+  })
   @Permissions(Permission.PARCEL_READ)
   async getParcelPayments(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Query('page') page?: string,
+    @Query('businessId') businessId?: string,
   ) {
-    const parcel = await this.parcelsService.findOne(
-      id,
-      currentUser.businessId,
-      currentUser,
-    );
+    const parcel = await this.readScopedParcel(currentUser, id, businessId);
     return this.parcelPaymentsService.history(
       id,
       parcel.businessId,
@@ -262,18 +285,21 @@ export class ParcelsController {
   }
 
   @Get('/:id/history')
+  @ApiQuery({
+    name: 'businessId',
+    required: false,
+    type: Number,
+    description: 'SuperAdmin only: specify business context',
+  })
   @Permissions(Permission.PARCEL_READ)
   async getParcelHistory(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('businessId') businessId?: string,
   ) {
-    const parcel = await this.parcelsService.findOne(
-      id,
-      currentUser.businessId,
-      currentUser,
-    );
+    const parcel = await this.readScopedParcel(currentUser, id, businessId);
     return this.auditService.getParcelHistory(
       id,
       parcel.businessId,
@@ -362,14 +388,9 @@ export class ParcelsController {
   async findParcel(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
-    @Query() query?: SuperAdminQueryDto,
+    @Query('businessId') businessId?: string,
   ): Promise<ParcelDto> {
-    const targetBusinessId =
-      currentUser.isSuperAdmin && query?.businessId
-        ? query.businessId
-        : currentUser.businessId;
-
-    return this.parcelsService.findOne(id, targetBusinessId, currentUser);
+    return this.readScopedParcel(currentUser, id, businessId);
   }
 
   @Put('/:id')
@@ -471,13 +492,9 @@ export class ParcelsController {
   async getParcelGroup(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
-    @Query() query?: SuperAdminQueryDto,
+    @Query('businessId') businessId?: string,
   ): Promise<ParcelDto[]> {
-    const targetBusinessId =
-      currentUser.isSuperAdmin && query?.businessId
-        ? query.businessId
-        : currentUser.businessId;
-
+    const targetBusinessId = resolveBusinessScope(currentUser, businessId);
     return this.parcelsService.findGroup(id, targetBusinessId, currentUser);
   }
 
@@ -499,13 +516,29 @@ export class ParcelsController {
   }
 
   @Get('/:id/notes')
+  @ApiQuery({
+    name: 'businessId',
+    required: false,
+    type: Number,
+    description: 'SuperAdmin only: specify business context',
+  })
   @Permissions(Permission.PARCEL_NOTE_READ)
   @ApiOperation({ summary: 'Get all notes for a parcel' })
-  getNotes(
+  async getNotes(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) parcelId: number,
+    @Query('businessId') businessId?: string,
   ) {
-    return this.parcelsService.getNotes(parcelId, currentUser.businessId);
+    const parcel = await this.readScopedParcel(
+      currentUser,
+      parcelId,
+      businessId,
+    );
+    return this.parcelsService.getNotes(
+      parcelId,
+      parcel.businessId,
+      currentUser,
+    );
   }
 
   @Delete('/:id/notes/:noteId')
@@ -534,6 +567,20 @@ export class ParcelsController {
       parcelId,
       currentUser.businessId,
       currentUser.id,
+    );
+  }
+
+  @Patch('/:id/nova-post-tracking')
+  @Permissions(Permission.PARCEL_STATUS_UPDATE)
+  updateNovaPostTracking(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) parcelId: number,
+    @Body() body: UpdateNovaPostTrackingDto,
+  ): Promise<ParcelDto> {
+    return this.parcelsService.updateNovaPostTracking(
+      parcelId,
+      body,
+      currentUser,
     );
   }
 

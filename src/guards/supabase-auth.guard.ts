@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
@@ -11,6 +12,7 @@ import { AuthProvider } from '@prisma/client';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TokenUtils } from '../utils/token.utils';
+import { assertAccountAccess } from '../users/staff-access';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
@@ -54,7 +56,10 @@ export class SupabaseAuthGuard implements CanActivate {
 
       throw new UnauthorizedException('Session expired. Please log in again.');
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
       console.error('Authentication error:', error);
@@ -85,7 +90,11 @@ export class SupabaseAuthGuard implements CanActivate {
         },
         include: {
           user: {
-            include: { business: true },
+            include: {
+              business: true,
+              driverProfile: true,
+              courierProfile: true,
+            },
           },
         },
       });
@@ -96,6 +105,7 @@ export class SupabaseAuthGuard implements CanActivate {
         console.log(`❌ User not found for Supabase ID: ${user.id}`);
         return { success: false };
       }
+      assertAccountAccess(dbUser);
 
       if (dbUser.isBlocked) {
         console.log(`❌ User is blocked: ${dbUser.email}`);
@@ -115,6 +125,11 @@ export class SupabaseAuthGuard implements CanActivate {
       console.log(`✅ User authorized successfully: ${dbUser.email}`);
       return { success: true, user, dbUser };
     } catch (error) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof UnauthorizedException
+      )
+        throw error;
       console.error('Token validation error:', error);
       return { success: false };
     }

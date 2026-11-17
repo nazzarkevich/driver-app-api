@@ -16,6 +16,7 @@ import {
 import { NextFunction, Request, Response } from 'express';
 
 import { AppModule } from './app.module';
+import { createCorsOptions } from './cors.config';
 import { getAllConstraints, getCustomValidationError } from '../utils';
 import { HttpExceptionFilter } from './exception-filters/http-exception.fiter';
 
@@ -26,6 +27,7 @@ async function bootstrap() {
   // };
   // const app = await NestFactory.create(AppModule, { httpsOptions });
   const app = await NestFactory.create(AppModule);
+  app.enableCors(createCorsOptions(process.env.CORS_ALLOWED_ORIGINS));
   const loggerInstance = app.get(Logger);
   const trustProxy = process.env.TRUST_PROXY;
   if (trustProxy) {

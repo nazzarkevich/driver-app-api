@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { UserType, Gender } from '@prisma/client';
+import { UserType, Gender, StaffApprovalStatus } from '@prisma/client';
 import { Expose } from 'class-transformer';
 
 @Expose()
@@ -51,6 +51,8 @@ export class UserDto {
     description: 'Users role',
   })
   type: UserType;
+  staffApprovalStatus: StaffApprovalStatus;
+  staffApprovedAt: Date | null;
 
   @ApiProperty({
     example: false,
@@ -102,10 +104,10 @@ export class UserDto {
 
   constructor(partial: any) {
     Object.assign(this, partial);
-    if (partial?.driverProfile?.id) {
+    if (partial?.driverProfile?.id && !partial.driverProfile.isDeleted) {
       this.driverProfileId = partial.driverProfile.id;
     }
-    if (partial?.courierProfile?.id) {
+    if (partial?.courierProfile?.id && !partial.courierProfile.isDeleted) {
       this.courierProfileId = partial.courierProfile.id;
     }
   }

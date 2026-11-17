@@ -1,4 +1,6 @@
+import { JourneyListItemDto } from './dtos/journey-list-item.dto';
 import {
+  BadRequestException,
   Body,
   Controller,
   DefaultValuePipe,
@@ -90,15 +92,11 @@ export class JourneysController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: TransitionJourneyDto,
   ): Promise<{ updatedCount: number }> {
-    return this.journeysService.deliverEligibleParcels(
-      id,
-      body,
-      currentUser,
-    );
+    return this.journeysService.deliverEligibleParcels(id, body, currentUser);
   }
 
   @Post('/:id/start')
-  @Permissions(Permission.JOURNEY_COMPLETE)
+  @Permissions(Permission.JOURNEY_START)
   startJourney(
     @CurrentUser() currentUser: UserRequestType,
     @Param('id', ParseIntPipe) id: number,
@@ -135,14 +133,29 @@ export class JourneysController {
     type: String,
     description: 'Date in ISO format (YYYY-MM-DD)',
   })
+  @ApiQuery({ name: 'excludeJourneyId', required: false, type: Number })
   async getAvailableVehicles(
     @CurrentUser() currentUser: UserRequestType,
     @Query('date') date: string,
+    @Query('excludeJourneyId') excludeJourneyId?: string,
   ): Promise<VehicleDto[]> {
     const departureDate = new Date(date);
+    if (Number.isNaN(departureDate.getTime())) {
+      throw new BadRequestException('Invalid departure date');
+    }
+    const excludedId =
+      excludeJourneyId === undefined ? undefined : Number(excludeJourneyId);
+    if (
+      excludeJourneyId !== undefined &&
+      (!/^[1-9]\d*$/.test(excludeJourneyId) ||
+        !Number.isSafeInteger(excludedId))
+    ) {
+      throw new BadRequestException('Invalid excluded journey ID');
+    }
     return this.journeysService.getAvailableVehicles(
       departureDate,
       currentUser.businessId,
+      excludedId,
     );
   }
 
@@ -167,7 +180,14 @@ export class JourneysController {
   @Get()
   @Permissions(Permission.JOURNEY_READ)
   @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by journey number, driver name or vehicle',
+  })
   @ApiQuery({ name: 'isCompleted', required: false, type: Boolean })
+  @ApiQuery({ name: 'hasTrailer', required: false, type: Boolean })
   @ApiQuery({ name: 'driverProfileId', required: false, type: Number })
   @ApiQuery({
     name: 'startDate',
@@ -204,7 +224,19 @@ export class JourneysController {
     @Query('endDate') endDate?: string,
     @Query('startCountryId') startCountryId?: string,
     @Query('endCountryId') endCountryId?: string,
-  ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
+    @Query('search') search?: string,
+    @Query('summaryOnly') summaryOnly?: string,
+    @Query('hasTrailer') hasTrailer?: string,
+  ): Promise<Pagination<JourneyDto | JourneyListItemDto> | JourneyDto[]> {
+    if (
+      hasTrailer !== undefined &&
+      hasTrailer !== 'true' &&
+      hasTrailer !== 'false'
+    ) {
+      throw new BadRequestException('Invalid trailer filter');
+    }
+    const trailerStatus =
+      hasTrailer === undefined ? undefined : hasTrailer === 'true';
     const pageNumber = page ? parseInt(page, 10) : undefined;
     const completedStatus =
       isCompleted !== undefined ? isCompleted === 'true' : undefined;
@@ -231,6 +263,9 @@ export class JourneysController {
       startCountryIdNumber,
       endCountryIdNumber,
       currentUser,
+      search,
+      summaryOnly === 'true',
+      trailerStatus,
     );
   }
 

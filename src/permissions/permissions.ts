@@ -1,6 +1,14 @@
 import { UserType } from '@prisma/client';
 
 export enum Permission {
+  TARIFF_GROUP_READ = 'tariff-group:read',
+  TARIFF_GROUP_CREATE = 'tariff-group:create',
+  TARIFF_GROUP_UPDATE = 'tariff-group:update',
+  TARIFF_GROUP_DELETE = 'tariff-group:delete',
+  TARIFF_READ = 'tariff:read',
+  TARIFF_CREATE = 'tariff:create',
+  TARIFF_UPDATE = 'tariff:update',
+  TARIFF_DELETE = 'tariff:delete',
   PARCEL_CREATE = 'parcel:create',
   PARCEL_READ = 'parcel:read',
   PARCEL_UPDATE = 'parcel:update',
@@ -20,6 +28,7 @@ export enum Permission {
   JOURNEY_READ = 'journey:read',
   JOURNEY_UPDATE = 'journey:update',
   JOURNEY_COMPLETE = 'journey:complete',
+  JOURNEY_START = 'journey:start',
   JOURNEY_DELETE = 'journey:delete',
   JOURNEY_NOTE_CREATE = 'journey:note:create',
   JOURNEY_NOTE_READ = 'journey:note:read',
@@ -98,6 +107,10 @@ export const TABLET_USER_TYPES: UserType[] = [
 
 export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   [UserType.InternationalDriver]: [
+    Permission.TARIFF_READ,
+    Permission.TARIFF_GROUP_READ,
+    Permission.VEHICLE_UPDATE,
+    Permission.VEHICLE_CREATE,
     Permission.PARCEL_MARK_PAID,
     Permission.APP_TABLET,
     Permission.APP_ADMIN,
@@ -112,8 +125,10 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.PARCEL_NOTE_READ,
     Permission.JOURNEY_CREATE,
     Permission.JOURNEY_READ,
+    Permission.JOURNEY_NOTE_READ,
     Permission.JOURNEY_UPDATE,
     Permission.JOURNEY_COMPLETE,
+    Permission.JOURNEY_START,
     Permission.COURIER_JOURNEY_READ,
     Permission.DRIVER_PROFILE_READ,
     Permission.CUSTOMER_CREATE,
@@ -130,6 +145,8 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   ],
 
   [UserType.ParcelCourier]: [
+    Permission.TARIFF_READ,
+    Permission.TARIFF_GROUP_READ,
     Permission.VEHICLE_READ,
     Permission.DRIVER_PROFILE_READ,
     Permission.PARCEL_CREATE,
@@ -145,6 +162,7 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.PARCEL_MARK_DELIVERED,
     Permission.PARCEL_STATUS_UPDATE,
     Permission.JOURNEY_READ,
+    Permission.JOURNEY_NOTE_READ,
     Permission.COURIER_JOURNEY_READ,
     Permission.COURIER_JOURNEY_UPDATE,
     Permission.COURIER_PROFILE_READ,
@@ -154,6 +172,16 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   ],
 
   [UserType.Manager]: [
+    Permission.TARIFF_READ,
+    Permission.TARIFF_GROUP_READ,
+    Permission.TARIFF_CREATE,
+    Permission.TARIFF_GROUP_CREATE,
+    Permission.TARIFF_UPDATE,
+    Permission.TARIFF_GROUP_UPDATE,
+    Permission.TARIFF_DELETE,
+    Permission.TARIFF_GROUP_DELETE,
+    Permission.VEHICLE_UPDATE,
+    Permission.VEHICLE_CREATE,
     Permission.PARCEL_MARK_PAID,
     Permission.PARCEL_PAYMENT_CORRECT,
     Permission.PARCEL_PAYMENT_RECONCILE,
@@ -172,6 +200,7 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.JOURNEY_READ,
     Permission.JOURNEY_UPDATE,
     Permission.JOURNEY_COMPLETE,
+    Permission.JOURNEY_START,
     Permission.JOURNEY_NOTE_CREATE,
     Permission.JOURNEY_NOTE_READ,
     Permission.JOURNEY_NOTE_DELETE,
@@ -207,6 +236,14 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
   ],
 
   [UserType.Moderator]: [
+    Permission.TARIFF_READ,
+    Permission.TARIFF_GROUP_READ,
+    Permission.TARIFF_CREATE,
+    Permission.TARIFF_GROUP_CREATE,
+    Permission.TARIFF_UPDATE,
+    Permission.TARIFF_GROUP_UPDATE,
+    Permission.TARIFF_DELETE,
+    Permission.TARIFF_GROUP_DELETE,
     Permission.PARCEL_MARK_PAID,
     Permission.APP_TABLET,
     Permission.APP_ADMIN,
@@ -222,6 +259,7 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.JOURNEY_READ,
     Permission.JOURNEY_UPDATE,
     Permission.JOURNEY_COMPLETE,
+    Permission.JOURNEY_START,
     Permission.JOURNEY_NOTE_CREATE,
     Permission.JOURNEY_NOTE_READ,
     Permission.JOURNEY_NOTE_DELETE,
@@ -252,7 +290,6 @@ export const ROLE_PERMISSIONS: Record<UserType, Permission[]> = {
     Permission.CUSTOMER_ADDRESS_DELETE,
     Permission.VEHICLE_READ,
     Permission.USER_READ,
-    Permission.USER_ROLE_UPDATE,
     Permission.AUDIT_READ,
   ],
 
@@ -292,7 +329,9 @@ export function getAllowedAppsForUser(user: {
   type: UserType;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  staffApprovalStatus?: string;
 }): AppName[] {
+  if (user.staffApprovalStatus === 'Pending') return [];
   const rolePermissions = ROLE_PERMISSIONS[user.type] ?? [];
   const effectivePermissions = user.isAdmin
     ? [...rolePermissions, ...ADMIN_EXTRA_PERMISSIONS]
@@ -307,6 +346,22 @@ export function getAllowedAppsForUser(user: {
 }
 
 export const ADMIN_EXTRA_PERMISSIONS: Permission[] = [
+  Permission.TARIFF_READ,
+  Permission.TARIFF_GROUP_READ,
+  Permission.TARIFF_CREATE,
+  Permission.TARIFF_GROUP_CREATE,
+  Permission.TARIFF_UPDATE,
+  Permission.TARIFF_GROUP_UPDATE,
+  Permission.TARIFF_DELETE,
+  Permission.TARIFF_GROUP_DELETE,
+  Permission.JOURNEY_READ,
+  Permission.JOURNEY_START,
+  Permission.DRIVER_PROFILE_CREATE,
+  Permission.DRIVER_PROFILE_READ,
+  Permission.DRIVER_PROFILE_UPDATE,
+  Permission.COURIER_PROFILE_READ,
+  Permission.COURIER_PROFILE_UPDATE,
+  Permission.COURIER_PROFILE_CREATE,
   Permission.PARCEL_MARK_PAID,
   Permission.PARCEL_PAYMENT_CORRECT,
   Permission.PARCEL_PAYMENT_RECONCILE,

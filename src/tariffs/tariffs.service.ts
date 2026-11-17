@@ -10,6 +10,7 @@ import { UserRequestType } from 'src/users/decorators/current-user.decorator';
 import { CreateTariffDto } from './dtos/create-tariff.dto';
 import { UpdateTariffDto } from './dtos/update-tariff.dto';
 import { TariffDto } from './dtos/tariff.dto';
+import type { TariffListFilters } from './tariff-list-query';
 import {
   ParcelPriceOptionsDto,
   ParcelPriceOptionsResponseDto,
@@ -44,12 +45,12 @@ export class TariffsService extends BaseTenantService {
 
   private async validateTariffGroup(
     tariffGroupId: number,
-    user: UserRequestType,
+    businessId: number,
   ): Promise<void> {
     const group = await this.prismaService.tariffGroup.findFirst({
       where: {
         id: tariffGroupId,
-        businessId: user.businessId,
+        businessId,
         isActive: true,
         isDeleted: false,
       },
@@ -62,9 +63,10 @@ export class TariffsService extends BaseTenantService {
   async create(
     user: UserRequestType,
     createTariffDto: CreateTariffDto,
+    businessId = user.businessId,
   ): Promise<TariffDto> {
-    await this.validateBusinessAccess(user.businessId, user);
-    await this.validateTariffGroup(createTariffDto.tariffGroupId, user);
+    await this.validateBusinessAccess(businessId, user);
+    await this.validateTariffGroup(createTariffDto.tariffGroupId, businessId);
 
     const pricingType = createTariffDto.pricingType ?? TariffPricingType.Fixed;
     const tariff = await this.prismaService.tariff.create({
@@ -84,7 +86,7 @@ export class TariffsService extends BaseTenantService {
           pricingType === TariffPricingType.Fixed
             ? null
             : createTariffDto.weightThreshold,
-        businessId: user.businessId,
+        businessId,
       },
       include: tariffInclude,
     });
@@ -95,22 +97,58 @@ export class TariffsService extends BaseTenantService {
   async findAll(
     businessId: number,
     currentUser?: UserRequestType,
-    isActiveOnly = false,
-  ): Promise<TariffDto[]> {
+    filters: TariffListFilters | boolean = {},
+  ) {
     await this.validateBusinessAccess(businessId, currentUser);
-    const tariffs = await this.prismaService.tariff.findMany({
-      where: this.getBusinessWhere(
-        businessId,
-        {
-          ...(isActiveOnly && { isActive: true }),
-          isDeleted: false,
-        },
-        currentUser,
-      ),
-      include: tariffInclude,
-      orderBy: { createdAt: 'desc' },
-    });
-    return tariffs.map((tariff) => this.buildTariffDto(tariff));
+    const options =
+      typeof filters === 'boolean'
+        ? { isActive: filters ? true : undefined }
+        : filters;
+    const where: Prisma.TariffWhereInput = {
+      businessId,
+      isDeleted: false,
+      ...(options.isActive !== undefined ? { isActive: options.isActive } : {}),
+      ...(options.tariffGroupId
+        ? { tariffGroupId: options.tariffGroupId }
+        : {}),
+      ...(options.search
+        ? { name: { contains: options.search, mode: 'insensitive' } }
+        : {}),
+    };
+    const orderBy: Prisma.TariffOrderByWithRelationInput[] = [
+      { createdAt: 'desc' },
+      { id: 'desc' },
+    ];
+    if (options.page === undefined) {
+      const tariffs = await this.prismaService.tariff.findMany({
+        where,
+        include: tariffInclude,
+        orderBy,
+      });
+      return tariffs.map((tariff) => this.buildTariffDto(tariff));
+    }
+    const limit = options.limit ?? 20;
+    const [tariffs, totalCount] = await this.prismaService.$transaction([
+      this.prismaService.tariff.findMany({
+        where,
+        include: tariffInclude,
+        orderBy,
+        skip: (options.page - 1) * limit,
+        take: limit,
+      }),
+      this.prismaService.tariff.count({ where }),
+    ]);
+    const pageCount = Math.ceil(totalCount / limit);
+    return {
+      items: tariffs.map((tariff) => this.buildTariffDto(tariff)),
+      totalCount,
+      currentPage: options.page,
+      pageCount,
+      isFirstPage: options.page === 1,
+      isLastPage: options.page >= pageCount,
+      previousPage: options.page > 1 ? options.page - 1 : null,
+      nextPage: options.page < pageCount ? options.page + 1 : null,
+    };
   }
 
   async findOne(
@@ -120,7 +158,7 @@ export class TariffsService extends BaseTenantService {
   ): Promise<TariffDto> {
     await this.validateBusinessAccess(businessId, currentUser);
     const tariff = await this.prismaService.tariff.findFirst({
-      where: { id, isDeleted: false },
+      where: { id, businessId, isDeleted: false },
       include: tariffInclude,
     });
     if (!tariff || !this.canAccessBusiness(tariff.businessId, currentUser)) {
@@ -137,7 +175,7 @@ export class TariffsService extends BaseTenantService {
   ): Promise<TariffDto> {
     await this.validateBusinessAccess(businessId, currentUser);
     const existingTariff = await this.prismaService.tariff.findFirst({
-      where: { id, isDeleted: false },
+      where: { id, businessId, isDeleted: false },
     });
     if (
       !existingTariff ||
@@ -145,17 +183,28 @@ export class TariffsService extends BaseTenantService {
     ) {
       throw new NotFoundException('Tariff not found');
     }
-    if (updateTariffDto.tariffGroupId != null) {
-      await this.validateTariffGroup(
-        updateTariffDto.tariffGroupId,
-        currentUser,
-      );
+    for (const field of [
+      'name',
+      'minimumPrice',
+      'isActive',
+      'tariffGroupId',
+    ] as const) {
+      if (updateTariffDto[field] === null)
+        throw new BadRequestException(`${field} cannot be null`);
+    }
+    if (
+      updateTariffDto.tariffGroupId != null &&
+      updateTariffDto.tariffGroupId !== existingTariff.tariffGroupId
+    ) {
+      await this.validateTariffGroup(updateTariffDto.tariffGroupId, businessId);
     }
 
     const pricingType =
       updateTariffDto.pricingType ?? existingTariff.pricingType;
     const effectivePricePerKg =
-      updateTariffDto.pricePerKg ?? existingTariff.pricePerKg;
+      updateTariffDto.pricePerKg === undefined
+        ? existingTariff.pricePerKg
+        : updateTariffDto.pricePerKg;
     const data: Prisma.TariffUncheckedUpdateInput = {
       ...updateTariffDto,
       pricingType,
@@ -187,7 +236,7 @@ export class TariffsService extends BaseTenantService {
   ): Promise<void> {
     await this.validateBusinessAccess(businessId, currentUser);
     const tariff = await this.prismaService.tariff.findFirst({
-      where: { id, isDeleted: false },
+      where: { id, businessId, isDeleted: false },
     });
     if (!tariff || !this.canAccessBusiness(tariff.businessId, currentUser)) {
       throw new NotFoundException('Tariff not found');

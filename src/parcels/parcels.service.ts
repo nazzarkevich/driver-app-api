@@ -1,4 +1,12 @@
 import {
+  isNovaPostDestination,
+  parcelActiveStages,
+  trackingDigits,
+  validateNovaTracking,
+  statusConflict,
+  requireProblemReason,
+} from './parcel-status-rules';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -47,6 +55,7 @@ import {
   ReverseParcelStatusDto,
   ResolveParcelDamageDto,
   TransitionParcelStatusDto,
+  UpdateNovaPostTrackingDto,
 } from './dtos/transition-parcel-status.dto';
 
 const CUSTOMER_TYPES: UserType[] = [
@@ -187,6 +196,7 @@ export class ParcelsService extends BaseTenantService {
     courierId?: number,
     driverId?: number,
     journeyId?: number,
+    customerId?: number,
   ): Promise<Pagination<ParcelDto> | ParcelDto[]> {
     await this.validateBusinessAccess(businessId, currentUser);
 
@@ -234,6 +244,13 @@ export class ParcelsService extends BaseTenantService {
           contains: trackingNumber,
           mode: 'insensitive',
         },
+      });
+    }
+
+    if (customerId) {
+      conditions.push({
+        isDeleted: false,
+        OR: [{ senderId: customerId }, { recipientId: customerId }],
       });
     }
 
@@ -391,9 +408,9 @@ export class ParcelsService extends BaseTenantService {
       const [parcelsWithPagination, metadata] =
         await prismaWithPagination.parcel
           .paginate({
-            orderBy: {
-              createdAt: 'desc',
-            },
+            orderBy: customerId
+              ? [{ createdAt: 'desc' }, { id: 'desc' }]
+              : { createdAt: 'desc' },
             where: whereClause,
             include: {
               sender: true,
@@ -552,7 +569,56 @@ export class ParcelsService extends BaseTenantService {
         })
       : 1;
 
-    return new ParcelDto({ ...parcel, groupSize });
+    const exceptional = !parcelActiveStages.includes(parcel.deliveryStatus);
+    const [lastActive, problemTransition, damageLog] = await Promise.all([
+      exceptional
+        ? this.prismaService.parcelStatusTransition.findFirst({
+            where: {
+              parcelId: id,
+              businessId: parcel.businessId,
+              fromStatus: { in: parcelActiveStages },
+              toStatus: { notIn: parcelActiveStages },
+            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          })
+        : null,
+      exceptional
+        ? this.prismaService.parcelStatusTransition.findFirst({
+            where: {
+              parcelId: id,
+              businessId: parcel.businessId,
+              toStatus: parcel.deliveryStatus,
+            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          })
+        : null,
+      parcel.isDamaged
+        ? this.prismaService.auditLog.findFirst({
+            where: {
+              businessId: parcel.businessId,
+              entityType: 'Parcel',
+              entityId: String(id),
+              method: 'PARCEL_EVENT',
+              metadata: { path: ['eventType'], equals: 'ParcelDamaged' },
+            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          })
+        : null,
+    ]);
+    const metadata = (damageLog?.metadata ?? {}) as Record<string, unknown>;
+    const details = (metadata.details ?? {}) as Record<string, unknown>;
+    const deliveryState = {
+      lastActiveStatus: lastActive?.fromStatus ?? null,
+      problemReason: parcel.isDamaged
+        ? typeof details.reason === 'string'
+          ? details.reason
+          : null
+        : (problemTransition?.reason ?? null),
+      problemReportedAt: parcel.isDamaged
+        ? (damageLog?.createdAt ?? null)
+        : (problemTransition?.createdAt ?? null),
+    };
+    return new ParcelDto({ ...parcel, groupSize, deliveryState });
   }
 
   async findGroup(
@@ -2234,6 +2300,7 @@ export class ParcelsService extends BaseTenantService {
         businessId,
         isBlocked: false,
         isDeleted: false,
+        staffApprovalStatus: 'Approved',
       },
       select: {
         type: true,
@@ -2433,8 +2500,9 @@ export class ParcelsService extends BaseTenantService {
   async getNotes(
     parcelId: number,
     businessId: number,
+    currentUser?: UserRequestType,
   ): Promise<ParcelNoteDto[]> {
-    await this.validateBusinessAccess(businessId);
+    await this.validateBusinessAccess(businessId, currentUser);
 
     const parcel = await this.prismaService.parcel.findUnique({
       where: { id: parcelId },
@@ -2648,18 +2716,23 @@ export class ParcelsService extends BaseTenantService {
       });
       if (!parcel) throw new NotFoundException('Parcel not found');
       if (parcel.isArchived) {
-        throw new ConflictException('Archived parcels cannot change status');
+        statusConflict(
+          'PARCEL_ARCHIVED',
+          'Archived parcels cannot change status',
+        );
       }
       if (parcel.isDamaged) {
-        throw new ConflictException(
+        statusConflict(
+          'PARCEL_DAMAGE_ACTIVE',
           'Resolve the parcel damage report before changing status',
         );
       }
       if (parcel.updatedAt.toISOString() !== body.expectedUpdatedAt) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
       if (!allowed[parcel.deliveryStatus]?.includes(body.toStatus)) {
-        throw new ConflictException(
+        statusConflict(
+          'PARCEL_STATUS_NOT_ALLOWED',
           `Parcel cannot move from ${parcel.deliveryStatus} to ${body.toStatus}`,
         );
       }
@@ -2668,33 +2741,26 @@ export class ParcelsService extends BaseTenantService {
         [DeliveryStatus.Cancelled, DeliveryStatus.Lost] as DeliveryStatus[]
       ).includes(body.toStatus);
       if (requiresReason && !body.reason?.trim()) {
-        throw new BadRequestException('A reason is required');
+        requireProblemReason(body.reason);
       }
 
-      const isNovaPostDestination =
-        parcel.destinationType === ParcelDestinationType.NovaPostWarehouse;
       if (
         body.toStatus === DeliveryStatus.AtNovaPostWarehouse &&
-        !isNovaPostDestination
+        !isNovaPostDestination(parcel)
       ) {
-        throw new ConflictException(
-          'Only Nova Poshta parcels can be handed to Nova Poshta',
+        statusConflict(
+          'PARCEL_DESTINATION_NOT_NOVA_POST',
+          'Only Nova Post parcels can be handed to Nova Post',
         );
       }
-      const novaPostTrackingNumber = body.novaPostTrackingNumber
-        ?.replace(/\D/g, '')
-        .slice(0, 14);
-      if (
-        body.toStatus === DeliveryStatus.AtNovaPostWarehouse &&
-        (novaPostTrackingNumber ?? parcel.novaPostTrackingNumber ?? '').replace(
-          /\D/g,
-          '',
-        ).length !== 14
-      ) {
-        throw new BadRequestException(
-          'Nova Poshta tracking number must contain 14 digits',
+      const novaPostTrackingNumber =
+        body.novaPostTrackingNumber === undefined
+          ? undefined
+          : validateNovaTracking(body.novaPostTrackingNumber);
+      if (body.toStatus === DeliveryStatus.AtNovaPostWarehouse)
+        validateNovaTracking(
+          novaPostTrackingNumber ?? parcel.novaPostTrackingNumber,
         );
-      }
 
       const batchId = randomUUID();
       const now = new Date();
@@ -2719,6 +2785,11 @@ export class ParcelsService extends BaseTenantService {
       if (body.toStatus === DeliveryStatus.AtNovaPostWarehouse) {
         statusData.novaPostTrackingNumber =
           novaPostTrackingNumber ?? parcel.novaPostTrackingNumber;
+        if (
+          trackingDigits(statusData.novaPostTrackingNumber ?? '') !==
+          trackingDigits(parcel.novaPostTrackingNumber ?? '')
+        )
+          statusData.novaPostTrackingNumberUpdatedAt = now;
       }
       if (body.toStatus === DeliveryStatus.Delivered) {
         statusData.deliveredAt = now;
@@ -2741,7 +2812,7 @@ export class ParcelsService extends BaseTenantService {
         data: statusData,
       });
       if (updateResult.count !== 1) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
       await tx.parcelStatusTransition.create({
         data: {
@@ -2771,6 +2842,13 @@ export class ParcelsService extends BaseTenantService {
           },
         ),
       });
+      if (statusData.novaPostTrackingNumberUpdatedAt)
+        await this.recordTrackingChange(
+          tx,
+          parcel,
+          statusData.novaPostTrackingNumber as string,
+          user.id,
+        );
       return tx.parcel.findUniqueOrThrow({
         where: { id: parcelId },
         include: parcelDestinationInclude,
@@ -2798,7 +2876,7 @@ export class ParcelsService extends BaseTenantService {
       });
       if (!parcel) throw new NotFoundException('Parcel not found');
       if (parcel.updatedAt.toISOString() !== body.expectedUpdatedAt) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
       const previous = await tx.parcelStatusTransition.findFirst({
         where: { parcelId, businessId: user.businessId },
@@ -2846,7 +2924,7 @@ export class ParcelsService extends BaseTenantService {
         data,
       });
       if (updateResult.count !== 1) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
       await tx.parcelStatusTransition.create({
         data: {
@@ -2902,14 +2980,31 @@ export class ParcelsService extends BaseTenantService {
       });
       if (!parcel) throw new NotFoundException('Parcel not found');
       if (parcel.isArchived) {
-        throw new ConflictException('Archived parcels cannot change status');
+        statusConflict(
+          'PARCEL_ARCHIVED',
+          'Archived parcels cannot change status',
+        );
       }
+      if (parcel.isDamaged)
+        statusConflict(
+          'PARCEL_DAMAGE_ACTIVE',
+          'Resolve damage before changing status',
+        );
+      if (
+        [
+          DeliveryStatus.Lost,
+          DeliveryStatus.Cancelled,
+          DeliveryStatus.Returned,
+        ].includes(body.toStatus as never)
+      )
+        requireProblemReason(body.reason);
       if (parcel.updatedAt.toISOString() !== body.expectedUpdatedAt) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
-      const novaPostTrackingNumber = body.novaPostTrackingNumber
-        ?.replace(/\D/g, '')
-        .slice(0, 14);
+      const novaPostTrackingNumber =
+        body.novaPostTrackingNumber === undefined
+          ? undefined
+          : validateNovaTracking(body.novaPostTrackingNumber);
       const isNovaPostTrackingCorrection =
         parcel.deliveryStatus === DeliveryStatus.AtNovaPostWarehouse &&
         body.toStatus === DeliveryStatus.AtNovaPostWarehouse &&
@@ -2924,23 +3019,17 @@ export class ParcelsService extends BaseTenantService {
       }
       if (
         body.toStatus === DeliveryStatus.AtNovaPostWarehouse &&
-        parcel.destinationType !== ParcelDestinationType.NovaPostWarehouse
+        !isNovaPostDestination(parcel)
       ) {
-        throw new ConflictException(
-          'Only Nova Poshta parcels can use the Nova Poshta status',
+        statusConflict(
+          'PARCEL_DESTINATION_NOT_NOVA_POST',
+          'Only Nova Post parcels can use the Nova Post status',
         );
       }
-      if (
-        body.toStatus === DeliveryStatus.AtNovaPostWarehouse &&
-        (novaPostTrackingNumber ?? parcel.novaPostTrackingNumber ?? '').replace(
-          /\D/g,
-          '',
-        ).length !== 14
-      ) {
-        throw new BadRequestException(
-          'Nova Poshta tracking number must contain 14 digits',
+      if (body.toStatus === DeliveryStatus.AtNovaPostWarehouse)
+        validateNovaTracking(
+          novaPostTrackingNumber ?? parcel.novaPostTrackingNumber,
         );
-      }
 
       const now = new Date();
       const pickupStatuses: DeliveryStatus[] = [
@@ -2972,6 +3061,11 @@ export class ParcelsService extends BaseTenantService {
       if (body.toStatus === DeliveryStatus.AtNovaPostWarehouse) {
         data.novaPostTrackingNumber =
           novaPostTrackingNumber ?? parcel.novaPostTrackingNumber;
+        if (
+          trackingDigits(data.novaPostTrackingNumber ?? '') !==
+          trackingDigits(parcel.novaPostTrackingNumber ?? '')
+        )
+          data.novaPostTrackingNumberUpdatedAt = now;
       }
 
       const result = await tx.parcel.updateMany({
@@ -2979,7 +3073,7 @@ export class ParcelsService extends BaseTenantService {
         data,
       });
       if (result.count !== 1) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
       const batchId = randomUUID();
       await tx.parcelStatusTransition.create({
@@ -3011,6 +3105,13 @@ export class ParcelsService extends BaseTenantService {
           },
         ),
       });
+      if (data.novaPostTrackingNumberUpdatedAt)
+        await this.recordTrackingChange(
+          tx,
+          parcel,
+          data.novaPostTrackingNumber as string,
+          user.id,
+        );
       return tx.parcel.findUniqueOrThrow({
         where: { id: parcelId },
         include: parcelDestinationInclude,
@@ -3024,6 +3125,7 @@ export class ParcelsService extends BaseTenantService {
     body: ReportParcelDamageDto,
     user: UserRequestType,
   ): Promise<ParcelDto> {
+    requireProblemReason(body.reason);
     await this.validateBusinessAccess(user.businessId, user);
     const terminal: DeliveryStatus[] = [
       DeliveryStatus.Delivered,
@@ -3037,20 +3139,26 @@ export class ParcelsService extends BaseTenantService {
       });
       if (!parcel) throw new NotFoundException('Parcel not found');
       if (parcel.isArchived || terminal.includes(parcel.deliveryStatus)) {
-        throw new ConflictException('This parcel cannot be marked as damaged');
+        statusConflict(
+          'PARCEL_STATUS_NOT_ALLOWED',
+          'This parcel cannot be marked as damaged',
+        );
       }
       if (parcel.isDamaged) {
-        throw new ConflictException('Parcel is already marked as damaged');
+        statusConflict(
+          'PARCEL_DAMAGE_ACTIVE',
+          'Parcel is already marked as damaged',
+        );
       }
       if (parcel.updatedAt.toISOString() !== body.expectedUpdatedAt) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
       const result = await tx.parcel.updateMany({
         where: { id: parcelId, updatedAt: parcel.updatedAt },
         data: { isDamaged: true },
       });
       if (result.count !== 1) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
       await tx.auditLog.create({
         data: parcelEvent(
@@ -3082,18 +3190,23 @@ export class ParcelsService extends BaseTenantService {
         where: { id: parcelId, businessId: user.businessId, isDeleted: false },
       });
       if (!parcel) throw new NotFoundException('Parcel not found');
+      if (parcel.isArchived)
+        statusConflict(
+          'PARCEL_ARCHIVED',
+          'Archived parcels cannot change status',
+        );
       if (!parcel.isDamaged) {
         throw new ConflictException('Parcel is not marked as damaged');
       }
       if (parcel.updatedAt.toISOString() !== body.expectedUpdatedAt) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
       const result = await tx.parcel.updateMany({
         where: { id: parcelId, updatedAt: parcel.updatedAt },
         data: { isDamaged: false },
       });
       if (result.count !== 1) {
-        throw new ConflictException('Parcel was changed by another user');
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
       }
       await tx.auditLog.create({
         data: parcelEvent(
@@ -3106,6 +3219,78 @@ export class ParcelsService extends BaseTenantService {
           { status: parcel.deliveryStatus },
         ),
       });
+      return tx.parcel.findUniqueOrThrow({
+        where: { id: parcelId },
+        include: parcelDestinationInclude,
+      });
+    });
+    return new ParcelDto(updated);
+  }
+  private async recordTrackingChange(
+    tx: Prisma.TransactionClient,
+    parcel: {
+      id: number;
+      businessId: number;
+      novaPostTrackingNumber: string | null;
+    },
+    tracking: string,
+    userId: number,
+  ) {
+    await tx.auditLog.create({
+      data: parcelEvent(
+        parcel.id,
+        parcel.businessId,
+        userId,
+        AuditAction.UPDATE,
+        'NovaPostTrackingUpdated',
+        'Updated Nova Post tracking number',
+        {
+          previousTrackingNumber: parcel.novaPostTrackingNumber,
+          novaPostTrackingNumber: tracking,
+        },
+      ),
+    });
+  }
+
+  async updateNovaPostTracking(
+    parcelId: number,
+    body: UpdateNovaPostTrackingDto,
+    user: UserRequestType,
+  ): Promise<ParcelDto> {
+    await this.validateBusinessAccess(user.businessId, user);
+    const tracking = validateNovaTracking(body.novaPostTrackingNumber);
+    const updated = await this.prismaService.$transaction(async (tx) => {
+      const parcel = await tx.parcel.findFirst({
+        where: { id: parcelId, businessId: user.businessId, isDeleted: false },
+      });
+      if (!parcel) throw new NotFoundException('Parcel not found');
+      if (parcel.isArchived)
+        statusConflict(
+          'PARCEL_ARCHIVED',
+          'Archived parcels cannot change tracking',
+        );
+      if (parcel.updatedAt.toISOString() !== body.expectedUpdatedAt)
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
+      if (!isNovaPostDestination(parcel))
+        statusConflict(
+          'PARCEL_DESTINATION_NOT_NOVA_POST',
+          'Only Nova Post destinations support tracking',
+        );
+      if (tracking === trackingDigits(parcel.novaPostTrackingNumber ?? ''))
+        statusConflict(
+          'PARCEL_TRACKING_UNCHANGED',
+          'Tracking number is unchanged',
+        );
+      const result = await tx.parcel.updateMany({
+        where: { id: parcelId, updatedAt: parcel.updatedAt },
+        data: {
+          novaPostTrackingNumber: tracking,
+          novaPostTrackingNumberUpdatedAt: new Date(),
+        },
+      });
+      if (result.count !== 1)
+        statusConflict('PARCEL_CHANGED', 'Parcel was changed by another user');
+      await this.recordTrackingChange(tx, parcel, tracking, user.id);
       return tx.parcel.findUniqueOrThrow({
         where: { id: parcelId },
         include: parcelDestinationInclude,

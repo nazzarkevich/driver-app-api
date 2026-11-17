@@ -11,6 +11,7 @@ export interface ResolvedUkAddress {
   longitude: number | null;
   provider: string;
   providerRef: string | null;
+  attributions?: { displayName: string; uri: string }[];
 }
 
 export interface PostcodeValidationResult {

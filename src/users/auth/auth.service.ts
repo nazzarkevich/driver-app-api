@@ -5,7 +5,9 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { AuthProvider, UserType } from '@prisma/client';
+import { AuthProvider, UserType, StaffApprovalStatus } from '@prisma/client';
+import { RegisterStaffDto } from '../dtos/register-staff.dto';
+import { assertAccountAccess } from '../staff-access';
 
 import { SignInDto } from '../dtos/sign-in.dto';
 import { CreateUserDto } from '../dtos/create-user.dto';
@@ -149,9 +151,7 @@ export class AuthService {
         );
       }
 
-      if (user.isBlocked) {
-        throw new UnauthorizedException('User is blocked');
-      }
+      assertAccountAccess(user);
 
       const refreshTokenExpiresAt = new Date();
       refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30);
@@ -193,6 +193,7 @@ export class AuthService {
 
       if (
         error instanceof UnauthorizedException ||
+        error instanceof ForbiddenException ||
         error instanceof BadRequestException
       ) {
         throw error;
@@ -315,6 +316,105 @@ export class AuthService {
     };
   }
 
+  async registerStaff(dto: RegisterStaffDto) {
+    if (dto.firstName.trim().length < 2 || dto.lastName.trim().length < 2) {
+      throw new BadRequestException(
+        'Вкажіть ім’я та прізвище (мінімум 2 символи)',
+      );
+    }
+    const businessId = await this.businessesService.getDefaultBusinessId();
+    const email = dto.email.trim().toLowerCase();
+    if (await this.prismaService.user.findFirst({ where: { email } })) {
+      throw new ConflictException(
+        'Акаунт із цією поштою вже існує. Увійдіть або зверніться до адміністратора.',
+      );
+    }
+    const number = dto.phoneNumber;
+    if (
+      typeof number !== 'string' ||
+      !/^\d{6,14}$/.test(number) ||
+      typeof dto.countryCode !== 'string' ||
+      !/^\+[1-9]\d{0,3}$/.test(dto.countryCode)
+    ) {
+      throw new BadRequestException('Введіть коректний номер телефону');
+    }
+    if (
+      (dto.countryCode === '+380' && number.length !== 9) ||
+      (dto.countryCode === '+44' && number.length !== 10) ||
+      dto.countryCode.length - 1 + number.length > 15 ||
+      /^0+$/.test(number)
+    ) {
+      throw new BadRequestException('Введіть коректний номер телефону');
+    }
+    const { data, error } = await this.supabaseService
+      .createAuthClient()
+      .auth.signUp({
+        email,
+        password: dto.password,
+        options: {
+          data: {
+            firstName: dto.firstName.trim(),
+            lastName: dto.lastName.trim(),
+          },
+        },
+      });
+    // Supabase may obscure an existing confirmed account as an empty identity list.
+    if (error || !data.user || data.user.identities?.length === 0) {
+      throw new BadRequestException(
+        'Не вдалося зареєструвати акаунт. Перевірте пошту або зверніться до адміністратора.',
+      );
+    }
+    try {
+      await this.prismaService.$transaction(async (tx) => {
+        const phone = await tx.phone.upsert({
+          where: {
+            countryCode_number: { countryCode: dto.countryCode, number },
+          },
+          create: { countryCode: dto.countryCode, number },
+          update: {},
+        });
+        const user = await tx.user.create({
+          data: {
+            email,
+            firstName: dto.firstName.trim(),
+            lastName: dto.lastName.trim(),
+            businessId,
+            phoneId: phone.id,
+            type: dto.type,
+            staffApprovalStatus: StaffApprovalStatus.Pending,
+          },
+        });
+        await tx.authProfile.create({
+          data: {
+            userId: user.id,
+            provider: AuthProvider.Supabase,
+            providerId: data.user.id,
+            email,
+          },
+        });
+      });
+    } catch (creationError) {
+      const linked = await this.prismaService.authProfile.findUnique({
+        where: {
+          provider_providerId: {
+            provider: AuthProvider.Supabase,
+            providerId: data.user.id,
+          },
+        },
+      });
+      if (!linked)
+        await this.supabaseService.client.auth.admin
+          .deleteUser(data.user.id)
+          .catch(() => undefined);
+      throw creationError;
+    }
+    // Never issue an application session or auto-confirm the email for pending staff.
+    return {
+      staffApprovalStatus: StaffApprovalStatus.Pending,
+      message: 'Заявку надіслано',
+    };
+  }
+
   async signIn({ email, password, app }: SignInDto): Promise<{
     token: string;
     refreshToken: string;
@@ -368,9 +468,7 @@ export class AuthService {
       }
     }
 
-    if (user.isBlocked) {
-      throw new UnauthorizedException('User is blocked');
-    }
+    assertAccountAccess(user);
 
     const allowedApps = getAllowedAppsForUser(user);
 
@@ -470,9 +568,7 @@ export class AuthService {
       );
     }
 
-    if (user.isBlocked) {
-      throw new UnauthorizedException('User is blocked');
-    }
+    assertAccountAccess(user);
 
     const allowedApps = getAllowedAppsForUser(user);
 

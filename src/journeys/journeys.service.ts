@@ -1,4 +1,6 @@
+import { JourneyListItemDto } from './dtos/journey-list-item.dto';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -66,10 +68,10 @@ export class JourneysService extends BaseTenantService {
       notes,
     } = body;
     const businessId = currentUser.businessId;
-    const driverProfiles =
-      currentUser.type === UserType.InternationalDriver
-        ? [(await this.findDriverProfileForUser(currentUser.id, businessId)).id]
-        : body.driverProfiles;
+    const driverProfiles = body.driverProfiles;
+    if (!driverProfiles?.length) {
+      throw new BadRequestException('At least one driver is required');
+    }
 
     await this.validateBusinessAccess(businessId);
 
@@ -83,8 +85,10 @@ export class JourneysService extends BaseTenantService {
     }
 
     // Validate driver profiles exist and belong to the business
-    const foundDrivers =
-      await this.driversService.findManyByIds(driverProfiles);
+    const foundDrivers = await this.driversService.findManyByIds(
+      driverProfiles,
+      businessId,
+    );
 
     const foundParcels = await this.parcelsService.findParcelsByIds(
       parcels,
@@ -301,39 +305,56 @@ export class JourneysService extends BaseTenantService {
     startCountryId?: number,
     endCountryId?: number,
     currentUser?: UserRequestType,
-  ): Promise<Pagination<JourneyDto> | JourneyDto[]> {
+    search?: string,
+    summaryOnly = false,
+    hasTrailer?: boolean,
+  ): Promise<Pagination<JourneyDto | JourneyListItemDto> | JourneyDto[]> {
     await this.validateBusinessAccess(businessId);
 
-    let whereClause: any = this.getBusinessWhere(
-      businessId,
-      {
-        isDeleted: false,
-        ...(isCompleted !== undefined && { isCompleted }),
-        ...(isCompleted === false && {
-          isArchived: false,
-          status: {
-            in: [JourneyStatus.Scheduled, JourneyStatus.InTransit],
-          },
+    let whereClause: any = this.getBusinessWhere(businessId, {
+      isDeleted: false,
+      ...(isCompleted !== undefined && { isCompleted }),
+      ...(hasTrailer !== undefined && { hasTrailer }),
+      ...(isCompleted === false && {
+        isArchived: false,
+        status: {
+          in: [JourneyStatus.Scheduled, JourneyStatus.InTransit],
+        },
+      }),
+    });
+
+    const searchTerms = search?.trim().split(/\s+/).filter(Boolean) ?? [];
+    if (searchTerms.length) {
+      whereClause = {
+        ...whereClause,
+        AND: searchTerms.map((term) => {
+          const contains: Prisma.StringFilter = {
+            contains: term,
+            mode: 'insensitive',
+          };
+          return {
+            OR: [
+              { journeyNumber: contains },
+              { vehicle: { is: { plateNumber: contains } } },
+              { vehicle: { is: { make: contains } } },
+              { vehicle: { is: { model: contains } } },
+              {
+                driverProfiles: {
+                  some: { user: { is: { firstName: contains } } },
+                },
+              },
+              {
+                driverProfiles: {
+                  some: { user: { is: { lastName: contains } } },
+                },
+              },
+            ],
+          };
         }),
-      },
-    );
-
-    let effectiveDriverProfileId = driverProfileId;
-
-    if (currentUser?.type === UserType.InternationalDriver) {
-      const ownProfile = await this.findDriverProfileForUser(
-        currentUser.id,
-        businessId,
-      );
-
-      if (driverProfileId && driverProfileId !== ownProfile.id) {
-        throw new ForbiddenException(
-          'Drivers can only access their own journeys',
-        );
-      }
-
-      effectiveDriverProfileId = ownProfile.id;
+      };
     }
+
+    const effectiveDriverProfileId = driverProfileId;
 
     if (effectiveDriverProfileId) {
       await this.validateDriverProfileAccess(
@@ -403,12 +424,10 @@ export class JourneysService extends BaseTenantService {
                   },
                 },
               },
-              parcels: {
-                include: {
-                  sender: true,
-                  recipient: true,
-                },
-              },
+              _count: { select: { parcels: { where: { isDeleted: false } } } },
+              ...(!summaryOnly && {
+                parcels: { include: { sender: true, recipient: true } },
+              }),
               vehicle: true,
               startCountry: true,
               endCountry: true,
@@ -416,9 +435,16 @@ export class JourneysService extends BaseTenantService {
           })
           .withPages({ page });
 
-      const journeys = journeysWithPagination.map(
-        (journey) => new JourneyDto(journey),
-      );
+      const journeys = journeysWithPagination.map((journey) => {
+        if (!summaryOnly) {
+          const { _count, ...details } = journey;
+          return new JourneyDto(details);
+        }
+        const { _count, ...metadata } = journey;
+        return Object.assign(new JourneyListItemDto(), metadata, {
+          parcelCount: _count.parcels,
+        });
+      });
 
       return {
         items: journeys,
@@ -517,6 +543,13 @@ export class JourneysService extends BaseTenantService {
     id: number,
     currentUser: UserRequestType,
   ): Promise<JourneyDto> {
+    return this.findOne(id, currentUser.businessId);
+  }
+
+  private async findWritableJourneyForUser(
+    id: number,
+    currentUser: UserRequestType,
+  ): Promise<JourneyDto> {
     const journey = await this.findOne(id, currentUser.businessId);
 
     if (currentUser.type === UserType.InternationalDriver) {
@@ -530,7 +563,7 @@ export class JourneysService extends BaseTenantService {
 
       if (!isAssigned) {
         throw new ForbiddenException(
-          'Drivers can only access their own journeys',
+          'Drivers can only change their assigned journeys',
         );
       }
     }
@@ -545,11 +578,6 @@ export class JourneysService extends BaseTenantService {
     const { businessId } = currentUser;
     await this.validateBusinessAccess(businessId, currentUser);
 
-    const driverProfile =
-      currentUser.type === UserType.InternationalDriver
-        ? await this.findDriverProfileForUser(currentUser.id, businessId)
-        : null;
-
     return this.prismaService.$transaction(
       async (tx) => {
         const journey = await tx.journey.findFirst({
@@ -562,15 +590,6 @@ export class JourneysService extends BaseTenantService {
 
         if (!journey) {
           throw new NotFoundException('Journey not found');
-        }
-
-        if (
-          driverProfile &&
-          !journey.driverProfiles.some(({ id }) => id === driverProfile.id)
-        ) {
-          throw new ForbiddenException(
-            'Drivers can only access their own journeys',
-          );
         }
 
         const parcelWhere = {
@@ -643,9 +662,7 @@ export class JourneysService extends BaseTenantService {
           weightTargetKg: JOURNEY_WEIGHT_TARGET_KG,
           parcelCountTargetProgressPercent: Math.min(
             100,
-            Math.round(
-              (totalParcelCount / JOURNEY_PARCEL_COUNT_TARGET) * 100,
-            ),
+            Math.round((totalParcelCount / JOURNEY_PARCEL_COUNT_TARGET) * 100),
           ),
           weightTargetProgressPercent: Math.min(
             100,
@@ -672,7 +689,11 @@ export class JourneysService extends BaseTenantService {
     body: TransitionJourneyDto,
     currentUser: UserRequestType,
   ): Promise<JourneyDto> {
-    await this.findOneForUser(id, currentUser);
+    if (currentUser.isAdmin || currentUser.isSuperAdmin) {
+      await this.findOne(id, currentUser.businessId);
+    } else {
+      await this.findWritableJourneyForUser(id, currentUser);
+    }
     const readyStatuses: DeliveryStatus[] = [
       DeliveryStatus.PickedUp,
       DeliveryStatus.AtOriginWarehouse,
@@ -695,10 +716,16 @@ export class JourneysService extends BaseTenantService {
         });
         if (!journey) throw new NotFoundException('Journey not found');
         if (journey.status !== JourneyStatus.Scheduled) {
-          throw new ConflictException('Only scheduled journeys can start');
+          throw new ConflictException({
+            code: 'JOURNEY_NOT_SCHEDULED',
+            message: 'Only scheduled journeys can start',
+          });
         }
         if (journey.updatedAt.toISOString() !== body.expectedUpdatedAt) {
-          throw new ConflictException('Journey was changed by another user');
+          throw new ConflictException({
+            code: 'JOURNEY_CHANGED',
+            message: 'Journey was changed by another user',
+          });
         }
 
         const parcels = await tx.parcel.findMany({
@@ -712,15 +739,13 @@ export class JourneysService extends BaseTenantService {
         const active = parcels.filter(
           (parcel) => !terminalStatuses.includes(parcel.deliveryStatus),
         );
-        if (active.length === 0) {
-          throw new ConflictException('Journey has no active parcels');
-        }
         const blockers = active.filter(
           (parcel) =>
             parcel.isDamaged || !readyStatuses.includes(parcel.deliveryStatus),
         );
         if (blockers.length > 0) {
           throw new ConflictException({
+            code: 'JOURNEY_PARCELS_NOT_READY',
             message: 'Journey contains parcels that are not ready',
             parcelIds: blockers.map(({ id: parcelId }) => parcelId),
           });
@@ -728,41 +753,43 @@ export class JourneysService extends BaseTenantService {
 
         const batchId = randomUUID();
         const actualDepartureAt = new Date();
-        const updatedParcels = await tx.parcel.updateMany({
-          where: {
-            journeyId: id,
-            businessId: currentUser.businessId,
-            isDeleted: false,
-            deliveryStatus: { in: readyStatuses },
-          },
-          data: { deliveryStatus: DeliveryStatus.InTransit },
-        });
-        if (updatedParcels.count !== active.length) {
-          throw new ConflictException(
-            'Journey manifest changed while starting the journey',
+        if (active.length > 0) {
+          const updatedParcels = await tx.parcel.updateMany({
+            where: {
+              journeyId: id,
+              businessId: currentUser.businessId,
+              isDeleted: false,
+              deliveryStatus: { in: readyStatuses },
+            },
+            data: { deliveryStatus: DeliveryStatus.InTransit },
+          });
+          if (updatedParcels.count !== active.length) {
+            throw new ConflictException(
+              'Journey manifest changed while starting the journey',
+            );
+          }
+          await tx.parcelStatusTransition.createMany({
+            data: active.map((parcel) => ({
+              parcelId: parcel.id,
+              businessId: currentUser.businessId,
+              journeyId: id,
+              batchId,
+              fromStatus: parcel.deliveryStatus,
+              toStatus: DeliveryStatus.InTransit,
+              actorId: currentUser.id,
+            })),
+          });
+          await this.createParcelJourneyEvents(
+            tx,
+            active,
+            currentUser,
+            id,
+            batchId,
+            DeliveryStatus.InTransit,
+            'ParcelInTransit',
+            'Journey started; parcel is in transit',
           );
         }
-        await tx.parcelStatusTransition.createMany({
-          data: active.map((parcel) => ({
-            parcelId: parcel.id,
-            businessId: currentUser.businessId,
-            journeyId: id,
-            batchId,
-            fromStatus: parcel.deliveryStatus,
-            toStatus: DeliveryStatus.InTransit,
-            actorId: currentUser.id,
-          })),
-        });
-        await this.createParcelJourneyEvents(
-          tx,
-          active,
-          currentUser,
-          id,
-          batchId,
-          DeliveryStatus.InTransit,
-          'ParcelInTransit',
-          'Journey started; parcel is in transit',
-        );
         const updateResult = await tx.journey.updateMany({
           where: { id, updatedAt: journey.updatedAt },
           data: {
@@ -772,7 +799,10 @@ export class JourneysService extends BaseTenantService {
           },
         });
         if (updateResult.count !== 1) {
-          throw new ConflictException('Journey was changed by another user');
+          throw new ConflictException({
+            code: 'JOURNEY_CHANGED',
+            message: 'Journey was changed by another user',
+          });
         }
         await tx.journeyStatusTransition.create({
           data: {
@@ -796,7 +826,7 @@ export class JourneysService extends BaseTenantService {
     body: TransitionJourneyDto,
     currentUser: UserRequestType,
   ): Promise<JourneyDto> {
-    await this.findOneForUser(id, currentUser);
+    await this.findWritableJourneyForUser(id, currentUser);
     const terminalStatuses: DeliveryStatus[] = [
       DeliveryStatus.Delivered,
       DeliveryStatus.Cancelled,
@@ -914,7 +944,7 @@ export class JourneysService extends BaseTenantService {
     body: CancelJourneyDto,
     currentUser: UserRequestType,
   ): Promise<JourneyDto> {
-    await this.findOneForUser(id, currentUser);
+    await this.findWritableJourneyForUser(id, currentUser);
     await this.prismaService.$transaction(async (tx) => {
       const journey = await tx.journey.findFirst({
         where: { id, businessId: currentUser.businessId, isDeleted: false },
@@ -955,7 +985,7 @@ export class JourneysService extends BaseTenantService {
     body: TransitionJourneyDto,
     currentUser: UserRequestType,
   ): Promise<{ updatedCount: number }> {
-    await this.findOneForUser(id, currentUser);
+    await this.findWritableJourneyForUser(id, currentUser);
 
     const updatedCount = await this.prismaService.$transaction(
       async (tx) => {
@@ -1057,7 +1087,7 @@ export class JourneysService extends BaseTenantService {
     if (!canCorrect) {
       throw new ForbiddenException('Only managers can correct journey status');
     }
-    await this.findOneForUser(id, currentUser);
+    await this.findWritableJourneyForUser(id, currentUser);
 
     await this.prismaService.$transaction(
       async (tx) => {
@@ -1076,7 +1106,9 @@ export class JourneysService extends BaseTenantService {
           throw new ConflictException('No journey transition can be reversed');
         }
         if (journey.status !== previous.toStatus) {
-          throw new ConflictException('Journey has changed since this transition');
+          throw new ConflictException(
+            'Journey has changed since this transition',
+          );
         }
         if (previous.toStatus === JourneyStatus.Cancelled) {
           throw new ConflictException(
@@ -1226,13 +1258,40 @@ export class JourneysService extends BaseTenantService {
     attrs: Partial<UpdateJourneyDto>,
     currentUser: UserRequestType,
   ): Promise<JourneyDto> {
-    const journey = await this.findOneForUser(id, currentUser);
+    const journey = await this.findWritableJourneyForUser(id, currentUser);
 
     if (!journey) {
       throw new Error('Journey not found');
     }
-    if (journey.status !== JourneyStatus.Scheduled) {
-      throw new ConflictException('Only scheduled journeys can be edited');
+    if (
+      journey.status !== JourneyStatus.Scheduled &&
+      journey.status !== JourneyStatus.InTransit
+    ) {
+      throw new ConflictException(
+        'Only scheduled or in-progress journeys can be edited',
+      );
+    }
+
+    const startCountryId = attrs.startCountryId ?? journey.startCountryId;
+    const endCountryId = attrs.endCountryId ?? journey.endCountryId;
+    if (startCountryId === endCountryId) {
+      throw new BadRequestException('Journey countries must differ');
+    }
+    if (attrs.driverProfiles !== undefined && !attrs.driverProfiles.length) {
+      throw new BadRequestException('At least one driver is required');
+    }
+    if (attrs.vehicleId !== undefined || attrs.departureDate !== undefined) {
+      const available = await this.getAvailableVehicles(
+        attrs.departureDate ?? new Date(journey.departureDate),
+        currentUser.businessId,
+        id,
+      );
+      const vehicleId = attrs.vehicleId ?? journey.vehicle?.id;
+      if (!available.some((vehicle) => vehicle.id === vehicleId)) {
+        throw new ConflictException(
+          'Vehicle is unavailable on the selected date',
+        );
+      }
     }
 
     // Prepare update data
@@ -1269,6 +1328,10 @@ export class JourneysService extends BaseTenantService {
       currentUser.type !== UserType.InternationalDriver &&
       attrs.driverProfiles !== undefined
     ) {
+      await this.driversService.findManyByIds(
+        attrs.driverProfiles,
+        currentUser.businessId,
+      );
       // Remove driverProfiles from direct update data
       delete updateData.driverProfiles;
 
@@ -1346,7 +1409,13 @@ export class JourneysService extends BaseTenantService {
       where: {
         userId,
         isDeleted: false,
-        user: { businessId },
+        user: {
+          businessId,
+          isDeleted: false,
+          isBlocked: false,
+          type: UserType.InternationalDriver,
+          staffApprovalStatus: 'Approved',
+        },
       },
     });
 
@@ -1360,8 +1429,12 @@ export class JourneysService extends BaseTenantService {
   async getAvailableVehicles(
     departureDate: Date,
     businessId: number,
+    excludeJourneyId?: number,
   ): Promise<VehicleDto[]> {
     await this.validateBusinessAccess(businessId);
+    if (excludeJourneyId !== undefined) {
+      await this.findOne(excludeJourneyId, businessId);
+    }
 
     // Get all active vehicles for the business
     const allVehicles = await this.vehiclesService.findAll(businessId);
@@ -1371,6 +1444,9 @@ export class JourneysService extends BaseTenantService {
     const assignedVehicleIds = await this.prismaService.journey.findMany({
       where: {
         businessId,
+        ...(excludeJourneyId !== undefined && {
+          id: { not: excludeJourneyId },
+        }),
         departureDate: {
           gte: new Date(
             departureDate.getFullYear(),

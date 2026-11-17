@@ -1,5 +1,12 @@
 import { AddressLookupContextDto } from './dto/address-lookup-context.dto';
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AddressSearchService } from './address-search.service';
 import { SearchAddressDto } from './dto/search-address.dto';
@@ -14,12 +21,17 @@ export class AddressSearchController {
   constructor(private readonly addressSearchService: AddressSearchService) {}
 
   @Get('address-search')
+  @Header('Cache-Control', 'no-store')
   search(@Query() query: SearchAddressDto) {
     return this.addressSearchService.search(query.query, query);
   }
 
   @Get('address-search/:id')
-  retrieve(@Param() params: RetrieveAddressDto, @Query() query: AddressLookupContextDto) {
+  @Header('Cache-Control', 'no-store')
+  retrieve(
+    @Param() params: RetrieveAddressDto,
+    @Query() query: AddressLookupContextDto,
+  ) {
     return this.addressSearchService.retrieve(params.id, query);
   }
 

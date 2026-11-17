@@ -1,3 +1,4 @@
+import { IsStreetOrLine1 } from 'src/validators/is-street-or-line1.validator';
 import { IsAddressPostcode } from 'src/validators/is-address-postcode.validator';
 import { Transform } from 'class-transformer';
 import {
@@ -9,7 +10,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  ValidateIf,
 } from 'class-validator';
 import { IsCityOrVillage } from 'src/validators/is-city-or-village.validator';
 import { normalizeUkPostcode } from 'src/address-search/utils/uk-postcode';
@@ -53,14 +53,12 @@ export class AddAddressDto {
   )
   postcode?: string;
 
-  @ValidateIf((value) => !value.line1)
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   street?: string;
 
-  @ValidateIf((value) => !value.street)
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   line1?: string;
 
   @IsOptional() @IsString() line2?: string;
@@ -86,6 +84,7 @@ export class AddAddressDto {
   @IsString()
   @IsNotEmpty()
   @IsIn(['GB', 'UA'])
+  @IsStreetOrLine1()
   countryIsoCode: string;
 
   @IsNumber()

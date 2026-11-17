@@ -1,3 +1,4 @@
+import { StaffAccountUpdater } from '../staff-account-updater';
 import { Module } from '@nestjs/common';
 
 import { CouriersService } from './couriers.service';
@@ -10,7 +11,7 @@ import { AuditModule } from 'src/audit/audit.module';
 @Module({
   imports: [PrismaModule, SupabaseModule, AuthProfilesModule, AuditModule],
   exports: [CouriersService],
-  providers: [CouriersService],
+  providers: [CouriersService, StaffAccountUpdater],
   controllers: [CouriersController],
 })
 export class CouriersModule {}

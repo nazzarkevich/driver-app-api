@@ -53,3 +53,11 @@ $ yarn run start:prod
 
 ![image](https://github.com/nazzarkevich/driver-app-api/assets/110843343/9e8cc89a-3dff-4a04-bb8d-74954144f096)
 
+
+## Admin panel browser access
+
+Set `CORS_ALLOWED_ORIGINS` to an explicit comma-separated list, for example
+`http://localhost:3001,http://127.0.0.1:3001,https://admin.example.com`.
+Restart the API after changing it. Unlisted origins receive no CORS permission;
+non-browser clients continue to use bearer authentication normally. Browser
+cookies are not used. No browser origins are enabled by default.

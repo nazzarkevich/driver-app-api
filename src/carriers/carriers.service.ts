@@ -44,13 +44,34 @@ const USER_SELECT = {
 export class CarriersService {
   async findAll(
     page: number,
-    search?: string,
+    search: string | undefined,
+    businessId: number,
+    filters: { type?: 'driver' | 'courier'; isBlocked?: boolean } = {},
   ): Promise<Pagination<CarrierDto>> {
     const where: any = {
       isDeleted: false,
+      businessId,
+      staffApprovalStatus: 'Approved',
+      ...(filters.type
+        ? {
+            type:
+              filters.type === 'driver'
+                ? UserType.InternationalDriver
+                : UserType.ParcelCourier,
+          }
+        : {}),
+      ...(filters.isBlocked === undefined
+        ? {}
+        : { isBlocked: filters.isBlocked }),
       OR: [
-        { type: UserType.InternationalDriver, driverProfile: { isNot: null } },
-        { type: UserType.ParcelCourier, courierProfile: { isNot: null } },
+        {
+          type: UserType.InternationalDriver,
+          driverProfile: { is: { isDeleted: false } },
+        },
+        {
+          type: UserType.ParcelCourier,
+          courierProfile: { is: { isDeleted: false } },
+        },
       ],
     };
 
@@ -74,9 +95,7 @@ export class CarriersService {
       .paginate({
         where,
         select: USER_SELECT,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       })
       .withPages({ page });
 

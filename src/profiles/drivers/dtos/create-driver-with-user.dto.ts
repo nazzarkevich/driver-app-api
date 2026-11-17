@@ -1,3 +1,4 @@
+import { IsStaffPassword } from '../../staff-password.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsNotEmpty,
@@ -5,7 +6,6 @@ import {
   IsOptional,
   IsNumber,
   IsEmail,
-  MinLength,
 } from 'class-validator';
 
 export class CreateDriverWithUserDto {
@@ -37,7 +37,7 @@ export class CreateDriverWithUserDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @MinLength(6)
+  @IsStaffPassword()
   password: string;
 
   @ApiPropertyOptional()

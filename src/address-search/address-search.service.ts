@@ -39,7 +39,7 @@ export class AddressSearchService {
     context: AddressLookupContext = {},
   ): Promise<AddressSearchResponse> {
     const normalizedQuery = query.trim().replace(/\s+/g, ' ');
-    if (context.countryCode === 'UA') {
+    if (context.countryCode === 'UA' || context.provider === 'google-places') {
       return {
         results: await this.googleProvider.search(normalizedQuery, context),
       };
@@ -58,7 +58,7 @@ export class AddressSearchService {
     id: string,
     context: AddressLookupContext = {},
   ): Promise<ResolvedAddress> {
-    if (context.countryCode === 'UA')
+    if (context.countryCode === 'UA' || context.provider === 'google-places')
       return this.googleProvider.retrieve(id, context);
     const key = `retrieve:${id}`;
     const cached = this.cache.get<ResolvedAddress>(key);

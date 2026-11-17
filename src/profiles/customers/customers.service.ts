@@ -1,4 +1,5 @@
 import {
+  addressStreet,
   validateAddressMetadata,
   validateUkraineAddress,
 } from 'src/address-search/utils/address-metadata';
@@ -154,7 +155,7 @@ export class CustomersService extends BaseTenantService {
       if (addresses.length > 0) {
         await prisma.address.createMany({
           data: addresses.map((addr, i) => ({
-            street: addr.street ?? addr.line1,
+            street: addressStreet(addr),
             line1: addr.line1,
             line2: addr.line2,
             line3: addr.line3,
@@ -226,34 +227,93 @@ export class CustomersService extends BaseTenantService {
     isBlocked?: boolean,
     originCountryId?: number,
     isActive?: boolean,
+    currentUser?: UserRequestType,
   ): Promise<Pagination<CustomerProfileDto> | CustomerProfileDto[]> {
-    await this.validateBusinessAccess(businessId);
+    await this.validateBusinessAccess(businessId, currentUser);
 
-    const baseWhere = this.getBusinessFilter(businessId);
+    const baseWhere = {
+      ...this.getBusinessFilter(businessId, currentUser),
+      isDeleted: false,
+    };
     const conditions: any[] = [];
 
-    if (search) {
+    const searchTerm = search?.trim();
+    if (searchTerm) {
+      const phoneDigits = searchTerm.replace(/\D/g, '');
+      const phoneSearch =
+        /^[+\d\s().-]+$/.test(searchTerm) && phoneDigits.length > 0;
+      const phoneConditions: Prisma.CustomerProfileWhereInput[] = phoneSearch
+        ? [{ phoneNumber: { number: { contains: phoneDigits } } }]
+        : [];
+      // Country codes are stored separately from national numbers. Search input
+      // may include the prefix and common display punctuation.
+      if (phoneSearch) {
+        const internationalDigits = phoneDigits.startsWith('00')
+          ? phoneDigits.slice(2)
+          : phoneDigits;
+        for (
+          let length = 1;
+          length <= 3 && length < internationalDigits.length;
+          length++
+        ) {
+          phoneConditions.push({
+            phoneNumber: {
+              countryCode: {
+                in: [
+                  internationalDigits.slice(0, length),
+                  `+${internationalDigits.slice(0, length)}`,
+                ],
+              },
+              number: { contains: internationalDigits.slice(length) },
+            },
+          });
+        }
+      }
       conditions.push({
         OR: [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          {
-            phoneNumber: {
-              number: { contains: search, mode: 'insensitive' },
-            },
-          },
+          { firstName: { contains: searchTerm, mode: 'insensitive' } },
+          { lastName: { contains: searchTerm, mode: 'insensitive' } },
+          ...phoneConditions,
         ],
       });
     }
 
     if (originCountryId) {
-      conditions.push({
-        addresses: { some: { isPrimary: true, countryId: originCountryId } },
+      const country = await this.prismaService.country.findUnique({
+        where: { id: originCountryId },
+        select: { isoCode: true },
       });
+      const regularAddress = {
+        addresses: {
+          some: {
+            countryId: originCountryId,
+            isActive: true,
+            isDeleted: false,
+          },
+        },
+      };
+      conditions.push(
+        country?.isoCode.toUpperCase() === 'UA'
+          ? {
+              OR: [
+                regularAddress,
+                {
+                  novaPostAddresses: {
+                    some: { warehouse: { isActive: true } },
+                  },
+                },
+              ],
+            }
+          : regularAddress,
+      );
     }
 
     if (isBlocked !== undefined) {
-      conditions.push({ user: { isBlocked } });
+      conditions.push(
+        isBlocked
+          ? { user: { isBlocked: true } }
+          : { OR: [{ user: null }, { user: { isBlocked: false } }] },
+      );
     }
 
     if (isActive !== undefined) {
@@ -332,28 +392,32 @@ export class CustomersService extends BaseTenantService {
     }
   }
 
-  async findOne(id: number, businessId: number): Promise<CustomerProfileDto> {
-    await this.validateBusinessAccess(businessId);
+  async findOne(
+    id: number,
+    businessId: number,
+    currentUser?: UserRequestType,
+  ): Promise<CustomerProfileDto> {
+    await this.validateBusinessAccess(businessId, currentUser);
 
-    const customerProfile = await this.prismaService.customerProfile.findUnique(
-      {
-        where: {
-          id,
-        },
-        include: {
-          phoneNumber: true,
-          ...addressInclude,
-          notes: {
-            include: {
-              user: true,
-            },
-            orderBy: {
-              createdAt: 'desc',
-            },
+    const customerProfile = await this.prismaService.customerProfile.findFirst({
+      where: {
+        id,
+        businessId,
+        isDeleted: false,
+      },
+      include: {
+        phoneNumber: true,
+        ...addressInclude,
+        notes: {
+          include: {
+            user: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
           },
         },
       },
-    );
+    });
 
     if (!customerProfile || customerProfile.businessId !== businessId) {
       throw new NotFoundException();
@@ -374,6 +438,7 @@ export class CustomersService extends BaseTenantService {
         businessId,
         isDeleted: false,
         isActive: true,
+        OR: [{ user: null }, { user: { isBlocked: false } }],
       },
       select: { id: true },
     });
@@ -439,6 +504,7 @@ export class CustomersService extends BaseTenantService {
         businessId,
         isDeleted: false,
         isActive: true,
+        OR: [{ user: null }, { user: { isBlocked: false } }],
       },
       include: {
         phoneNumber: true,
@@ -689,7 +755,7 @@ export class CustomersService extends BaseTenantService {
       }
       await prisma.address.create({
         data: {
-          street: dto.street ?? dto.line1,
+          street: addressStreet(dto),
           line1: dto.line1,
           line2: dto.line2,
           line3: dto.line3,
@@ -1152,11 +1218,12 @@ export class CustomersService extends BaseTenantService {
   async getNotes(
     customerProfileId: number,
     businessId: number,
+    currentUser?: UserRequestType,
   ): Promise<CustomerNoteDto[]> {
-    await this.validateBusinessAccess(businessId);
+    await this.validateBusinessAccess(businessId, currentUser);
 
-    const profile = await this.prismaService.customerProfile.findUnique({
-      where: { id: customerProfileId },
+    const profile = await this.prismaService.customerProfile.findFirst({
+      where: { id: customerProfileId, businessId, isDeleted: false },
       select: { businessId: true },
     });
 

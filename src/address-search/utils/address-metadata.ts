@@ -16,8 +16,11 @@ export function validateAddressMetadata(
     throw new BadRequestException('Unsupported address country');
   if (
     address.provider &&
-    address.provider !==
-      (country === 'GB' ? 'ideal-postcodes' : 'google-places')
+    !(
+      country === 'GB'
+        ? ['ideal-postcodes', 'google-places']
+        : ['google-places']
+    ).includes(address.provider)
   ) {
     throw new BadRequestException('Address provider does not match country');
   }
@@ -46,12 +49,9 @@ export function validateUkraineAddress(address: {
   postcode?: string | null;
 }): void {
   if (address.countryIsoCode !== 'UA') return;
-  if (
-    !(address.street?.trim() || address.line1?.trim()) ||
-    !(address.city?.trim() || address.village?.trim())
-  ) {
+  if (!(address.city?.trim() || address.village?.trim())) {
     throw new BadRequestException(
-      'Ukrainian addresses require a street and a city or village',
+      'Ukrainian addresses require a city or village',
     );
   }
   if (
@@ -63,4 +63,16 @@ export function validateUkraineAddress(address: {
       'Ukrainian postcode must contain five digits',
     );
   }
+}
+
+export function addressStreet(address: {
+  countryIsoCode: string;
+  street?: string | null;
+  line1?: string | null;
+}): string | undefined {
+  return (
+    address.street ??
+    address.line1 ??
+    (address.countryIsoCode === 'UA' ? '' : undefined)
+  );
 }

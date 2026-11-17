@@ -1,3 +1,4 @@
+import { StaffAccountUpdater } from '../staff-account-updater';
 import {
   BadRequestException,
   ForbiddenException,
@@ -25,12 +26,20 @@ export class CouriersService {
     private readonly supabaseService: SupabaseService,
     private readonly authProfilesService: AuthProfilesService,
     private readonly auditService: AuditService,
+    private readonly staffAccountUpdater: StaffAccountUpdater,
   ) {}
 
-  async createProfile({ userId }: CreateCourierProfileDto): Promise<void> {
+  async createProfile(
+    { userId }: CreateCourierProfileDto,
+    businessId: number,
+  ): Promise<void> {
     const user = await this.prismaService.user.findUnique({
       where: {
         id: userId,
+        businessId,
+        isDeleted: false,
+        type: UserType.ParcelCourier,
+        staffApprovalStatus: 'Approved',
       },
     });
 
@@ -89,11 +98,14 @@ export class CouriersService {
     let result;
     try {
       result = await this.prismaService.$transaction(async (tx) => {
-        const phone = await tx.phone.create({
-          data: {
-            number: dto.phoneNumber,
-            countryCode: dto.phoneCountryCode,
-          },
+        const contact = {
+          number: dto.phoneNumber,
+          countryCode: dto.phoneCountryCode,
+        };
+        const phone = await tx.phone.upsert({
+          where: { countryCode_number: contact },
+          create: contact,
+          update: {},
         });
 
         const user = await tx.user.create({
@@ -128,6 +140,7 @@ export class CouriersService {
                 id: true,
                 firstName: true,
                 lastName: true,
+                email: true,
                 isBlocked: true,
                 phoneNumber: {
                   select: {
@@ -160,16 +173,28 @@ export class CouriersService {
 
   async findAllCouriersProfiles(
     page: number,
+    businessId: number,
   ): Promise<Pagination<CourierProfileDto>> {
     const [courierProfilesWithPagination, metadata] =
       await prismaWithPagination.courierProfile
         .paginate({
+          where: {
+            isDeleted: false,
+            user: {
+              businessId,
+              isDeleted: false,
+              isBlocked: false,
+              type: UserType.ParcelCourier,
+              staffApprovalStatus: 'Approved',
+            },
+          },
           include: {
             user: {
               select: {
                 id: true,
                 firstName: true,
                 lastName: true,
+                email: true,
                 isBlocked: true,
                 phoneNumber: {
                   select: {
@@ -202,10 +227,20 @@ export class CouriersService {
     };
   }
 
-  async findCourierProfile(id: number): Promise<CourierProfileDto> {
-    const profile = await this.prismaService.courierProfile.findUnique({
+  async findCourierProfile(
+    id: number,
+    businessId: number,
+  ): Promise<CourierProfileDto> {
+    const profile = await this.prismaService.courierProfile.findFirst({
       where: {
         id,
+        isDeleted: false,
+        user: {
+          businessId,
+          isDeleted: false,
+          type: UserType.ParcelCourier,
+          staffApprovalStatus: 'Approved',
+        },
       },
       include: {
         user: {
@@ -241,6 +276,7 @@ export class CouriersService {
 
   async findManyByIds(
     couriersProfileIds: number[],
+    businessId: number,
   ): Promise<CourierProfileDto[]> {
     if (couriersProfileIds?.length === 0) {
       return [];
@@ -248,6 +284,14 @@ export class CouriersService {
 
     const couriersProfiles = await this.prismaService.courierProfile.findMany({
       where: {
+        isDeleted: false,
+        user: {
+          businessId,
+          isDeleted: false,
+          isBlocked: false,
+          type: UserType.ParcelCourier,
+          staffApprovalStatus: 'Approved',
+        },
         id: {
           in: couriersProfileIds,
         },
@@ -281,88 +325,18 @@ export class CouriersService {
   async update(
     id: number,
     dto: UpdateCourierProfileDto,
+    businessId: number,
   ): Promise<CourierProfileDto> {
-    const profile = await this.prismaService.courierProfile.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            phoneId: true,
-          },
-        },
-      },
-    });
-
-    if (!profile) {
-      throw new NotFoundException('Courier profile not found');
-    }
-
-    const userData: { firstName?: string; lastName?: string; email?: string } =
-      {};
-    if (dto.firstName !== undefined) userData.firstName = dto.firstName;
-    if (dto.lastName !== undefined) userData.lastName = dto.lastName;
-    if (dto.email !== undefined) userData.email = dto.email;
-
-    if (Object.keys(userData).length > 0) {
-      await this.prismaService.user.update({
-        where: { id: profile.user.id },
-        data: userData,
-      });
-    }
-
-    if (dto.phoneNumber !== undefined) {
-      if (profile.user.phoneId) {
-        await this.prismaService.phone.update({
-          where: { id: profile.user.phoneId },
-          data: {
-            number: dto.phoneNumber,
-            ...(dto.phoneCountryCode !== undefined && {
-              countryCode: dto.phoneCountryCode,
-            }),
-          },
-        });
-      } else {
-        const phone = await this.prismaService.phone.create({
-          data: {
-            number: dto.phoneNumber,
-            countryCode: dto.phoneCountryCode || '+380',
-          },
-        });
-        await this.prismaService.user.update({
-          where: { id: profile.user.id },
-          data: { phoneId: phone.id },
-        });
-      }
-    }
-
-    if (dto.password) {
-      const authProfile = await this.prismaService.authProfile.findFirst({
-        where: { userId: profile.user.id },
-      });
-
-      if (authProfile) {
-        const { error } =
-          await this.supabaseService.client.auth.admin.updateUserById(
-            authProfile.providerId,
-            { password: dto.password },
-          );
-
-        if (error) {
-          throw new BadRequestException(
-            error.message || 'Failed to update password',
-          );
-        }
-      }
-    }
-
-    return this.findCourierProfile(id);
+    const profile = await this.findCourierProfile(id, businessId);
+    await this.staffAccountUpdater.update(profile.user.id, businessId, dto);
+    return this.findCourierProfile(id, businessId);
   }
 
   async toggleBlock(
     id: number,
     currentUser: UserRequestType,
   ): Promise<CourierProfileDto> {
+    await this.findCourierProfile(id, currentUser.businessId);
     const profile = await this.prismaService.courierProfile.findUnique({
       where: { id },
       include: {
@@ -397,14 +371,16 @@ export class CouriersService {
       `${action} courier ${profile.user.firstName} ${profile.user.lastName}`,
     );
 
-    return this.findCourierProfile(id);
+    return this.findCourierProfile(id, currentUser.businessId);
   }
 
-  async removeCourierProfile(id: number): Promise<void> {
-    await this.prismaService.courierProfile.delete({
+  async removeCourierProfile(id: number, businessId: number): Promise<void> {
+    await this.findCourierProfile(id, businessId);
+    await this.prismaService.courierProfile.update({
       where: {
         id,
       },
+      data: { isDeleted: true },
     });
   }
 }

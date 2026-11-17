@@ -22,7 +22,17 @@ export class AuditInterceptor implements NestInterceptor {
 
     // Extract request information
     const method = request.method;
-    const endpoint = request.url;
+    const addressLookup = /^\/(?:api\/)?address-search(?:\/|$)/.test(
+      request.path ?? '',
+    );
+    const endpoint = addressLookup ? '/address-search/[redacted]' : request.url;
+    const query = addressLookup
+      ? {
+          countryCode: request.query?.countryCode,
+          provider: request.query?.provider,
+        }
+      : request.query;
+    const params = addressLookup ? {} : request.params;
     if (
       /^\/(?:api\/)?users\/me\/?$/i.test(request.path) ||
       request.path.startsWith('/public/tracking') ||
@@ -57,10 +67,14 @@ export class AuditInterceptor implements NestInterceptor {
                   statusCode,
                 ),
                 metadata: {
-                  requestBody: this.sanitizeRequestBody(request.body),
-                  responseData: this.sanitizeResponseData(responseData),
-                  query: request.query,
-                  params: request.params,
+                  requestBody: addressLookup
+                    ? undefined
+                    : this.sanitizeRequestBody(request.body),
+                  responseData: addressLookup
+                    ? undefined
+                    : this.sanitizeResponseData(responseData),
+                  query,
+                  params,
                 },
                 ipAddress,
                 userAgent,
@@ -89,13 +103,17 @@ export class AuditInterceptor implements NestInterceptor {
               entityId: this.getEntityIdFromEndpoint(endpoint),
               description: `Failed to ${this.getDescriptionFromRequest(method, endpoint, statusCode)}`,
               metadata: {
-                requestBody: this.sanitizeRequestBody(request.body),
-                error: {
-                  message: error.message,
-                  stack: error.stack,
-                },
-                query: request.query,
-                params: request.params,
+                requestBody: addressLookup
+                  ? undefined
+                  : this.sanitizeRequestBody(request.body),
+                error: addressLookup
+                  ? { message: 'Address lookup failed' }
+                  : {
+                      message: error.message,
+                      stack: error.stack,
+                    },
+                query,
+                params,
               },
               ipAddress,
               userAgent,

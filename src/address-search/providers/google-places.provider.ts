@@ -15,7 +15,8 @@ import {
   AddressProvider,
 } from './address-provider.interface';
 import { AddressSuggestion } from '../types/address-suggestion';
-import { ResolvedUkraineAddress } from '../types/resolved-address';
+import { ResolvedAddress } from '../types/resolved-address';
+import { normalizeUkPostcode } from '../utils/uk-postcode';
 
 interface Component {
   types: string[];
@@ -29,6 +30,7 @@ const text = (value: unknown): string | null =>
 
 const ADDRESS_PREDICTION_TYPES = new Set([
   'street_address',
+  'postal_code',
   'premise',
   'subpremise',
   'route',
@@ -71,6 +73,7 @@ export class GooglePlacesProvider implements AddressProvider {
       'autocomplete',
       this.sessionToken(context),
       query,
+      context.countryCode ?? 'UA',
     );
     if (
       !isObject(payload) ||
@@ -98,11 +101,12 @@ export class GooglePlacesProvider implements AddressProvider {
   async retrieve(
     id: string,
     context: AddressLookupContext = {},
-  ): Promise<ResolvedUkraineAddress> {
+  ): Promise<ResolvedAddress> {
     const payload = await this.request(
       'details',
       this.sessionToken(context),
       id,
+      context.countryCode ?? 'UA',
     );
     if (
       !isObject(payload) ||
@@ -128,13 +132,60 @@ export class GooglePlacesProvider implements AddressProvider {
     }
     const component = (type: string) =>
       (components as Component[]).find((item) => item.types.includes(type));
-    if (component('country')?.shortText !== 'UA')
-      throw new BadRequestException('Only Ukrainian addresses are supported');
+    const countryCode = context.countryCode ?? 'UA';
+    if (component('country')?.shortText !== countryCode)
+      throw new BadRequestException(
+        'Address does not match the requested country',
+      );
     const value = (type: string) => text(component(type)?.longText);
     const attributions = Array.isArray(payload.attributions)
       ? payload.attributions
       : [];
+    const metadata = {
+      provider: 'google-places' as const,
+      providerRef: id,
+      attributions: attributions.flatMap((item) => {
+        if (!isObject(item) || !text(item.provider) || !text(item.providerUri))
+          return [];
+        try {
+          const uri = new URL(text(item.providerUri)!);
+          return ['https:', 'http:'].includes(uri.protocol)
+            ? [{ displayName: text(item.provider)!, uri: uri.href }]
+            : [];
+        } catch {
+          return [];
+        }
+      }),
+    };
+    if (countryCode === 'GB') {
+      const lines = [
+        ...new Set(
+          [
+            value('subpremise'),
+            value('premise'),
+            [value('street_number'), value('route')].filter(Boolean).join(' '),
+            value('sublocality_level_1'),
+          ].filter((line): line is string => !!line),
+        ),
+      ];
+      return {
+        ...metadata,
+        countryCode: 'GB',
+        line1: lines[0] ?? '',
+        line2: lines[1] ?? null,
+        line3: lines.slice(2).join(', ') || null,
+        city: value('postal_town') ?? value('locality') ?? '',
+        county: value('administrative_area_level_2'),
+        postcode: value('postal_code')
+          ? normalizeUkPostcode(value('postal_code')!)
+          : '',
+        uprn: null,
+        latitude: null,
+        longitude: null,
+      };
+    }
     return {
+      ...metadata,
       countryCode: 'UA',
       street: value('route'),
       building: value('street_number'),
@@ -142,18 +193,6 @@ export class GooglePlacesProvider implements AddressProvider {
       village: null,
       region: value('administrative_area_level_1'),
       postcode: value('postal_code'),
-      provider: 'google-places',
-      providerRef: id,
-      attributions: attributions.flatMap((item) =>
-        isObject(item) && text(item.provider) && text(item.providerUri)
-          ? [
-              {
-                displayName: text(item.provider)!,
-                uri: text(item.providerUri)!,
-              },
-            ]
-          : [],
-      ),
     };
   }
 
@@ -165,7 +204,7 @@ export class GooglePlacesProvider implements AddressProvider {
       )
     ) {
       throw new BadRequestException(
-        'A UUID v4 sessionToken is required for Ukrainian lookup',
+        'A UUID v4 sessionToken is required for Google Places lookup',
       );
     }
     return context.sessionToken;
@@ -175,6 +214,7 @@ export class GooglePlacesProvider implements AddressProvider {
     operation: 'autocomplete' | 'details',
     sessionToken: string,
     input: string,
+    countryCode: 'GB' | 'UA',
   ): Promise<unknown> {
     const apiKey = this.config.get<string>('GOOGLE_PLACES_API_KEY', '');
     if (
@@ -184,9 +224,11 @@ export class GooglePlacesProvider implements AddressProvider {
       !apiKey
     ) {
       throw new ServiceUnavailableException(
-        'Ukrainian address lookup is not configured',
+        'Google Places address lookup is not configured',
       );
     }
+    const regionCode = countryCode === 'GB' ? 'uk' : 'ua';
+    const languageCode = countryCode === 'GB' ? 'en' : 'uk';
     const url = new URL(
       operation === 'autocomplete'
         ? 'https://places.googleapis.com/v1/places:autocomplete'
@@ -194,8 +236,8 @@ export class GooglePlacesProvider implements AddressProvider {
     );
     if (operation === 'details') {
       url.searchParams.set('sessionToken', sessionToken);
-      url.searchParams.set('languageCode', 'uk');
-      url.searchParams.set('regionCode', 'ua');
+      url.searchParams.set('languageCode', languageCode);
+      url.searchParams.set('regionCode', regionCode);
     }
     const controller = new AbortController();
     const timeoutMs = Number(
@@ -216,16 +258,16 @@ export class GooglePlacesProvider implements AddressProvider {
           'X-Goog-FieldMask':
             operation === 'autocomplete'
               ? 'suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.types'
-              : 'id,addressComponents,formattedAddress,attributions',
+              : 'id,addressComponents,attributions',
         },
         ...(operation === 'autocomplete'
           ? {
               body: JSON.stringify({
                 input,
                 sessionToken,
-                includedRegionCodes: ['ua'],
-                languageCode: 'uk',
-                regionCode: 'ua',
+                includedRegionCodes: [regionCode],
+                languageCode,
+                regionCode,
                 includeQueryPredictions: false,
               }),
             }

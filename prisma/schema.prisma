@@ -20,6 +20,8 @@ model User {
   isAdmin      Boolean  @default(false)
   isSuperAdmin Boolean  @default(false)
   isDeleted    Boolean  @default(false)
+  staffApprovalStatus StaffApprovalStatus @default(Approved)
+  staffApprovedAt DateTime?
 
   gender      Gender?
   dateOfBirth DateTime?
@@ -55,6 +57,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@unique([businessId, email])
+  @@index([businessId, staffApprovalStatus, createdAt])
   @@index([businessId])
   @@index([customerProfileId])
 }
@@ -318,6 +321,7 @@ model Parcel {
   /// Immutable copy used for parcel history when a saved sender address changes.
   originSnapshot                  Json?
   novaPostTrackingNumber          String?
+  novaPostTrackingNumberUpdatedAt DateTime?
   originAddressId                 Int?
   originCustomerNovaPostAddressId Int?
   originNovaPostWarehouseId       Int?
@@ -352,6 +356,7 @@ model Parcel {
   selectedPrice   ParcelPrice? @relation("SelectedParcelPrice", fields: [selectedPriceId], references: [id])
 
   @@unique([businessId, trackingNumber])
+  @@index([journeyId, isDeleted])
   @@index([selectedPriceId])
   @@index([groupId])
   @@index([shipmentId, businessId])
@@ -880,6 +885,11 @@ enum UserType {
   InternationalDriver
   ParcelCourier
   Subscriber
+}
+
+enum StaffApprovalStatus {
+  Pending
+  Approved
 }
 
 enum Gender {

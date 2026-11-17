@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   DefaultValuePipe,
@@ -7,6 +8,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   ParseIntPipe,
   Put,
   Query,
@@ -26,6 +28,8 @@ import { SupabaseAuthGuard } from 'src/guards/supabase-auth.guard';
 import { Permissions } from 'src/decorators/permissions.decorator';
 import { Permission, getAllowedAppsForUser } from 'src/permissions/permissions';
 import { UpdateUserRoleDto } from './dtos/update-user-role.dto';
+import { ApproveStaffDto } from './dtos/register-staff.dto';
+import { resolveBusinessScope } from 'src/common/business-scope';
 
 @ApiTags('User')
 @Controller('users')
@@ -45,16 +49,56 @@ export class UsersController {
   @Permissions(Permission.USER_READ)
   async getAllUsers(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @CurrentUser() currentUser: UserRequestType,
   ): Promise<Pagination<UserDto>> {
-    const users = await this.usersService.findAll({ page });
+    const users = await this.usersService.findAll({ page, currentUser });
 
     return users;
   }
 
+  @Get('pending-staff')
+  @Permissions(Permission.USER_ROLE_UPDATE)
+  pendingStaff(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('search') search: string,
+    @CurrentUser() actor: UserRequestType,
+    @Query('type') type?: string,
+    @Query('businessId') businessId?: string,
+  ) {
+    if (type !== undefined && type !== 'driver' && type !== 'courier')
+      throw new BadRequestException('Invalid carrier type');
+    return this.usersService.pendingStaff(
+      Math.max(1, page),
+      search,
+      { ...actor, businessId: resolveBusinessScope(actor, businessId) },
+      type as 'driver' | 'courier' | undefined,
+    );
+  }
+
+  @Post(':id/approve-staff')
+  @Permissions(Permission.USER_ROLE_UPDATE)
+  approveStaff(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ApproveStaffDto,
+    @CurrentUser() actor: UserRequestType,
+    @Query('businessId') businessId?: string,
+  ) {
+    if (resolveBusinessScope(actor, businessId) !== actor.businessId)
+      throw new ForbiddenException('Manage staff in your own business');
+    return this.usersService.approveStaff(id, body.type, actor);
+  }
+
   @Get('/:id')
   @Permissions(Permission.USER_READ)
-  findUser(@Param('id', ParseIntPipe) id: number): Promise<UserDto> {
-    return this.usersService.findOne(id);
+  findUser(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() actor: UserRequestType,
+  ): Promise<UserDto> {
+    return this.usersService.findOne(
+      id,
+      { phoneNumber: true, driverProfile: true, courierProfile: true },
+      actor,
+    );
   }
 
   @Put('/:id')
@@ -78,13 +122,21 @@ export class UsersController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateUserRoleDto,
     @CurrentUser() currentUser: UserRequestType,
+    @Query('businessId') businessId?: string,
   ): Promise<UserDto> {
+    if (
+      resolveBusinessScope(currentUser, businessId) !== currentUser.businessId
+    )
+      throw new ForbiddenException('Manage staff in your own business');
     return this.usersService.updateRole(id, body.type, currentUser);
   }
 
   @Delete('/:id')
   @Permissions(Permission.USER_DELETE)
-  removeUser(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.usersService.remove(id);
+  removeUser(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() actor: UserRequestType,
+  ): Promise<void> {
+    return this.usersService.remove(id, actor);
   }
 }

@@ -1,5 +1,7 @@
+import { resolveBusinessScope } from 'src/common/business-scope';
 import {
   Body,
+  ForbiddenException,
   Controller,
   DefaultValuePipe,
   Delete,
@@ -25,6 +27,7 @@ import {
 } from 'src/users/decorators/current-user.decorator';
 import { Permissions } from 'src/decorators/permissions.decorator';
 import { Permission } from 'src/permissions/permissions';
+import { canManageStaff } from 'src/users/staff-access';
 
 @ApiTags('Courier')
 @Controller('couriers')
@@ -35,8 +38,9 @@ export class CouriersController {
   @Permissions(Permission.COURIER_PROFILE_CREATE)
   async createCourierProfile(
     @Body() body: CreateCourierProfileDto,
+    @CurrentUser() actor: UserRequestType,
   ): Promise<void> {
-    return this.couriersService.createProfile(body);
+    return this.couriersService.createProfile(body, actor.businessId);
   }
 
   @Post('create-with-user')
@@ -63,7 +67,16 @@ export class CouriersController {
   async createCourierWithUser(
     @CurrentUser() currentUser: UserRequestType,
     @Body() body: CreateCourierWithUserDto,
+    @Query('businessId') businessId?: string,
   ): Promise<CourierProfileDto> {
+    if (
+      resolveBusinessScope(currentUser, businessId) !== currentUser.businessId
+    )
+      throw new ForbiddenException('Manage staff in your own business');
+    if (!canManageStaff(currentUser))
+      throw new ForbiddenException(
+        'Only managers and admins can create staff accounts',
+      );
     return this.couriersService.createProfileWithUser(
       body,
       currentUser.businessId,
@@ -74,16 +87,22 @@ export class CouriersController {
   @Permissions(Permission.COURIER_PROFILE_READ)
   async getAllCouriersProfiles(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @CurrentUser() actor: UserRequestType,
   ): Promise<Pagination<CourierProfileDto>> {
-    return this.couriersService.findAllCouriersProfiles(page);
+    return this.couriersService.findAllCouriersProfiles(page, actor.businessId);
   }
 
   @Get('/:id')
   @Permissions(Permission.COURIER_PROFILE_READ)
   async getCourierProfile(
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() actor: UserRequestType,
+    @Query('businessId') businessId?: string,
   ): Promise<CourierProfileDto> {
-    return this.couriersService.findCourierProfile(id);
+    return this.couriersService.findCourierProfile(
+      id,
+      resolveBusinessScope(actor, businessId),
+    );
   }
 
   @Put('/:id')
@@ -91,8 +110,14 @@ export class CouriersController {
   async updateCourierProfile(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateCourierProfileDto,
+    @CurrentUser() actor: UserRequestType,
+    @Query('businessId') businessId?: string,
   ): Promise<CourierProfileDto> {
-    return this.couriersService.update(id, body);
+    if (!canManageStaff(actor))
+      throw new ForbiddenException('Only managers and admins can update staff');
+    if (resolveBusinessScope(actor, businessId) !== actor.businessId)
+      throw new ForbiddenException('Manage staff in your own business');
+    return this.couriersService.update(id, body, actor.businessId);
   }
 
   @Patch('/:id/block')
@@ -100,13 +125,23 @@ export class CouriersController {
   async toggleBlockCourier(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: UserRequestType,
+    @Query('businessId') businessId?: string,
   ): Promise<CourierProfileDto> {
+    if (!currentUser.isAdmin && !currentUser.isSuperAdmin)
+      throw new ForbiddenException('Only admins can block staff');
+    if (
+      resolveBusinessScope(currentUser, businessId) !== currentUser.businessId
+    )
+      throw new ForbiddenException('Manage staff in your own business');
     return this.couriersService.toggleBlock(id, currentUser);
   }
 
-  @Delete()
+  @Delete(':id')
   @Permissions(Permission.COURIER_PROFILE_DELETE)
-  removeCourierProfile(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.couriersService.removeCourierProfile(id);
+  removeCourierProfile(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() actor: UserRequestType,
+  ): Promise<void> {
+    return this.couriersService.removeCourierProfile(id, actor.businessId);
   }
 }
