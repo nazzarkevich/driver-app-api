@@ -23,7 +23,8 @@ FROM base AS prod
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
 
-RUN yarn install --frozen-lockfile --production
+# Include devDependencies required by the TypeScript build, even with NODE_ENV=production.
+RUN yarn install --frozen-lockfile --production=false
 
 COPY . .
 
