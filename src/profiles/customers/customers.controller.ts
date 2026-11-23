@@ -8,6 +8,8 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  ParseBoolPipe,
+  DefaultValuePipe,
   Patch,
   Post,
   Put,
@@ -31,7 +33,9 @@ import { UpdateAddressDto } from 'src/addresses/dtos/update-address.dto';
 import { Permissions } from 'src/decorators/permissions.decorator';
 import { Permission } from 'src/permissions/permissions';
 import {
+  ArchiveCustomerNovaPostAddressDto,
   CreateCustomerNovaPostAddressDto,
+  ReplaceCustomerNovaPostAddressDto,
   UpdateCustomerNovaPostAddressDto,
 } from './dtos/customer-nova-post-address.dto';
 
@@ -292,6 +296,60 @@ export class CustomersController {
     );
   }
 
+  @Get('/:id/nova-post-addresses')
+  @Permissions(Permission.CUSTOMER_READ)
+  @ApiOperation({
+    summary: 'List active or archived saved Nova Post addresses',
+  })
+  getNovaPostAddresses(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Query('isArchived', new DefaultValuePipe(false), ParseBoolPipe)
+    isArchived: boolean,
+    @Query('businessId') businessId?: string,
+  ) {
+    return this.customersService.getNovaPostAddresses(
+      customerId,
+      customerBusinessScope(currentUser, businessId),
+      isArchived,
+      currentUser,
+    );
+  }
+
+  @Patch('/:id/nova-post-addresses/:addressId/archive')
+  @Permissions(Permission.CUSTOMER_ADDRESS_UPDATE)
+  @ApiOperation({
+    summary: 'Archive a saved Nova Post address without changing parcels',
+  })
+  archiveNovaPostAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Param('addressId', ParseIntPipe) addressId: number,
+    @Body() body: ArchiveCustomerNovaPostAddressDto,
+  ) {
+    return this.customersService.archiveNovaPostAddress(
+      customerId,
+      addressId,
+      currentUser.businessId,
+      body.replacementDefaultAddressId,
+    );
+  }
+
+  @Patch('/:id/nova-post-addresses/:addressId/restore')
+  @Permissions(Permission.CUSTOMER_ADDRESS_UPDATE)
+  @ApiOperation({ summary: 'Restore an archived saved Nova Post address' })
+  restoreNovaPostAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Param('addressId', ParseIntPipe) addressId: number,
+  ) {
+    return this.customersService.restoreNovaPostAddress(
+      customerId,
+      addressId,
+      currentUser.businessId,
+    );
+  }
+
   @Post('/:id/nova-post-addresses')
   @Permissions(Permission.CUSTOMER_ADDRESS_CREATE)
   @ApiOperation({ summary: 'Save a Nova Post warehouse for a customer' })
@@ -302,6 +360,26 @@ export class CustomersController {
   ): Promise<CustomerProfileDto> {
     return this.customersService.addNovaPostAddress(
       customerId,
+      body,
+      currentUser.businessId,
+    );
+  }
+
+  @Post('/:id/nova-post-addresses/:addressId/replace')
+  @Permissions(Permission.CUSTOMER_ADDRESS_UPDATE)
+  @ApiOperation({
+    summary:
+      'Replace a saved Nova Post branch atomically while preserving parcel history',
+  })
+  replaceNovaPostAddress(
+    @CurrentUser() currentUser: UserRequestType,
+    @Param('id', ParseIntPipe) customerId: number,
+    @Param('addressId', ParseIntPipe) addressId: number,
+    @Body() body: ReplaceCustomerNovaPostAddressDto,
+  ) {
+    return this.customersService.replaceNovaPostAddress(
+      customerId,
+      addressId,
       body,
       currentUser.businessId,
     );

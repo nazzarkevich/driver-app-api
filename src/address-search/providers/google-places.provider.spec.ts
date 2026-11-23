@@ -166,6 +166,30 @@ describe('Google Places country-aware addresses', () => {
       attributions: [],
     });
   });
+  it.each(['UA', 'GB'] as const)(
+    'accepts canonicalized %s Place IDs and preserves the returned provider reference',
+    async (countryCode) => {
+      jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValue(
+          response({ ...payload(countryCode), id: 'canonical-place' }),
+        );
+      const provider = new GooglePlacesProvider(new ConfigService(config));
+      expect(
+        await provider.retrieve('autocomplete-place', {
+          countryCode,
+          sessionToken,
+        }),
+      ).toMatchObject({
+        countryCode,
+        provider: 'google-places',
+        providerRef: 'canonical-place',
+        ...(countryCode === 'UA'
+          ? { street: 'Шевченка', building: '10', city: 'Locality' }
+          : { line1: '10 Downing Street' }),
+      });
+    },
+  );
   it('rejects country mismatch before exposing resolved fields', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue(response(payload('UA')));
     await expect(
@@ -175,11 +199,12 @@ describe('Google Places country-aware addresses', () => {
       }),
     ).rejects.toThrow(BadRequestException);
   });
-  it('rejects mismatched IDs and malformed detail components', async () => {
+  it('rejects missing IDs and malformed detail components', async () => {
     const fetch = jest.spyOn(global, 'fetch');
     const provider = new GooglePlacesProvider(new ConfigService(config));
     for (const body of [
-      { ...payload(), id: 'other' },
+      { ...payload(), id: undefined },
+      { ...payload(), id: '   ' },
       { ...payload(), addressComponents: [{}] },
     ]) {
       fetch.mockResolvedValueOnce(response(body));

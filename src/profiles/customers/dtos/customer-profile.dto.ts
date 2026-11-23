@@ -20,6 +20,7 @@ export class CustomerProfileDto {
     warehouseId: number;
     label?: string | null;
     isDefault: boolean;
+    archivedAt?: Date | null;
     note?: string | null;
     recipientName?: string | null;
     recipientPhone?: string | null;

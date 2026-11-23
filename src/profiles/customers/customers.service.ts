@@ -1,3 +1,4 @@
+import { lockNovaPostCustomer } from './nova-post-lifecycle';
 import {
   addressStreet,
   validateAddressMetadata,
@@ -32,6 +33,8 @@ import {
 import { SupabaseService } from 'src/supabase/supabase.service';
 import {
   CreateCustomerNovaPostAddressDto,
+  ReplaceCustomerNovaPostAddressDto,
+  normalizeNovaPostLabel,
   UpdateCustomerNovaPostAddressDto,
 } from './dtos/customer-nova-post-address.dto';
 
@@ -42,6 +45,7 @@ const addressInclude = {
     orderBy: [{ isPrimary: 'desc' as const }, { id: 'asc' as const }],
   },
   novaPostAddresses: {
+    where: { archivedAt: null },
     include: { warehouse: true },
     orderBy: [{ isDefault: 'desc' as const }, { id: 'asc' as const }],
   },
@@ -299,7 +303,7 @@ export class CustomersService extends BaseTenantService {
                 regularAddress,
                 {
                   novaPostAddresses: {
-                    some: { warehouse: { isActive: true } },
+                    some: { archivedAt: null, warehouse: { isActive: true } },
                   },
                 },
               ],
@@ -1022,7 +1026,7 @@ export class CustomersService extends BaseTenantService {
           orderBy: [{ isPrimary: 'desc' }, { id: 'asc' }],
         },
         novaPostAddresses: {
-          where: { warehouse: { isActive: true } },
+          where: { archivedAt: null, warehouse: { isActive: true } },
           include: { warehouse: true },
           orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
         },
@@ -1041,63 +1045,268 @@ export class CustomersService extends BaseTenantService {
     };
   }
 
+  async getNovaPostAddresses(
+    customerId: number,
+    businessId: number,
+    isArchived = false,
+    currentUser?: UserRequestType,
+  ) {
+    await this.validateBusinessAccess(businessId, currentUser);
+    const customer = await this.prismaService.customerProfile.findFirst({
+      where: { id: customerId, businessId, isDeleted: false },
+      select: { id: true },
+    });
+    if (!customer) throw new NotFoundException('Customer profile not found');
+    return this.prismaService.customerNovaPostAddress.findMany({
+      where: {
+        customerProfileId: customerId,
+        archivedAt: isArchived ? { not: null } : null,
+      },
+      include: { warehouse: true },
+      orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
+    });
+  }
+
+  async archiveNovaPostAddress(
+    customerId: number,
+    addressId: number,
+    businessId: number,
+    replacementDefaultAddressId?: number,
+  ) {
+    await this.validateBusinessAccess(businessId);
+    await this.prismaService.$transaction(async (tx) => {
+      await lockNovaPostCustomer(tx, customerId, businessId);
+      const address = await tx.customerNovaPostAddress.findFirst({
+        where: { id: addressId, customerProfileId: customerId },
+      });
+      if (!address)
+        throw new NotFoundException('Saved Nova Post address not found');
+      if (address.archivedAt) return;
+      if (address.isDefault) {
+        const alternatives = await tx.customerNovaPostAddress.findMany({
+          where: {
+            customerProfileId: customerId,
+            id: { not: addressId },
+            archivedAt: null,
+            warehouse: { isActive: true },
+          },
+        });
+        if (
+          alternatives.length &&
+          !alternatives.some((item) => item.id === replacementDefaultAddressId)
+        ) {
+          throw new BadRequestException({
+            code: 'NOVA_POST_REPLACEMENT_REQUIRED',
+            message: 'Choose an active replacement preferred branch',
+          });
+        }
+        if (
+          replacementDefaultAddressId &&
+          !alternatives.some((item) => item.id === replacementDefaultAddressId)
+        ) {
+          throw new BadRequestException({
+            code: 'NOVA_POST_REPLACEMENT_INVALID',
+            message: 'Replacement branch is not available',
+          });
+        }
+        await tx.customerNovaPostAddress.updateMany({
+          where: { customerProfileId: customerId, isDefault: true },
+          data: { isDefault: false },
+        });
+        if (replacementDefaultAddressId)
+          await tx.customerNovaPostAddress.update({
+            where: { id: replacementDefaultAddressId },
+            data: { isDefault: true },
+          });
+      } else if (replacementDefaultAddressId) {
+        throw new BadRequestException({
+          code: 'NOVA_POST_REPLACEMENT_INVALID',
+          message: 'Only the preferred branch needs a replacement',
+        });
+      }
+      await tx.customerNovaPostAddress.update({
+        where: { id: addressId },
+        data: { archivedAt: new Date(), isDefault: false },
+      });
+    });
+    return this.findOne(customerId, businessId);
+  }
+
+  async restoreNovaPostAddress(
+    customerId: number,
+    addressId: number,
+    businessId: number,
+  ) {
+    await this.validateBusinessAccess(businessId);
+    await this.prismaService.$transaction(async (tx) => {
+      await lockNovaPostCustomer(tx, customerId, businessId);
+      const address = await tx.customerNovaPostAddress.findFirst({
+        where: { id: addressId, customerProfileId: customerId },
+        include: { warehouse: true },
+      });
+      if (!address)
+        throw new NotFoundException('Saved Nova Post address not found');
+      if (!address.archivedAt) return;
+      if (!address.warehouse.isActive)
+        throw new BadRequestException({
+          code: 'NOVA_POST_WAREHOUSE_INACTIVE',
+          message: 'Warehouse is inactive',
+        });
+      const preferred = await tx.customerNovaPostAddress.findFirst({
+        where: {
+          customerProfileId: customerId,
+          archivedAt: null,
+          isDefault: true,
+          warehouse: { isActive: true },
+        },
+      });
+      if (!preferred)
+        await tx.customerNovaPostAddress.updateMany({
+          where: { customerProfileId: customerId, isDefault: true },
+          data: { isDefault: false },
+        });
+      await tx.customerNovaPostAddress.update({
+        where: { id: addressId },
+        data: { archivedAt: null, isDefault: !preferred },
+      });
+    });
+    return this.findOne(customerId, businessId);
+  }
+
   async addNovaPostAddress(
     customerId: number,
     dto: CreateCustomerNovaPostAddressDto,
     businessId: number,
   ): Promise<CustomerProfileDto> {
     await this.validateBusinessAccess(businessId);
-    const [profile, warehouse] = await Promise.all([
-      this.prismaService.customerProfile.findFirst({
-        where: { id: customerId, businessId, isDeleted: false },
-        select: {
-          id: true,
-          _count: { select: { novaPostAddresses: true } },
-          novaPostAddresses: {
-            where: { warehouseId: dto.warehouseId },
-            select: { id: true },
-          },
-        },
-      }),
-      this.prismaService.novaPostWarehouse.findFirst({
+    await this.prismaService.$transaction(async (tx) => {
+      await lockNovaPostCustomer(tx, customerId, businessId);
+      const warehouse = await tx.novaPostWarehouse.findFirst({
         where: { id: dto.warehouseId, isActive: true },
         select: { id: true },
-      }),
-    ]);
-    if (!profile) throw new NotFoundException('Customer profile not found');
-    if (!warehouse) {
-      throw new BadRequestException(
-        'Nova Post warehouse is inactive or invalid',
-      );
-    }
-    if (profile.novaPostAddresses.length > 0) {
-      throw new ConflictException(
-        'This Nova Post warehouse is already saved for the customer',
-      );
-    }
-
-    const makeDefault =
-      profile._count.novaPostAddresses === 0 || dto.isDefault === true;
-    await this.prismaService.$transaction(async (prisma) => {
-      if (makeDefault) {
-        await prisma.customerNovaPostAddress.updateMany({
+      });
+      if (!warehouse)
+        throw new BadRequestException({
+          code: 'NOVA_POST_WAREHOUSE_INACTIVE',
+          message: 'Warehouse is inactive or invalid',
+        });
+      const existing = await tx.customerNovaPostAddress.findUnique({
+        where: {
+          customerProfileId_warehouseId: {
+            customerProfileId: customerId,
+            warehouseId: dto.warehouseId,
+          },
+        },
+      });
+      if (existing)
+        throw new ConflictException({
+          code: existing.archivedAt
+            ? 'NOVA_POST_ADDRESS_ARCHIVED'
+            : 'NOVA_POST_ADDRESS_DUPLICATE',
+          savedAddressId: existing.id,
+          message: 'This warehouse is already saved for the customer',
+        });
+      const preferred = await tx.customerNovaPostAddress.findFirst({
+        where: {
+          customerProfileId: customerId,
+          archivedAt: null,
+          isDefault: true,
+          warehouse: { isActive: true },
+        },
+      });
+      const makeDefault = !preferred || dto.isDefault === true;
+      if (makeDefault)
+        await tx.customerNovaPostAddress.updateMany({
           where: { customerProfileId: customerId, isDefault: true },
           data: { isDefault: false },
         });
-      }
-      await prisma.customerNovaPostAddress.create({
-        data: {
-          customerProfileId: customerId,
-          warehouseId: dto.warehouseId,
-          label: dto.label,
-          note: dto.note,
-          recipientName: dto.recipientName,
-          recipientPhone: dto.recipientPhone,
-          isDefault: makeDefault,
-        },
+      await tx.customerNovaPostAddress.create({
+        data: { ...dto, customerProfileId: customerId, isDefault: makeDefault },
       });
     });
     return this.findOne(customerId, businessId);
+  }
+
+  async replaceNovaPostAddress(
+    customerId: number,
+    addressId: number,
+    dto: ReplaceCustomerNovaPostAddressDto,
+    businessId: number,
+  ): Promise<{ customer: CustomerProfileDto; replacementAddressId: number }> {
+    await this.validateBusinessAccess(businessId);
+    const replacementAddressId = await this.prismaService.$transaction(
+      async (tx) => {
+        await lockNovaPostCustomer(tx, customerId, businessId);
+        const source = await tx.customerNovaPostAddress.findFirst({
+          where: { id: addressId, customerProfileId: customerId },
+        });
+        if (!source)
+          throw new NotFoundException('Saved Nova Post address not found');
+        if (source.archivedAt)
+          throw new ConflictException({
+            code: 'NOVA_POST_SOURCE_ARCHIVED',
+            message:
+              'Source address has already been archived. Refresh before replacing it.',
+          });
+        if (source.warehouseId === dto.warehouseId)
+          throw new BadRequestException({
+            code: 'NOVA_POST_REPLACEMENT_SAME',
+            message: 'Choose a different warehouse',
+          });
+        const warehouse = await tx.novaPostWarehouse.findFirst({
+          where: { id: dto.warehouseId, isActive: true },
+          select: { id: true },
+        });
+        if (!warehouse)
+          throw new BadRequestException({
+            code: 'NOVA_POST_WAREHOUSE_INACTIVE',
+            message: 'Replacement warehouse is inactive or invalid',
+          });
+        let target = await tx.customerNovaPostAddress.findUnique({
+          where: {
+            customerProfileId_warehouseId: {
+              customerProfileId: customerId,
+              warehouseId: dto.warehouseId,
+            },
+          },
+        });
+        if (target?.archivedAt)
+          throw new ConflictException({
+            code: 'NOVA_POST_ADDRESS_ARCHIVED',
+            savedAddressId: target.id,
+            message:
+              'Restore the archived target before replacing this address',
+          });
+        if (!target)
+          target = await tx.customerNovaPostAddress.create({
+            data: {
+              customerProfileId: customerId,
+              warehouseId: dto.warehouseId,
+              label: normalizeNovaPostLabel(dto.label) ?? null,
+              isDefault: false,
+            },
+          });
+        if (source.isDefault) {
+          await tx.customerNovaPostAddress.updateMany({
+            where: { customerProfileId: customerId, isDefault: true },
+            data: { isDefault: false },
+          });
+          await tx.customerNovaPostAddress.update({
+            where: { id: target.id },
+            data: { isDefault: true },
+          });
+        }
+        await tx.customerNovaPostAddress.update({
+          where: { id: source.id },
+          data: { archivedAt: new Date(), isDefault: false },
+        });
+        return target.id;
+      },
+    );
+    return {
+      customer: await this.findOne(customerId, businessId),
+      replacementAddressId,
+    };
   }
 
   async updateNovaPostAddress(
@@ -1109,7 +1318,14 @@ export class CustomersService extends BaseTenantService {
     await this.validateNovaPostAddress(customerId, addressId, businessId);
     await this.prismaService.customerNovaPostAddress.update({
       where: { id: addressId },
-      data: dto,
+      data: {
+        note: dto.note,
+        recipientName: dto.recipientName,
+        recipientPhone: dto.recipientPhone,
+        ...(dto.label !== undefined
+          ? { label: normalizeNovaPostLabel(dto.label) }
+          : {}),
+      },
     });
     return this.findOne(customerId, businessId);
   }
@@ -1119,14 +1335,28 @@ export class CustomersService extends BaseTenantService {
     addressId: number,
     businessId: number,
   ): Promise<CustomerProfileDto> {
-    await this.validateNovaPostAddress(customerId, addressId, businessId, true);
-    await this.prismaService.$transaction(async (prisma) => {
-      await prisma.customerNovaPostAddress.updateMany({
+    await this.validateBusinessAccess(businessId);
+    await this.prismaService.$transaction(async (tx) => {
+      await lockNovaPostCustomer(tx, customerId, businessId);
+      const address = await tx.customerNovaPostAddress.findFirst({
+        where: {
+          id: addressId,
+          customerProfileId: customerId,
+          archivedAt: null,
+          warehouse: { isActive: true },
+        },
+      });
+      if (!address)
+        throw new BadRequestException({
+          code: 'NOVA_POST_ADDRESS_UNAVAILABLE',
+          message: 'Preferred branch must be active and not archived',
+        });
+      await tx.customerNovaPostAddress.updateMany({
         where: { customerProfileId: customerId, isDefault: true },
         data: { isDefault: false },
       });
-      await prisma.customerNovaPostAddress.update({
-        where: { id: addressId, customerProfileId: customerId },
+      await tx.customerNovaPostAddress.update({
+        where: { id: addressId },
         data: { isDefault: true },
       });
     });
@@ -1144,10 +1374,13 @@ export class CustomersService extends BaseTenantService {
       businessId,
     );
     if (address._count.destinationParcels + address._count.originParcels > 0) {
-      throw new ConflictException('This saved address is used by a parcel');
+      throw new ConflictException({
+        code: 'NOVA_POST_ADDRESS_IN_USE',
+        message: 'Archive this saved address to preserve its parcel history',
+      });
     }
     const count = await this.prismaService.customerNovaPostAddress.count({
-      where: { customerProfileId: customerId },
+      where: { customerProfileId: customerId, archivedAt: null },
     });
     if (address.isDefault && count > 1) {
       throw new BadRequestException(

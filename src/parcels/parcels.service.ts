@@ -1,3 +1,4 @@
+import { lockNovaPostCustomer } from 'src/profiles/customers/nova-post-lifecycle';
 import {
   isNovaPostDestination,
   parcelActiveStages,
@@ -1538,6 +1539,18 @@ export class ParcelsService extends BaseTenantService {
           senderId,
           recipientId,
         );
+        const novaCustomerIds = [
+          ...new Set([
+            ...(origin.type === ParcelDestinationType.NovaPostWarehouse
+              ? [senderId]
+              : []),
+            ...(destination.type === ParcelDestinationType.NovaPostWarehouse
+              ? [recipientId]
+              : []),
+          ]),
+        ].sort((a, b) => a - b);
+        for (const customerId of novaCustomerIds)
+          await lockNovaPostCustomer(tx, customerId, user.businessId);
         const originLocation = await this.resolveParcelLocation(
           tx,
           origin,
@@ -2144,6 +2157,12 @@ export class ParcelsService extends BaseTenantService {
           },
         })
       : null;
+    if (savedAddress?.archivedAt)
+      throw new BadRequestException({
+        code: 'NOVA_POST_ADDRESS_ARCHIVED',
+        savedAddressId: savedAddress.id,
+        message: 'Archived saved addresses cannot be selected for a new parcel',
+      });
     if (location.customerNovaPostAddressId && !savedAddress) {
       throw new BadRequestException(
         'Saved Nova Post address must belong to the selected customer and warehouse',
@@ -2151,9 +2170,34 @@ export class ParcelsService extends BaseTenantService {
     }
 
     if (location.saveToCustomerProfile) {
-      const savedCount = await tx.customerNovaPostAddress.count({
-        where: { customerProfileId: customerId },
+      const existing = await tx.customerNovaPostAddress.findUnique({
+        where: {
+          customerProfileId_warehouseId: {
+            customerProfileId: customerId,
+            warehouseId: warehouse.id,
+          },
+        },
       });
+      if (existing?.archivedAt)
+        throw new ConflictException({
+          code: 'NOVA_POST_ADDRESS_ARCHIVED',
+          savedAddressId: existing.id,
+          message:
+            'Restore this saved address before selecting it for a new parcel',
+        });
+      const preferred = await tx.customerNovaPostAddress.findFirst({
+        where: {
+          customerProfileId: customerId,
+          archivedAt: null,
+          isDefault: true,
+          warehouse: { isActive: true },
+        },
+      });
+      if (!preferred)
+        await tx.customerNovaPostAddress.updateMany({
+          where: { customerProfileId: customerId, isDefault: true },
+          data: { isDefault: false },
+        });
       savedAddress = await tx.customerNovaPostAddress.upsert({
         where: {
           customerProfileId_warehouseId: {
@@ -2164,9 +2208,9 @@ export class ParcelsService extends BaseTenantService {
         create: {
           customerProfileId: customerId,
           warehouseId: warehouse.id,
-          isDefault: savedCount === 0,
+          isDefault: !preferred,
         },
-        update: {},
+        update: !preferred ? { isDefault: true } : {},
       });
     }
 

@@ -111,7 +111,7 @@ export class GooglePlacesProvider implements AddressProvider {
     if (
       !isObject(payload) ||
       !Array.isArray(payload.addressComponents) ||
-      text(payload.id) !== id
+      !text(payload.id)
     ) {
       throw new BadGatewayException(
         'Address provider returned an invalid response',
@@ -143,7 +143,8 @@ export class GooglePlacesProvider implements AddressProvider {
       : [];
     const metadata = {
       provider: 'google-places' as const,
-      providerRef: id,
+      // Google may resolve an autocomplete ID to a different canonical Place ID.
+      providerRef: text(payload.id)!,
       attributions: attributions.flatMap((item) => {
         if (!isObject(item) || !text(item.provider) || !text(item.providerUri))
           return [];

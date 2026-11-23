@@ -15,13 +15,13 @@ model User {
   lastName  String?
   email     String
 
-  type         UserType @default(Member)
-  isBlocked    Boolean  @default(false)
-  isAdmin      Boolean  @default(false)
-  isSuperAdmin Boolean  @default(false)
-  isDeleted    Boolean  @default(false)
+  type                UserType            @default(Member)
+  isBlocked           Boolean             @default(false)
+  isAdmin             Boolean             @default(false)
+  isSuperAdmin        Boolean             @default(false)
+  isDeleted           Boolean             @default(false)
   staffApprovalStatus StaffApprovalStatus @default(Approved)
-  staffApprovedAt DateTime?
+  staffApprovedAt     DateTime?
 
   gender      Gender?
   dateOfBirth DateTime?
@@ -456,6 +456,7 @@ model NovaPostWarehouse {
 }
 
 model CustomerNovaPostAddress {
+  archivedAt         DateTime?
   id                 Int               @id @default(autoincrement())
   customerProfileId  Int
   warehouseId        Int
@@ -475,6 +476,7 @@ model CustomerNovaPostAddress {
   @@index([customerProfileId])
   @@index([warehouseId])
   @@index([customerProfileId, isDefault])
+  @@index([customerProfileId, archivedAt, isDefault], map: "customer_nova_post_lifecycle_idx")
 }
 
 model CourierJourney {
