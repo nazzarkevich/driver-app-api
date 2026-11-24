@@ -41,6 +41,7 @@ export class ParcelDto {
   paymentReconciliationState: PaymentReconciliationState;
   collectedAmount: string | null;
   outstandingAmount: string | null;
+  pickedUpByUserId?: number | null;
   pickedUpByCourierId?: number | null;
   pickedUpByDriverId?: number | null;
   pickedUpAt?: Date | null;
@@ -194,7 +195,14 @@ export class ParcelDto {
 
     const pickedUpByCourier = partial?.pickedUpByCourier as any;
     const pickedUpByDriver = partial?.pickedUpByDriver as any;
-    if (pickedUpByCourier?.user) {
+    if (partial?.pickedUpByUser) {
+      const person = partial.pickedUpByUser as any;
+      this.pickedUpBy = {
+        id: person.id,
+        firstName: person.firstName,
+        lastName: person.lastName,
+      };
+    } else if (pickedUpByCourier?.user) {
       this.pickedUpBy = {
         id: pickedUpByCourier.user.id,
         firstName: pickedUpByCourier.user.firstName,

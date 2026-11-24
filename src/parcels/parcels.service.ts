@@ -1,3 +1,9 @@
+import {
+  canAssignParcelPickup,
+  pickupCollectorWhere,
+  resolveParcelPickup,
+  pickupStatusAfterRecording,
+} from './pickup-recording';
 import { lockNovaPostCustomer } from 'src/profiles/customers/nova-post-lifecycle';
 import {
   isNovaPostDestination,
@@ -104,6 +110,7 @@ const parcelDestinationInclude = {
   novaPostWarehouse: true,
   originCustomerNovaPostAddress: { include: { warehouse: true } },
   originNovaPostWarehouse: true,
+  pickedUpByUser: { select: { id: true, firstName: true, lastName: true } },
   pickedUpByCourier: { include: { user: true } },
   pickedUpByDriver: { include: { user: true } },
   deliveredByCourier: { include: { user: true } },
@@ -146,6 +153,41 @@ export class ParcelsService extends BaseTenantService {
     super(prismaService);
   }
 
+  async pickupCollectors(
+    actor: UserRequestType,
+    businessId: number,
+    search?: string,
+  ) {
+    await this.validateBusinessAccess(businessId, actor);
+    if (!canAssignParcelPickup(actor))
+      throw new ForbiddenException(
+        'Only operational staff may select pickup collectors',
+      );
+    const users = await this.prismaService.user.findMany({
+      where: pickupCollectorWhere(businessId, search),
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        type: true,
+        driverProfile: { select: { id: true } },
+        courierProfile: { select: { id: true } },
+      },
+      orderBy: [{ lastName: 'asc' }, { id: 'asc' }],
+      take: 50,
+    });
+    return users.map((user) => ({
+      type: user.type === UserType.InternationalDriver ? 'Driver' : 'Courier',
+      profileId:
+        user.type === UserType.InternationalDriver
+          ? user.driverProfile.id
+          : user.courierProfile.id,
+      userId: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    }));
+  }
+
   async createParcel(
     user: UserRequestType,
     body: CreateParcelDto,
@@ -162,6 +204,7 @@ export class ParcelsService extends BaseTenantService {
         parcels: [
           {
             weight: body.weight,
+            pickup: body.pickup,
             parcelMoneyAmount: body.parcelMoneyAmount,
             parcelType: body.parcelType,
             initialDeliveryStatus: body.initialDeliveryStatus,
@@ -1641,6 +1684,7 @@ export class ParcelsService extends BaseTenantService {
           selectedJourneyStatus = journey.status;
         }
 
+        const pickupRecordedAt = new Date();
         for (const parcelItem of parcels) {
           const requestedInitialDeliveryStatus =
             parcelItem.initialDeliveryStatus ??
@@ -1661,7 +1705,9 @@ export class ParcelsService extends BaseTenantService {
           if (
             requestedInitialDeliveryStatus === DeliveryStatus.PickedUp &&
             !pickupProfile.driverId &&
-            !pickupProfile.courierId
+            !pickupProfile.courierId &&
+            !parcelItem.pickup &&
+            !canAssignParcelPickup(user)
           ) {
             throw new ForbiddenException(
               'Only drivers and couriers can create a parcel as picked up',
@@ -1671,6 +1717,24 @@ export class ParcelsService extends BaseTenantService {
             selectedJourneyStatus === JourneyStatus.InTransit
               ? DeliveryStatus.InTransit
               : requestedInitialDeliveryStatus;
+          if (
+            parcelItem.pickup &&
+            initialDeliveryStatus === DeliveryStatus.AwaitingPickup
+          ) {
+            throw new BadRequestException({
+              code: 'PICKUP_INCOMPATIBLE_STATUS',
+              message:
+                'An awaiting-pickup parcel cannot have completed pickup details',
+            });
+          }
+          const recordedPickup = await resolveParcelPickup(
+            tx,
+            user,
+            parcelItem.pickup,
+            initialDeliveryStatus !== DeliveryStatus.AwaitingPickup,
+            pickupProfile,
+            pickupRecordedAt,
+          );
           if (parcelItem.paymentCollection && parcelItem.cashCollection) {
             throw new BadRequestException(
               'Use paymentCollection or cashCollection, not both',
@@ -1776,18 +1840,10 @@ export class ParcelsService extends BaseTenantService {
               ...this.toOriginData(originLocation),
               ...this.toDestinationData(destinationLocation),
               journeyId,
-              pickedUpByDriverId:
-                initialDeliveryStatus === DeliveryStatus.PickedUp
-                  ? pickupProfile.driverId
-                  : undefined,
-              pickedUpByCourierId:
-                initialDeliveryStatus === DeliveryStatus.PickedUp
-                  ? pickupProfile.courierId
-                  : undefined,
-              pickedUpAt:
-                initialDeliveryStatus === DeliveryStatus.PickedUp
-                  ? new Date()
-                  : undefined,
+              pickedUpByUserId: recordedPickup?.userId ?? null,
+              pickedUpByDriverId: recordedPickup?.driverId ?? null,
+              pickedUpByCourierId: recordedPickup?.courierId ?? null,
+              pickedUpAt: recordedPickup?.pickedUpAt ?? null,
               deliveryStatus: initialDeliveryStatus,
               businessId: user.businessId,
               trackingNumber,
@@ -1914,6 +1970,26 @@ export class ParcelsService extends BaseTenantService {
             ),
           });
 
+          if (recordedPickup) {
+            await tx.auditLog.create({
+              data: parcelEvent(
+                parcel.id,
+                user.businessId,
+                user.id,
+                AuditAction.UPDATE,
+                'ParcelPickedUp',
+                'Recorded pickup during parcel creation',
+                {
+                  pickedUpByUserId: recordedPickup.userId,
+                  pickedUpByDriverId: recordedPickup.driverId ?? null,
+                  pickedUpByCourierId: recordedPickup.courierId ?? null,
+                  pickedUpAt: recordedPickup.pickedUpAt.toISOString(),
+                  deliveryStatus: initialDeliveryStatus,
+                },
+              ),
+            });
+          }
+
           if (selectedJourneyStatus === JourneyStatus.InTransit) {
             await tx.auditLog.create({
               data: parcelEvent(
@@ -1979,7 +2055,9 @@ export class ParcelsService extends BaseTenantService {
           groupId,
           shipmentId,
           journeyId,
+          pickedUpByUserId: result.parcels[0]?.pickedUpByUserId,
           pickedUpByDriverId: result.parcels[0]?.pickedUpByDriverId,
+          pickedUpByCourierId: result.parcels[0]?.pickedUpByCourierId,
           pickedUpAt: result.parcels[0]?.pickedUpAt,
         },
       });
@@ -2379,30 +2457,102 @@ export class ParcelsService extends BaseTenantService {
     await this.validateBusinessAccess(businessId);
     const profile = await this.resolveUserProfile(userId, businessId);
 
-    const parcels = await this.prismaService.$transaction(async (tx) => {
-      const selectedParcel = await tx.parcel.findFirst({
-        where: { id: parcelId, businessId, isDeleted: false },
-        select: { id: true, groupId: true, journeyId: true },
-      });
-      if (!selectedParcel) {
-        throw new NotFoundException('Parcel not found');
-      }
+    const parcels = await this.prismaService.$transaction(
+      async (tx) => {
+        const selectedParcel = await tx.parcel.findFirst({
+          where: { id: parcelId, businessId, isDeleted: false },
+          select: { id: true, groupId: true, journeyId: true },
+        });
+        if (!selectedParcel) {
+          throw new NotFoundException('Parcel not found');
+        }
 
-      const where = selectedParcel.groupId
-        ? {
-            businessId,
-            groupId: selectedParcel.groupId,
-            journeyId: selectedParcel.journeyId,
-            isDeleted: false,
-          }
-        : { businessId, id: selectedParcel.id, isDeleted: false };
-      const group = await tx.parcel.findMany({ where });
-      const isSameHandler = (parcel: (typeof group)[number]) =>
-        parcel.pickedUpAt != null &&
-        parcel.pickedUpByCourierId === (profile.courierId ?? null) &&
-        parcel.pickedUpByDriverId === (profile.driverId ?? null);
+        const where = selectedParcel.groupId
+          ? {
+              businessId,
+              groupId: selectedParcel.groupId,
+              journeyId: selectedParcel.journeyId,
+              isDeleted: false,
+            }
+          : { businessId, id: selectedParcel.id, isDeleted: false };
+        const group = await tx.parcel.findMany({ where });
+        const isSameHandler = (parcel: (typeof group)[number]) =>
+          parcel.pickedUpAt != null &&
+          (parcel.pickedUpByUserId != null
+            ? parcel.pickedUpByUserId === userId
+            : parcel.pickedUpByCourierId === (profile.courierId ?? null) &&
+              parcel.pickedUpByDriverId === (profile.driverId ?? null));
 
-      if (group.every(isSameHandler)) {
+        if (group.every(isSameHandler)) {
+          return tx.parcel.findMany({
+            where,
+            include: {
+              sender: true,
+              recipient: true,
+              originAddress: { include: { country: true } },
+              ...parcelDestinationInclude,
+              pickedUpByCourier: { include: { user: true } },
+              pickedUpByDriver: { include: { user: true } },
+            },
+            orderBy: { id: 'asc' },
+          });
+        }
+
+        if (
+          group.some((parcel) => parcel.pickedUpAt && !isSameHandler(parcel))
+        ) {
+          throw new ConflictException(
+            'Parcel group has already been picked up by another handler',
+          );
+        }
+
+        const terminalStatuses: DeliveryStatus[] = [
+          DeliveryStatus.Delivered,
+          DeliveryStatus.Cancelled,
+          DeliveryStatus.Returned,
+          DeliveryStatus.Lost,
+        ];
+        if (
+          group.some((parcel) =>
+            terminalStatuses.includes(parcel.deliveryStatus),
+          )
+        ) {
+          throw new ConflictException('Terminal parcels cannot be picked up');
+        }
+
+        const pickedUpAt =
+          group.find((parcel) => isSameHandler(parcel))?.pickedUpAt ??
+          new Date();
+        await tx.parcel.updateMany({
+          where,
+          data: {
+            pickedUpByUserId: userId,
+            pickedUpByCourierId: profile.courierId ?? null,
+            pickedUpByDriverId: profile.driverId ?? null,
+            pickedUpAt,
+          },
+        });
+        await tx.parcel.updateMany({
+          where: { ...where, deliveryStatus: DeliveryStatus.AwaitingPickup },
+          data: {
+            deliveryStatus: pickupStatusAfterRecording(
+              DeliveryStatus.AwaitingPickup,
+            ),
+          },
+        });
+        await tx.auditLog.createMany({
+          data: group.map((parcel) =>
+            parcelEvent(
+              parcel.id,
+              businessId,
+              userId,
+              AuditAction.UPDATE,
+              'ParcelPickedUp',
+              'Marked parcel as picked up',
+            ),
+          ),
+        });
+
         return tx.parcel.findMany({
           where,
           include: {
@@ -2415,63 +2565,9 @@ export class ParcelsService extends BaseTenantService {
           },
           orderBy: { id: 'asc' },
         });
-      }
-
-      if (group.some((parcel) => parcel.pickedUpAt && !isSameHandler(parcel))) {
-        throw new ConflictException(
-          'Parcel group has already been picked up by another handler',
-        );
-      }
-
-      const terminalStatuses: DeliveryStatus[] = [
-        DeliveryStatus.Delivered,
-        DeliveryStatus.Cancelled,
-        DeliveryStatus.Returned,
-        DeliveryStatus.Lost,
-      ];
-      if (
-        group.some((parcel) => terminalStatuses.includes(parcel.deliveryStatus))
-      ) {
-        throw new ConflictException('Terminal parcels cannot be picked up');
-      }
-
-      const pickedUpAt =
-        group.find((parcel) => isSameHandler(parcel))?.pickedUpAt ?? new Date();
-      await tx.parcel.updateMany({
-        where,
-        data: {
-          pickedUpByCourierId: profile.courierId ?? null,
-          pickedUpByDriverId: profile.driverId ?? null,
-          pickedUpAt,
-          deliveryStatus: DeliveryStatus.PickedUp,
-        },
-      });
-      await tx.auditLog.createMany({
-        data: group.map((parcel) =>
-          parcelEvent(
-            parcel.id,
-            businessId,
-            userId,
-            AuditAction.UPDATE,
-            'ParcelPickedUp',
-            'Marked parcel as picked up',
-          ),
-        ),
-      });
-
-      return tx.parcel.findMany({
-        where,
-        include: {
-          sender: true,
-          recipient: true,
-          originAddress: { include: { country: true } },
-          ...parcelDestinationInclude,
-          pickedUpByCourier: { include: { user: true } },
-          pickedUpByDriver: { include: { user: true } },
-        },
-        orderBy: { id: 'asc' },
-      });
-    });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     await this.auditService.log({
       userId,
@@ -2817,8 +2913,9 @@ export class ParcelsService extends BaseTenantService {
         deliveryStatus: body.toStatus,
         isLost: body.toStatus === DeliveryStatus.Lost,
       };
-      if (body.toStatus === DeliveryStatus.PickedUp) {
+      if (body.toStatus === DeliveryStatus.PickedUp && !parcel.pickedUpAt) {
         statusData.pickedUpAt = now;
+        statusData.pickedUpByUserId = user.id;
         if (profile.driverId) {
           statusData.pickedUpByDriverId = profile.driverId;
         }
@@ -2955,6 +3052,7 @@ export class ParcelsService extends BaseTenantService {
       };
       if (previous.toStatus === DeliveryStatus.PickedUp) {
         data.pickedUpAt = null;
+        data.pickedUpByUserId = null;
         data.pickedUpByDriverId = null;
         data.pickedUpByCourierId = null;
       }
@@ -3090,6 +3188,7 @@ export class ParcelsService extends BaseTenantService {
       };
       if (!pickupStatuses.includes(body.toStatus)) {
         data.pickedUpAt = null;
+        data.pickedUpByUserId = null;
         data.pickedUpByDriverId = null;
         data.pickedUpByCourierId = null;
       } else if (!parcel.pickedUpAt) {

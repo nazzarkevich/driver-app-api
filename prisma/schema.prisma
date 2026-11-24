@@ -44,6 +44,8 @@ model User {
   parcelPriceChanges      ParcelPrice[]        @relation("ParcelPriceChangedBy")
   closedJourneys          Journey[]            @relation("JourneyClosedBy")
 
+  pickedUpParcels Parcel[] @relation("PickedUpByUser")
+
   courierProfile CourierProfile?
   driverProfile  DriverProfile?
 
@@ -296,6 +298,7 @@ model Parcel {
   paymentCurrency                 String?
   paymentReconciliationState      PaymentReconciliationState @default(Reconciled)
   paidBy                          PaymentParty               @default(Sender)
+  pickedUpByUserId                Int?
   pickedUpByCourierId             Int?
   pickedUpByDriverId              Int?
   pickedUpAt                      DateTime?
@@ -343,6 +346,7 @@ model Parcel {
   originNovaPostWarehouse         NovaPostWarehouse?         @relation("OriginNovaPostWarehouse", fields: [originNovaPostWarehouseId], references: [id], onDelete: Restrict)
   recipient                       CustomerProfile            @relation("receivedParcels", fields: [recipientId], references: [id])
   sender                          CustomerProfile            @relation("sentParcels", fields: [senderId], references: [id])
+  pickedUpByUser                  User?                      @relation("PickedUpByUser", fields: [pickedUpByUserId], references: [id], onDelete: Restrict)
   pickedUpByCourier               CourierProfile?            @relation("PickedUpByCourier", fields: [pickedUpByCourierId], references: [id])
   pickedUpByDriver                DriverProfile?             @relation("PickedUpByDriver", fields: [pickedUpByDriverId], references: [id])
   deliveredByCourier              CourierProfile?            @relation("DeliveredByCourier", fields: [deliveredByCourierId], references: [id])
@@ -374,6 +378,7 @@ model Parcel {
   @@index([deliveryStatus])
   @@index([paymentStatus])
   @@index([createdAt])
+  @@index([pickedUpByUserId])
   @@index([pickedUpByCourierId])
   @@index([pickedUpByDriverId])
   @@index([deliveredByCourierId])

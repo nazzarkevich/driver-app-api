@@ -80,6 +80,20 @@ export class ParcelsController {
     return parcel;
   }
 
+  @Get('pickup-collectors')
+  @Permissions(Permission.PARCEL_CREATE)
+  async pickupCollectors(
+    @CurrentUser() actor: UserRequestType,
+    @Query('businessId') requested?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.parcelsService.pickupCollectors(
+      actor,
+      resolveBusinessScope(actor, requested),
+      search,
+    );
+  }
+
   @Post()
   @Permissions(Permission.PARCEL_CREATE)
   async createParcel(

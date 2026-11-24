@@ -1,3 +1,4 @@
+import { ParcelPickupDto } from './parcel-pickup.dto';
 import { DeliveryStatus, ParcelType, PaymentParty } from '@prisma/client';
 import {
   IsOptional,
@@ -16,6 +17,11 @@ import { Type } from 'class-transformer';
 import { CashCollectionDto } from './cash-collection.dto';
 
 export class ParcelItemDto {
+  @ValidateNested()
+  @Type(() => ParcelPickupDto)
+  @IsOptional()
+  pickup?: ParcelPickupDto;
+
   @IsNumber()
   @Min(0.001)
   @IsNotEmpty()
